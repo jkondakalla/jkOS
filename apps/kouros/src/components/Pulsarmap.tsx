@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { fetchPulsarmap, type Pulsarmap as PulsarmapData } from '../api';
 import RidgeStage from './ridges3d/RidgeStage';
+import type { DetailName } from './ridges3d/stage';
 import { hasWebGL2 } from '@jkos/scene/gl';
 import {
   decodeMesh, rowPitch, rowPoints, scrollRow, stripBaseline, stripWindow, toRows,
@@ -99,7 +100,7 @@ function mix(a: string, b: string, t: number): string {
 }
 
 export default function Pulsarmap({
-  trackId, position, livePosition, playing, className,
+  trackId, position, livePosition, playing, detail, className,
 }: {
   trackId: number | null;
   /** Seconds into the track, from the player engine — which reads it off the
@@ -111,6 +112,9 @@ export default function Pulsarmap({
    *  every frame of a playing track, so ~10.8 rows a second flow rather than jump. */
   livePosition?: () => number;
   playing?: boolean;
+  /** The 3-D picture's detail — `low` (default) is the polygonal one, `high` the smooth
+   *  terrain (ridges3d/stage.ts `DETAIL`). The 2-D fallback draws every band either way. */
+  detail?: DetailName;
   className?: string;
 }) {
   const [data, setData] = useState<PulsarmapData | null>(null);
@@ -254,6 +258,7 @@ export default function Pulsarmap({
           position={position}
           livePosition={livePosition}
           playing={playing}
+          detail={detail}
           onUnsupported={() => setUse3d(false)}
         />
       </div>

@@ -17,10 +17,11 @@ import type { MapRegion, VibeMap, VibePoint } from '../api';
 
 /** The pulsarmap reads the engine itself: it positions every FRAME from the media
  *  element's own clock (livePosition), which no slice — data — could carry. */
-function PulsarmapKind() {
+function PulsarmapKind({ node }: { node: NodeOf<'pulsarmap'> }) {
   const p = usePlayer();
   if (!p.track) return null;
-  return <Pulsarmap trackId={p.track.id} position={p.globalPos} livePosition={p.livePosition} playing={p.playing} />;
+  return <Pulsarmap trackId={p.track.id} position={p.globalPos} livePosition={p.livePosition} playing={p.playing}
+                    detail={node.detail} />;
 }
 
 /** The labelled region nearest a point, in the map's own display space. */

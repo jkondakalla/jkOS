@@ -224,7 +224,7 @@ const stage = await importTs('apps/kouros/src/components/ridges3d/stage.ts', 'st
 const {
   cellOf, liveWindow, lineOf, liveValue, bandCurve, rowCurve, rowsNeeded, slotOf, segmentsOf, columnsOf,
   followPose, rowZ, rowHeight, rampOf, ORBIT, AMPLITUDE, VISIBLE_ROWS, RING, SUBDIVISIONS, COLUMN_EVERY,
-  LOOK_BEHIND, MIN_PITCH, MAX_PITCH, MAX_YAW, FOG_FAR, PITCH,
+  LOOK_BEHIND, MIN_PITCH, MAX_PITCH, MAX_YAW, FOG_FAR, PITCH, DETAIL, shapeMesh, columnBands,
 } = stage;
 const glSrc = readFileSync(resolve(root, 'apps/kouros/src/components/ridges3d/gl.ts'), 'utf8');
 
@@ -264,9 +264,17 @@ const glSrc = readFileSync(resolve(root, 'apps/kouros/src/components/ridges3d/gl
   check(/texelFetch\(u_curves, texel, 0\)\.r \* AMPLITUDE;/.test(heightFn) && !/\b(max|min|clamp)\(/.test(heightFn)
         && !/u_(max|min|peak|gain|scale)/i.test(shader),
     'shader: a height is the row\'s curve over the fixed span × AMPLITUDE — no max/min/gain, nothing per track');
-  check(/const float X_WARP = \$\{X_WARP\.toFixed\(6\)\};/.test(src) && /pow\([^;]*, X_WARP\)/.test(shader)
-        && /import \{[^}]*\bX_WARP\b[^}]*\} from '\.\.\/pulsarmap'/.test(src),
-    'shader: x is the warped band axis, its exponent pasted in from pulsarmap.ts — one band axis for 2-D and 3-D');
+  // The warp is the shaped mesh's: pulsarmap.ts X_WARP over every band, or 1 when the
+  // low-poly columns were already placed along the warped axis (held below).
+  check(/float x = -HALF_WIDTH \+ 2\.0 \* HALF_WIDTH \* pow\(u, u_warp\);/.test(shader)
+        && /gl\.uniform1f\(u\.u_warp, mesh\.warp\);/.test(src)
+        && /import \{[^}]*\bX_WARP\b[^}]*\} from '\.\.\/pulsarmap'/.test(
+          readFileSync(resolve(root, 'apps/kouros/src/components/ridges3d/stage.ts'), 'utf8'))
+        && shapeMesh(new Uint8Array(4 * 128), 4, 128, ROW_SECONDS, DETAIL.high).warp === X_WARP,
+    'shader: x is the warped band axis, its exponent pulsarmap.ts X_WARP — one band axis for 2-D and 3-D');
+  check(/float u = float\(seg\) \/ float\(\(u_bands - 1\) \* u_sub\);/.test(shader)
+        && /int column = seg \* u_columnEvery \* u_sub;/.test(shader),
+    'shader: segments and grid columns are the detail\'s — the arithmetic segmentsOf / columnsOf mirror');
   check(stage.bandX(0, 128) === -stage.HALF_WIDTH && stage.bandX(127, 128) === stage.HALF_WIDTH
         && stage.bandX(46, 128) === -stage.HALF_WIDTH + 2 * stage.HALF_WIDTH * pm.bandFraction(46, 128),
     'bandX: the 3-D band axis is bandFraction scaled to the world');
@@ -364,6 +372,88 @@ const glSrc = readFileSync(resolve(root, 'apps/kouros/src/components/ridges3d/gl
   // Closer, not shallower (Jag 2026-10-14: "too much dead space between each curve").
   check(PITCH <= 0.085 / 2 && Math.abs(PITCH * VISIBLE_ROWS - 0.085 * 44) < 1e-9,
     'PITCH: the snapshots sit at half the old spacing, and the history still reaches the same depth');
+}
+
+/* ── the low-poly detail ─────────────────────────────────────────────────────
+   Jag 2026-10-14: "too smooth — the goal is a polygonal look. Keep a detailed pulsar
+   map, but give me as low a poly version as possible." The same stored bytes, pooled
+   into a few cells. What could go wrong silently: the `high` detail drifting from the
+   picture it was, a pooled cell that averages a kick drum away, columns that stop
+   sitting on the shared band axis, and a coarser window whose far edge blinks. */
+{
+  const bands = 128, rows = 41;
+  let seed = 11;
+  const rnd = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+  const bytes = Uint8Array.from({ length: rows * bands }, () => Math.floor(rnd() * 200));
+
+  const high = shapeMesh(bytes, rows, bands, ROW_SECONDS, DETAIL.high);
+  check(high.values === bytes && high.rows === rows && high.bands === bands && high.rowSeconds === ROW_SECONDS
+        && high.pitch === PITCH && high.visible === VISIBLE_ROWS
+        && DETAIL.high.subdivisions === SUBDIVISIONS && DETAIL.high.columnEvery === COLUMN_EVERY,
+    'shapeMesh: the detailed picture is the stored mesh itself — every band, every row, splined as before');
+
+  const low = DETAIL.low;
+  const shaped = shapeMesh(bytes, rows, bands, ROW_SECONDS, low);
+  check(shaped.bands === low.columns && shaped.rows === Math.ceil(rows / low.rowsPer)
+        && Math.abs(shaped.rowSeconds - ROW_SECONDS * low.rowsPer) < 1e-12 && shaped.warp === 1
+        && low.subdivisions === 1 && segmentsOf(shaped.bands, low.subdivisions) === low.columns - 1,
+    `shapeMesh: low-poly is ${low.columns} straight-edged columns × a line every ${low.rowsPer} rows — ` +
+    'the row duration it carries is the pooled one, so the reveal is still currentTime / rowSeconds');
+  check(low.columns * Math.ceil(VISIBLE_ROWS / low.rowsPer) * 2 < 1000,
+    'DETAIL.low: under a thousand triangles a frame — as low as still reads as the track');
+
+  // Columns sit evenly along the WARPED axis: every band pools into the column nearest
+  // where bandFraction draws it, the columns cover every band once, in order.
+  const cols = columnBands(bands, low.columns);
+  let covers = cols[0].from === 0 && cols[cols.length - 1].to === bands, nearest = true;
+  for (let c = 0; c < cols.length; c++) {
+    if (!(cols[c].to > cols[c].from) || (c > 0 && cols[c].from !== cols[c - 1].to)) covers = false;
+    for (let b = cols[c].from; b < cols[c].to; b++) {
+      if (Math.abs(pm.bandFraction(b, bands) - c / (low.columns - 1)) > 0.5 / (low.columns - 1) + 1e-12) nearest = false;
+    }
+  }
+  check(covers, 'columnBands: every stored band in exactly one column, in order, none empty');
+  check(nearest, 'columnBands: each band pools into the column nearest where the shared band axis draws it — ' +
+    'so drawn evenly (warp 1) the columns ARE bandFraction');
+  check(columnBands(bands, 100).every((r) => r.to > r.from),
+    'columnBands: even at a silly column count no column is empty');
+
+  // ⚠️ A cell is its LOUDEST byte: one kick in a block of quiet rows survives. (A mean
+  // drew a flat sheet — measured on three stored tracks — and fails this.)
+  const kick = new Uint8Array(low.rowsPer * bands).fill(40);
+  kick[2 * bands + 1] = 250;
+  const k = shapeMesh(kick, low.rowsPer, bands, ROW_SECONDS, low);
+  check(k.values[0] === 250 && k.values[1] === 40,
+    'shapeMesh: a cell is the loudest byte it covers — one loud row among quiet ones is not averaged away');
+  const halfBytes = Float32Array.from(bytes, (v) => v / 2);
+  const half = shapeMesh(halfBytes, rows, bands, ROW_SECONDS, low);
+  check(Array.from(half.values).every((v, i) => Math.abs(v - shaped.values[i] / 2) < 1e-9)
+        && Array.from(shaped.values).every((v) => v >= 0 && v <= 255),
+    'shapeMesh: a mesh half as loud draws exactly half as high, over the same fixed span — nothing per track');
+
+  // The window: as deep as the detailed one, its far edge always in the fog, the ring big enough.
+  check(Math.abs(shaped.pitch * shaped.visible - PITCH * VISIBLE_ROWS) < 1e-9,
+    'shapeMesh: the history reaches the same depth (~8 s) — the follow framing is the same in both details');
+  const TWENTY = Math.ceil(Math.ceil(20 * 60 / ROW_SECONDS) / low.rowsPer);
+  let fogged = true, ring = true, steady = true, handoff = true;
+  const perFrame = shaped.pitch * (1 / 60) / shaped.rowSeconds;
+  for (let f = 1; f < 20 * 60 * 60; f += 7) {
+    const w = liveWindow(f / 60, shaped.rowSeconds, TWENTY, shaped.visible);
+    if (w.start > 0 && followPose(w.live, shaped.pitch).focusZ - rowZ(w.start - 1, shaped.pitch) < FOG_FAR) fogged = false;
+    const need = rowsNeeded(w, TWENTY);
+    if (need.to - need.from > RING) ring = false;
+    const a = followPose(liveRow((f - 1) / 60, shaped.rowSeconds, TWENTY), shaped.pitch).focusZ;
+    if (w.live < TWENTY - 1 && a > 0 && Math.abs((followPose(w.live, shaped.pitch).focusZ - a) - perFrame) > 1e-9) steady = false;
+  }
+  const at = liveWindow(300.5 * shaped.rowSeconds + 1e-9, shaped.rowSeconds, TWENTY, shaped.visible);
+  if (lineOf(at.lines - 2, at, shaped.pitch).row !== 300
+      || Math.abs(lineOf(at.lines - 2, at, shaped.pitch).z - lineOf(at.lines - 1, at, shaped.pitch).z) > 1e-6) handoff = false;
+  check(fogged, 'low-poly window: every line that leaves it has already faded into the fog — the far edge never blinks');
+  check(ring, 'low-poly window: every line a frame reads fits the ring');
+  check(steady, 'low-poly window: the camera flows the same step every frame of a 20-minute track — no step per line');
+  check(handoff, 'low-poly window: a line is taken from the live line at its centre, as in the detailed picture');
+  check(columnsOf(12, 0) === 0 && low.columnEvery === 0,
+    'columnsOf: no grid on the low-poly picture — on 12 columns it turns the triangles back into a lattice');
 }
 
 /* ── the camera ───────────────────────────────────────────────────────────── */

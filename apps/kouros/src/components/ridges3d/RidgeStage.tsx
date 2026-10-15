@@ -1,10 +1,11 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { rendererName, tokenColor } from '@jkos/scene/gl';
 import { DEG, createRig, cutRig, isSoftwareRenderer, rigView, stepRig } from '@jkos/scene/math';
 import { useOrbitControls, useScene } from '@jkos/scene/react';
 import { RidgeRenderer, type RidgeColors } from './gl';
 import {
-  FOLLOW_DISTANCE, FOLLOW_PITCH, FOV, LOOK_BEHIND, ORBIT, RETURN_OMEGA, TARGET_Y, followPose, liveWindow,
+  DETAIL, FOLLOW_DISTANCE, FOLLOW_PITCH, FOV, LOOK_BEHIND, ORBIT, RETURN_OMEGA, TARGET_Y, followPose, liveWindow,
+  shapeMesh, type DetailName,
 } from './stage';
 
 /**
@@ -51,21 +52,25 @@ export interface RidgeStageProps {
    *  track is positioned by. */
   livePosition?: () => number;
   playing?: boolean;
+  /** `low` (the default): a few pooled cells, flat facets — Jag's polygonal look. `high`:
+   *  every stored band and row, splined — the smooth terrain. stage.ts `DETAIL`. */
+  detail?: DetailName;
   /** WebGL2 is not available, or the context could not be made: draw in 2-D. */
   onUnsupported: () => void;
 }
 
 export default function RidgeStage({
-  trackId, bytes, rows, bands, rowSeconds, position, livePosition, playing, onUnsupported,
+  trackId, bytes, rows, bands, rowSeconds, position, livePosition, playing, detail = 'low', onUnsupported,
 }: RidgeStageProps) {
   const colorsRef = useRef<RidgeColors>(COLOR_FALLBACK);
 
   // What the loop reads — refs, so a new position is one assignment, not a re-render
   // of anything but this component's props.
-  const liveRef = useRef({ position, livePosition, playing, rowSeconds, rows, trackId });
-  liveRef.current = { position, livePosition, playing, rowSeconds, rows, trackId };
-  const meshRef = useRef({ bytes, rows, bands });
-  meshRef.current = { bytes, rows, bands };
+  // The mesh in its detail — pooled once per track, never per frame.
+  const shaped = useMemo(() => shapeMesh(bytes, rows, bands, rowSeconds, DETAIL[detail]),
+                         [bytes, rows, bands, rowSeconds, detail]);
+  const liveRef = useRef({ position, livePosition, playing, trackId, shaped });
+  liveRef.current = { position, livePosition, playing, trackId, shaped };
 
   // The follow pose is the rig's HOME. Its target rides the playhead EXACTLY (cut
   // every frame — a spring would only lag the music), and yaw and pitch spring back to
@@ -80,13 +85,16 @@ export default function RidgeStage({
     attributes: { antialias: true, alpha: false, depth: true, powerPreference: 'low-power' },
     create: (gl) => {
       // ⚠️ A CPU rasteriser is a WebGL2 context like any other, and pays per triangle:
-      // the terrain is ~190k a frame, 60 fps on any GPU and ~2 on SwiftShader. Refused
-      // here, `onUnsupported` mounts the 2-D strip, which a CPU draws easily.
+      // the smooth terrain is ~190k a frame, 60 fps on any GPU and ~2 on SwiftShader.
+      // Refused here, `onUnsupported` mounts the 2-D strip, which a CPU draws easily.
+      // The low-poly one is ~600 triangles, which a CPU draws easily too.
+      const m = liveRef.current.shaped;
       const name = rendererName(gl);
-      if (isSoftwareRenderer(name)) throw new Error(`a software rasteriser (${name}) — the 2-D strip draws instead`);
+      if (m.detail.subdivisions > 1 && isSoftwareRenderer(name)) {
+        throw new Error(`a software rasteriser (${name}) — the 2-D strip draws instead`);
+      }
       const renderer = new RidgeRenderer(gl);
-      const m = meshRef.current;
-      renderer.setMesh(m.bytes, m.rows, m.bands);
+      renderer.setMesh(m);
       return renderer;
     },
     // A face change (paper ↔ tube, or a sleeve accent) re-resolves the tokens.
@@ -101,8 +109,9 @@ export default function RidgeStage({
     frame: ({ renderer, canvas, dt, reduced, aspect, dpr }) => {
       const live = liveRef.current;
       const t = live.livePosition ? live.livePosition() : live.position;
-      const win = liveWindow(t, live.rowSeconds, live.rows);
-      const pose = followPose(win.live);
+      const m = live.shaped;
+      const win = liveWindow(t, m.rowSeconds, m.rows, m.visible);
+      const pose = followPose(win.live, m.pitch);
       rig.targetGoal = pose.target;
       cutRig(rig, 'target');
       const moving = stepRig(rig, dt, reduced);
@@ -114,22 +123,22 @@ export default function RidgeStage({
     },
   });
 
-  // ── A new track: one texture upload ─────────────────────────────────────────────
+  // ── A new track or detail: one texture upload ───────────────────────────────────
   const firstMesh = useRef(true);
   useEffect(() => {
     if (firstMesh.current) { firstMesh.current = false; return; }
     const renderer = scene.renderer();
     if (!renderer) return;
     try {
-      renderer.setMesh(bytes, rows, bands);
+      renderer.setMesh(shaped);
     } catch (err) {
       console.warn(`[kouros pulsarmap] mesh refused: ${(err as Error).message}`);
     }
     scene.kick();
-  }, [bytes, rows, bands, scene]);
+  }, [shaped, scene]);
 
   // ── Time moved, or play began (a pause moves nothing and draws nothing) ───────
-  useEffect(() => { scene.kick(); }, [position, playing, rowSeconds, trackId, scene]);
+  useEffect(() => { scene.kick(); }, [position, playing, shaped, trackId, scene]);
 
   const orbit = useOrbitControls(rig, scene.kick, { ...ORBIT, keyYaw: 12 * DEG, keyPitch: 6 * DEG });
 
@@ -141,8 +150,8 @@ export default function RidgeStage({
       tabIndex={0}
       role="application"
       aria-roledescription="3-D spectrogram"
-      aria-label={`Spectrogram of this track, flowing as it plays — ${rows} slices of ` +
-                  `${Math.round(rowSeconds * 1000)} ms each. ` +
+      aria-label={`Spectrogram of this track, flowing as it plays — ${shaped.rows} slices of ` +
+                  `${Math.round(shaped.rowSeconds * 1000)} ms each. ` +
                   'Drag, or use the arrow keys, to look around; Escape returns to following the music.'}
       onPointerDown={orbit.onPointerDown}
       onKeyDown={orbit.onKeyDown}

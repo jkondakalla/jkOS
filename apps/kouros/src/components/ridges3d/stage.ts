@@ -29,7 +29,7 @@
 // for the expressions and checks these against every instance. An off-by-one there
 // draws a plausible picture of the wrong rows.
 
-import { bandFraction, liveRow } from '../pulsarmap';
+import { X_WARP, bandFraction, liveRow } from '../pulsarmap';
 import { clamp, DEG, type OrbitDragLimits, type Vec3 } from '@jkos/scene/math';
 
 /** World units. The line spans x ∈ [−HALF_WIDTH, HALF_WIDTH]. */
@@ -84,7 +84,7 @@ export const COLUMN_EVERY = 4;
 /** Rad/s — how an orbit springs home on release. */
 export const RETURN_OMEGA = 7;
 
-export const rowZ = (row: number): number => row * PITCH;
+export const rowZ = (row: number, pitch = PITCH): number => row * pitch;
 export const rowHeight = (byte: number): number => (byte / 255) * AMPLITUDE;
 /** Where band `band` sits across the line — pulsarmap.ts `bandFraction` (the warped
  *  axis, shared with 2-D), scaled to the world. The shader mirrors it. */
@@ -114,26 +114,28 @@ export function rowsNeeded(w: LiveWindow, rows: number): { from: number; to: num
   return { from: w.start, to: Math.min(rows, w.newest + 2) };
 }
 
-/** One row's curve: `segmentsOf(bands) + 1` values across the line, written at `out`
- *  from `offset`. Bytes over the fixed 0…255 span (× AMPLITUDE in the shader, as
+/** One row's curve: `segmentsOf(bands, sub) + 1` values across the line, written at
+ *  `out` from `offset`. Bytes over the fixed 0…255 span (× AMPLITUDE in the shader, as
  *  always), joined by `bandCurve`; at every band the curve IS the byte. ⚠️ Linear in
- *  the bytes — no per-row or per-track scaling can hide here. */
+ *  the bytes — no per-row or per-track scaling can hide here. At `sub` = 1 there is
+ *  nothing between bands to spline: the line is straight from value to value. */
 export function rowCurve(bytes: ArrayLike<number>, row: number, bands: number,
-                         out: Float32Array, offset = 0): void {
+                         out: Float32Array, offset = 0, sub = SUBDIVISIONS): void {
   const base = row * bands;
   const at = (b: number) => bytes[base + Math.min(bands - 1, Math.max(0, b))] / 255;
-  const n = segmentsOf(bands) + 1;
+  const n = segmentsOf(bands, sub) + 1;
   for (let seg = 0; seg < n; seg++) {
-    const band = Math.floor(seg / SUBDIVISIONS);
-    const s = (seg - band * SUBDIVISIONS) / SUBDIVISIONS;
+    const band = Math.floor(seg / sub);
+    const s = (seg - band * sub) / sub;
     out[offset + seg] = bandCurve(at(band - 1), at(band), at(band + 1), at(band + 2), s);
   }
 }
 
-/** Segments across one line: `SUBDIVISIONS` per gap between two bands. */
-export const segmentsOf = (bands: number): number => Math.max(0, bands - 1) * SUBDIVISIONS;
-/** Grid columns: every `COLUMN_EVERY`-th band, the first band included. */
-export const columnsOf = (bands: number): number => (bands > 0 ? Math.floor((bands - 1) / COLUMN_EVERY) + 1 : 0);
+/** Segments across one line: `sub` per gap between two bands. */
+export const segmentsOf = (bands: number, sub = SUBDIVISIONS): number => Math.max(0, bands - 1) * sub;
+/** Grid columns: every `every`-th band, the first band included; `every` = 0 is no grid. */
+export const columnsOf = (bands: number, every = COLUMN_EVERY): number =>
+  (bands > 0 && every > 0 ? Math.floor((bands - 1) / every) + 1 : 0);
 
 /** One instance per (line, segment) — or (line, column) for the grid. The shader
  *  computes
@@ -142,6 +144,127 @@ export const columnsOf = (bands: number): number => (bands > 0 ? Math.floor((ban
  *  and this is that, for the gate. */
 export function cellOf(instance: number, per: number): { line: number; seg: number } {
   return { line: Math.floor(instance / per), seg: instance % per };
+}
+
+/* ── detail: the smooth terrain, or the low-poly one ───────────────────────── */
+// Jag, 2026-10-14: "the existing pulsar map is too smooth — the goal is a polygonal
+// look. Keep a detailed pulsar map, but give me as low a poly version as possible."
+//
+// Both are the SAME picture of the same stored bytes: frequency across, energy as height,
+// time receding, the live line at the front. The low-poly one is drawn from a COARSER
+// MESH — `shapeMesh` pools blocks of the stored mesh into a few cells — with straight
+// edges between them and each triangle lit as one flat facet. What it is NOT is a
+// different analysis: a cell is the loudest byte it covers (half as loud is half as
+// high), and every rule above — no normalisation, `currentTime` every frame, the shared
+// band axis — holds for it unchanged.
+
+export type DetailName = 'high' | 'low';
+
+export interface Detail {
+  /** Stored rows pooled into one line. A line still stands for a fixed span of music —
+   *  `rowsPer × row_seconds` — so the reveal rate is still a property of time. */
+  rowsPer: number;
+  /** Vertices across a line; 0 = one per stored band. */
+  columns: number;
+  /** Segments per gap between two vertices (1 = straight edges). */
+  subdivisions: number;
+  /** The grid runs back in time along every `columnEvery`-th vertex; 0: no grid. */
+  columnEvery: number;
+  /** How strongly a facet's own light pulls it from the surface toward the ink. */
+  relief: number;
+  /** Where that light comes from — toward the light, unit length. */
+  light: Vec3;
+}
+
+export const DETAIL: { readonly [K in DetailName]: Detail } = {
+  high: { rowsPer: 1, columns: 0, subdivisions: SUBDIVISIONS, columnEvery: COLUMN_EVERY, relief: 0.22,
+          light: [-0.33, 0.85, 0.41] },
+  /* As few polygons as still read as THIS track: ~500 triangles a frame against ~190k.
+     12 columns keep a bass, a body and a top that move independently (fewer and every
+     track is the same tent); 4 rows to a line (~0.37 s) make a cell about as deep as it
+     is wide, so the triangles read as facets, not slivers — and still ~2.7 lines a
+     second, so the flow is the music's. No grid: on 12 columns it turns the triangles
+     back into a quad lattice. The light rakes from behind and to the left — overhead,
+     the shallow facets (~7° at 12 columns) all shade alike and the polygons vanish. */
+  low: { rowsPer: 4, columns: 12, subdivisions: 1, columnEvery: 0, relief: 1,
+         light: [-0.6017, 0.6217, -0.5014] },
+};
+
+/** The mesh the renderer draws, in a detail. */
+export interface Shaped {
+  /** Row-major, `rows × bands`, over the fixed 0…255 span (a pooled cell is a mean, so
+   *  it may be fractional). */
+  values: ArrayLike<number>;
+  rows: number;
+  bands: number;
+  /** Seconds a line stands for — the stored row duration × `rowsPer`. */
+  rowSeconds: number;
+  /** The exponent x is warped by in the shader: `X_WARP` when every stored band is a
+   *  vertex; 1 when the columns were already PLACED along the warped axis. */
+  warp: number;
+  /** Depth between lines, and lines drawn behind the live one — scaled together, so the
+   *  history reaches the same depth (~8 s) and the follow framing does not move. */
+  pitch: number;
+  visible: number;
+  detail: Detail;
+}
+
+/** The stored bands each column pools: band `b` belongs to the column nearest where
+ *  `bandFraction` draws it, so the columns sit EVENLY along the warped axis — the
+ *  warp's own claim (equal sharpness per width), kept at any column count. A column no
+ *  band falls in (only at absurd counts) takes the band drawn nearest it. */
+export function columnBands(bands: number, columns: number): Array<{ from: number; to: number }> {
+  const out = Array.from({ length: columns }, () => ({ from: -1, to: -1 }));
+  if (columns < 2) return columns === 1 ? [{ from: 0, to: bands }] : [];
+  for (let b = 0; b < bands; b++) {
+    const c = Math.round(bandFraction(b, bands) * (columns - 1));
+    if (out[c].from < 0) out[c].from = b;
+    out[c].to = b + 1;
+  }
+  for (let c = 0; c < columns; c++) {
+    if (out[c].from >= 0) continue;
+    let best = 0, gap = Infinity;
+    for (let b = 0; b < bands; b++) {
+      const d = Math.abs(bandFraction(b, bands) - c / (columns - 1));
+      if (d < gap) { gap = d; best = b; }
+    }
+    out[c] = { from: best, to: best + 1 };
+  }
+  return out;
+}
+
+/** The stored mesh in a detail. `high` is the mesh itself, untouched; a coarser detail
+ *  pools each (rowsPer × column) block to its LOUDEST byte. The last line pools what rows
+ *  remain.
+ *
+ *  ⚠️ **MAX, NOT MEAN — measured 2026-10-14 on three stored tracks.** The mean drew a
+ *  near-flat sheet: it deletes a kick drum the way §9's time reduction would (one loud
+ *  row in a block of quiet ones), and cut the row-to-row variation by up to 40 %. The
+ *  max keeps the beat and the band's peak. It is still a byte off the fixed span —
+ *  nothing per track, and a block half as loud draws exactly half as high. */
+export function shapeMesh(bytes: ArrayLike<number>, rows: number, bands: number, rowSeconds: number,
+                          detail: Detail): Shaped {
+  const k = Math.max(1, Math.floor(detail.rowsPer));
+  const pitch = PITCH * k;
+  const visible = Math.max(1, Math.round(VISIBLE_ROWS / k));
+  if (k === 1 && !(detail.columns > 0)) {
+    return { values: bytes, rows, bands, rowSeconds, warp: X_WARP, pitch, visible, detail };
+  }
+  const cols = detail.columns > 0 ? columnBands(bands, detail.columns) : null;
+  const across = cols ? cols.length : bands;
+  const lines = Math.ceil(rows / k);
+  const values = new Float32Array(lines * across);
+  for (let line = 0; line < lines; line++) {
+    const r0 = line * k, r1 = Math.min(rows, r0 + k);
+    for (let c = 0; c < across; c++) {
+      const { from, to } = cols ? cols[c] : { from: c, to: c + 1 };
+      let top = 0;
+      for (let r = r0; r < r1; r++) for (let b = from; b < to; b++) top = Math.max(top, bytes[r * bands + b]);
+      values[line * across + c] = top;
+    }
+  }
+  return { values, rows: lines, bands: across, rowSeconds: rowSeconds * k, warp: cols ? 1 : X_WARP,
+           pitch, visible, detail };
 }
 
 /* ── the live window ─────────────────────────────────────────────────────────── */
@@ -169,10 +292,10 @@ export function liveWindow(currentTime: number, rowSeconds: number, rows: number
 
 /** Line `line` of a window: a snapshot row, or — the last line — the live one. The
  *  shader's `lineZ` and `lineHeight` make the same choice. */
-export function lineOf(line: number, w: LiveWindow): { live: boolean; row: number; z: number } {
-  if (line === w.lines - 1) return { live: true, row: w.live, z: rowZ(w.live) };
+export function lineOf(line: number, w: LiveWindow, pitch = PITCH): { live: boolean; row: number; z: number } {
+  if (line === w.lines - 1) return { live: true, row: w.live, z: rowZ(w.live, pitch) };
   const row = w.start + line;
-  return { live: false, row, z: rowZ(row) };
+  return { live: false, row, z: rowZ(row, pitch) };
 }
 
 /** The live line's value in one band: the rows either side of `live`, blended by its
@@ -213,8 +336,8 @@ export interface Pose {
  * arrives at the front the instant its time begins and recedes one pitch per row of
  * music after. A spring here would only lag the music.
  */
-export function followPose(scroll: number): Pose {
-  const focusZ = rowZ(Math.max(0, scroll));
+export function followPose(scroll: number, pitch = PITCH): Pose {
+  const focusZ = rowZ(Math.max(0, scroll), pitch);
   return { focusZ, target: [0, TARGET_Y, focusZ - LOOK_BEHIND], yaw: 0, pitch: FOLLOW_PITCH,
            distance: FOLLOW_DISTANCE };
 }

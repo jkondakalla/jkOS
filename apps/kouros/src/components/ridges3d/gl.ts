@@ -8,7 +8,7 @@
 //
 // The lines, back to front: the snapshot rows of the window, then the LIVE line (always
 // the last — stage.ts `LiveWindow`), the two rows around it blended. Every line is a
-// Catmull-Rom curve through the bands' own values, `SUBDIVISIONS` segments to a gap —
+// Catmull-Rom curve through the bands' own values, `u_sub` segments to a gap —
 // and because the spline is linear in the bytes, the blend of two curves IS the curve
 // of the blend: a snapshot leaves the front exactly the shape the live line had.
 //
@@ -21,15 +21,18 @@
 //      SCREEN SPACE, a fixed CSS width at any distance and any DPR; the live line
 //      heavier. Depth-tested against the surface, never written.
 //   3. GRID — per (line, column), the same screen-space quad running back in time from
-//      one line to the next along every COLUMN_EVERY-th band: the mesh's other axis.
+//      one line to the next along every `columnEvery`-th vertex: the mesh's other axis.
+//
+// What the lines and vertices ARE is the detail's (stage.ts DETAIL): every stored band
+// and row, splined, for the smooth terrain; a few pooled cells with straight edges for
+// the low-poly one. The four draws are the same.
 
 import { compileProgram, uniforms } from '@jkos/scene/gl';
 import type { RGB } from '@jkos/scene/math';
 import {
-  AMPLITUDE, COLUMN_EVERY, FLOOR_Y, FOG_FAR, FOG_NEAR, HALF_WIDTH, LINE_WIDTH_PX, LIVE_WIDTH_PX, PITCH, RING,
-  SUBDIVISIONS, columnsOf, rowCurve, rowsNeeded, segmentsOf, slotOf, type LiveWindow,
+  AMPLITUDE, FLOOR_Y, FOG_FAR, FOG_NEAR, HALF_WIDTH, LINE_WIDTH_PX, LIVE_WIDTH_PX, RING,
+  columnsOf, rowCurve, rowsNeeded, segmentsOf, slotOf, type LiveWindow, type Shaped,
 } from './stage';
-import { X_WARP } from '../pulsarmap';
 
 /* ⚠️ The (line, segment) arithmetic below is mirrored by `cellOf` / `lineOf` in
    stage.ts, the ring slot by `slotOf` and the blend by `liveValue`; test/pulsarmap.mjs
@@ -54,6 +57,12 @@ uniform vec2 u_viewport;       // device pixels
 uniform float u_lineWidth;     // device pixels
 uniform float u_liveWidth;     // device pixels
 uniform float u_focusZ;
+// The detail (stage.ts DETAIL, shapeMesh): one shader draws the smooth terrain and the
+// low-poly one — the same arithmetic over a finer or a coarser mesh.
+uniform int u_sub;             // segments per gap between two vertices
+uniform int u_columnEvery;     // the grid's spacing, in vertices
+uniform float u_warp;          // pulsarmap.ts X_WARP, or 1 when the columns are pre-warped
+uniform float u_pitch;         // depth between lines
 
 out float v_ramp;
 out float v_fog;
@@ -61,14 +70,10 @@ out vec3 v_world;
 flat out int v_live;
 
 const float AMPLITUDE = ${AMPLITUDE.toFixed(6)};
-const float PITCH = ${PITCH.toFixed(6)};
 const float HALF_WIDTH = ${HALF_WIDTH.toFixed(6)};
 const float FLOOR_Y = ${FLOOR_Y.toFixed(6)};
 const float FOG_NEAR = ${FOG_NEAR.toFixed(6)};
 const float FOG_FAR = ${FOG_FAR.toFixed(6)};
-const float X_WARP = ${X_WARP.toFixed(6)};
-const int SUB = ${SUBDIVISIONS};
-const int COLUMN_EVERY = ${COLUMN_EVERY};
 
 float heightAt(int row, int seg) {
   ivec2 texel = ivec2(seg, row % u_ring);
@@ -87,19 +92,20 @@ float lineHeight(int line, int seg) {
 }
 
 float lineZ(int line) {
-  return line == u_lines - 1 ? u_liveZ : float(u_rowStart + line) * PITCH;
+  return line == u_lines - 1 ? u_liveZ : float(u_rowStart + line) * u_pitch;
 }
 
 vec3 vertexAt(int line, int seg) {
-  // pulsarmap.ts bandFraction: the warped band axis both renderers share.
-  float u = float(seg) / float((u_bands - 1) * SUB);
-  float x = -HALF_WIDTH + 2.0 * HALF_WIDTH * pow(u, X_WARP);
+  // pulsarmap.ts bandFraction: the warped band axis both renderers share — warped
+  // here, or (u_warp = 1) already, by where shapeMesh placed the columns.
+  float u = float(seg) / float((u_bands - 1) * u_sub);
+  float x = -HALF_WIDTH + 2.0 * HALF_WIDTH * pow(u, u_warp);
   return vec3(x, lineHeight(line, seg), lineZ(line));
 }
 
 void emit(vec3 p, int line) {
   v_world = p;
-  v_ramp = u_rows > 1 ? (p.z / PITCH) / float(u_rows - 1) : 1.0;
+  v_ramp = u_rows > 1 ? (p.z / u_pitch) / float(u_rows - 1) : 1.0;
   v_fog = smoothstep(FOG_NEAR, FOG_FAR, u_focusZ - p.z);
   v_live = line == u_lines - 1 ? 1 : 0;
 }
@@ -132,7 +138,7 @@ void main() {
     a = vertexAt(line, seg);
     b = vertexAt(line, seg + 1);
   } else {
-    int column = seg * COLUMN_EVERY * SUB;
+    int column = seg * u_columnEvery * u_sub;
     a = vertexAt(line, column);
     b = vertexAt(line + 1, column);
   }
@@ -169,15 +175,14 @@ uniform int u_pass;
 uniform vec3 u_surface;
 uniform vec3 u_line;
 uniform vec3 u_far;
+uniform float u_relief;        // stage.ts Detail.relief
+uniform vec3 u_light;          // stage.ts Detail.light, unit length
 
 in float v_ramp;
 in float v_fog;
 in vec3 v_world;
 flat in int v_live;
 out vec4 color;
-
-// Light from above, a little left and toward the camera.
-const vec3 LIGHT = vec3(-0.33, 0.85, 0.41);
 
 void main() {
   vec3 ink = mix(u_far, u_line, v_ramp);
@@ -188,8 +193,8 @@ void main() {
     // shape, and the lines on it stay the brightest thing in the frame.
     vec3 n = normalize(cross(dFdx(v_world), dFdy(v_world)));
     if (n.y < 0.0) n = -n;
-    float lit = clamp(dot(n, LIGHT), 0.0, 1.0);
-    c = mix(u_surface, ink, 0.04 + 0.22 * lit * lit);
+    float lit = clamp(dot(n, u_light), 0.0, 1.0);
+    c = mix(u_surface, ink, 0.04 + u_relief * lit * lit);
   } else if (u_pass == 1) {
     c = mix(u_surface, ink, 0.05);
   } else if (u_pass == 2) {
@@ -204,7 +209,7 @@ void main() {
 const UNIFORMS = [
   'u_curves', 'u_ring', 'u_rowStart', 'u_lines', 'u_liveRow', 'u_liveFrac', 'u_liveZ', 'u_per', 'u_bands',
   'u_rows', 'u_pass', 'u_viewProj', 'u_viewport', 'u_lineWidth', 'u_liveWidth',
-  'u_focusZ', 'u_surface', 'u_line', 'u_far',
+  'u_focusZ', 'u_surface', 'u_line', 'u_far', 'u_sub', 'u_columnEvery', 'u_warp', 'u_pitch', 'u_relief', 'u_light',
 ] as const;
 
 export interface RidgeColors {
@@ -229,7 +234,7 @@ export class RidgeRenderer {
   private u: Record<(typeof UNIFORMS)[number], WebGLUniformLocation | null>;
   private vao: WebGLVertexArrayObject | null;
   private texture: WebGLTexture | null = null;
-  private mesh: { bytes: Uint8Array; rows: number; bands: number } | null = null;
+  private mesh: Shaped | null = null;
   /** Which row each ring slot holds; −1 = empty. */
   private held = new Int32Array(RING).fill(-1);
   private scratch = new Float32Array(0);
@@ -242,14 +247,16 @@ export class RidgeRenderer {
     this.vao = gl.createVertexArray();
   }
 
-  /** A new track: an empty ring the width of its curves. Throws on a malformed length —
-   *  a short buffer read against a remembered row count is a picture of the wrong rows. */
-  setMesh(bytes: Uint8Array, rows: number, bands: number): void {
-    if (!(rows > 0) || !(bands > 1) || bytes.length !== rows * bands) {
-      throw new Error(`pulsarmap: ${bytes.length} bytes for a declared ${rows}x${bands}`);
+  /** A new track, or a new detail: an empty ring the width of its curves. Throws on a
+   *  malformed length — a short buffer read against a remembered row count is a picture
+   *  of the wrong rows. */
+  setMesh(mesh: Shaped): void {
+    const { values, rows, bands } = mesh;
+    if (!(rows > 0) || !(bands > 1) || values.length !== rows * bands) {
+      throw new Error(`pulsarmap: ${values.length} values for a declared ${rows}x${bands}`);
     }
     const { gl } = this;
-    const width = segmentsOf(bands) + 1;
+    const width = segmentsOf(bands, mesh.detail.subdivisions) + 1;
     if (!this.texture) this.texture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, this.texture);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.R32F, width, RING, 0, gl.RED, gl.FLOAT, null);
@@ -257,7 +264,7 @@ export class RidgeRenderer {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    this.mesh = { bytes, rows, bands };
+    this.mesh = mesh;
     this.held.fill(-1);
     this.scratch = new Float32Array(width);
   }
@@ -270,7 +277,7 @@ export class RidgeRenderer {
     for (let row = from; row < to; row++) {
       const slot = slotOf(row);
       if (this.held[slot] === row) continue;
-      rowCurve(mesh.bytes, row, mesh.bands, this.scratch);
+      rowCurve(mesh.values, row, mesh.bands, this.scratch, 0, mesh.detail.subdivisions);
       gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, slot, this.scratch.length, 1, gl.RED, gl.FLOAT, this.scratch);
       this.held[slot] = row;
     }
@@ -285,8 +292,9 @@ export class RidgeRenderer {
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     if (!mesh || w.lines < 1) return;
 
-    const segments = segmentsOf(mesh.bands);
-    const columns = columnsOf(mesh.bands);
+    const { subdivisions, columnEvery, relief } = mesh.detail;
+    const segments = segmentsOf(mesh.bands, subdivisions);
+    const columns = columnsOf(mesh.bands, columnEvery);
     const liveRow = Math.floor(w.live);
     gl.useProgram(this.program);
     gl.bindVertexArray(this.vao);
@@ -299,7 +307,13 @@ export class RidgeRenderer {
     gl.uniform1i(u.u_lines, w.lines);
     gl.uniform1i(u.u_liveRow, liveRow);
     gl.uniform1f(u.u_liveFrac, w.live - liveRow);
-    gl.uniform1f(u.u_liveZ, w.live * PITCH);
+    gl.uniform1f(u.u_liveZ, w.live * mesh.pitch);
+    gl.uniform1i(u.u_sub, subdivisions);
+    gl.uniform1i(u.u_columnEvery, columnEvery);
+    gl.uniform1f(u.u_warp, mesh.warp);
+    gl.uniform1f(u.u_pitch, mesh.pitch);
+    gl.uniform1f(u.u_relief, relief);
+    gl.uniform3fv(u.u_light, mesh.detail.light);
     gl.uniform1i(u.u_bands, mesh.bands);
     gl.uniform1i(u.u_rows, mesh.rows);
     gl.uniformMatrix4fv(u.u_viewProj, false, frame.viewProj);

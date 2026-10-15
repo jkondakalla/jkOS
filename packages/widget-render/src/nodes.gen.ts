@@ -89,7 +89,7 @@ export type WidgetNode =
   /** Week — the seven-day time grid (@jkos/cards). Reads `items` and `todayIso`. */
   | { t: 'week' }
   /** Pulsarmap — the playing track's spectrogram as ridgelines, revealed as it plays (KourOS). Reads `player`. */
-  | { t: 'pulsarmap' }
+  | { t: 'pulsarmap'; /** low (default): a few pooled cells as flat-lit triangles, the polygonal look; high: every stored band and row, splined into a smooth terrain */ detail?: 'low' | 'high' }
   /** Vibe space — the library as a cloud you move through — energy one way, the sound the others; tap to pin a place (KourOS). */
   | { t: 'vibespace'; /** the vibe space — KourOS's discoverMap document (its packed points, regions, stops, axes) */ map: Binding; /** the pinned place, { x, y, z, w } — what the cloud marks; none: it pins the densest region itself */ pin?: Binding; /** the playing track's id — its point glints */ playing?: Binding; on?: { pin?: ActionChain; play?: ActionChain } }
   /** Stat — one headline number, with its context. */
