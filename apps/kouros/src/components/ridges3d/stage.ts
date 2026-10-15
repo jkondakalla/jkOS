@@ -181,6 +181,34 @@ export interface Detail {
   /** Line widths, CSS px: the snapshots, and the live line at the front. */
   linePx: number;
   livePx: number;
+  /** How the lines MOVE (`settle`); none: every line is its rows as stored. */
+  motion?: Motion;
+}
+
+/** Jag, 2026-10-14: "the wave looks like it's just randomly wiggles around — how can we
+ *  sync it to be more visually in sync with the music". Measured on three stored
+ *  tracks, two causes, and this is the answer to both:
+ *
+ *  1. **The front moved EARLY.** The live line blends toward the NEXT line, which already
+ *     holds audio not yet played: a hit began to rise up to ~0.28 s before it sounded,
+ *     and the motion led the onsets by ~80 ms on average (cross-correlated). Here a hit
+ *     SNAPS on its own row — at most `lead` seconds early, never late.
+ *  2. **Most of the motion was not the music's.** Only 17–36 % of line-to-line change was
+ *     the spectrum moving together, and a band reversed direction 51–60 % of the time —
+ *     a coin toss. Small rises and falls now GLIDE: 32–44 % reversals, half the step, while
+ *     the 3–8 % of cells that jump past `snap` are the hits, and land at full height.
+ *
+ *  Still a pure function of the stored bytes, the same for every track: nothing here is
+ *  measured per track, and a row's value depends only on the rows before it. */
+export interface Motion {
+  /** A band that rises more than this many bytes over where it stands SNAPS to its byte
+   *  (≈ 0.31 dB a byte over the store's shared span). */
+  snap: number;
+  /** Otherwise it glides toward its byte, with this time constant in seconds. */
+  glide: number;
+  /** A snap rises over this many seconds BEFORE its row's centre, so the front moves
+   *  rather than steps — and is never more than this ahead of the music. */
+  lead: number;
 }
 
 export const DETAIL: { readonly [K in DetailName]: Detail } = {
@@ -198,7 +226,8 @@ export const DETAIL: { readonly [K in DetailName]: Detail } = {
      The light comes from above, behind and to the left — overhead, the facets all
      shade alike and the polygons vanish. */
   low: { rowsPer: 2, spacing: 2, columns: 0, subdivisions: 1, columnEvery: 0, relief: 1,
-         light: [-0.5007, 0.751, -0.4306], linePx: 0.5, livePx: 1.5 },
+         light: [-0.5007, 0.751, -0.4306], linePx: 0.5, livePx: 1.5,
+         motion: { snap: 15, glide: 0.5, lead: 0.025 } },
 };
 
 /** Triangles one frame of `m` draws: the surface between every pair of lines, two to a
@@ -228,6 +257,48 @@ export interface Shaped {
   pitch: number;
   visible: number;
   detail: Detail;
+  /** With a `motion`: what the live line is computed from, every frame (`liveAt`) — the
+   *  rows at their own resolution, as stored and as settled. */
+  live?: { raw: ArrayLike<number>; settled: Float32Array; rows: number; rowSeconds: number; motion: Motion };
+}
+
+/** Every row as it STANDS once moved (`Motion`): row r's value at its centre. A band
+ *  snaps to its byte when it rises more than `snap` over where it stood, and otherwise
+ *  glides toward it. Causal — row r reads rows ≤ r only. */
+export function settle(raw: ArrayLike<number>, rows: number, bands: number, rowSeconds: number,
+                       motion: Motion): Float32Array {
+  const v = new Float32Array(rows * bands);
+  const a = 1 - Math.exp(-rowSeconds / motion.glide);
+  for (let b = 0; b < bands && rows > 0; b++) v[b] = raw[b];
+  for (let r = 1; r < rows; r++) {
+    for (let b = 0; b < bands; b++) {
+      const was = v[(r - 1) * bands + b], x = raw[r * bands + b];
+      v[r * bands + b] = x - was > motion.snap ? x : was + (x - was) * a;
+    }
+  }
+  return v;
+}
+
+/**
+ * The live line at time `t`, written to `out` (`bands` values): between the settled rows
+ * whose centres are either side of `t`. A glide is drawn across the gap; a SNAP holds
+ * until `lead` before its row's centre and then rises — so a hit lands on its own row,
+ * and the front is never more than `lead` ahead of the music. Every snapshot is this
+ * line at the instant it is taken (`shapeMesh`), so it leaves the front unchanged.
+ */
+export function liveAt(live: NonNullable<Shaped['live']>, bands: number, t: number, out: Float32Array): void {
+  const { raw, settled, rows, rowSeconds, motion } = live;
+  const p = t / rowSeconds - 0.5;
+  const r0 = p > 0 ? Math.min(rows - 1, Math.floor(p)) : 0;
+  const r1 = Math.min(rows - 1, r0 + 1);
+  const f = r1 > r0 && p > 0 ? p - r0 : 0;
+  const lead = Math.min(1, motion.lead / rowSeconds);
+  const rise = lead > 0 ? clamp((f - (1 - lead)) / lead, 0, 1) : (f >= 1 ? 1 : 0);
+  for (let b = 0; b < bands; b++) {
+    const a = settled[r0 * bands + b], z = settled[r1 * bands + b];
+    const snapped = r1 > r0 && raw[r1 * bands + b] - a > motion.snap;
+    out[b] = a + (z - a) * (snapped ? rise : f);
+  }
 }
 
 /** The stored bands each column pools: band `b` belongs to the column nearest where
@@ -258,9 +329,11 @@ export function columnBands(bands: number, columns: number): Array<{ from: numbe
   return out;
 }
 
-/** The stored mesh in a detail. `high` is the mesh itself, untouched; a coarser detail
- *  pools each (rowsPer × column) block to its LOUDEST byte. The last line pools what rows
- *  remain.
+/** The stored mesh in a detail. `high` is the mesh itself, untouched. A coarser detail
+ *  pools the bands into columns (`columnBands`, each its LOUDEST band), and then the rows
+ *  into lines: with a `motion`, line L is the live line at the instant it is taken
+ *  (`liveAt`); without, each `rowsPer` block's loudest byte. The last line pools what
+ *  rows remain.
  *
  *  ⚠️ **MAX, NOT MEAN — measured 2026-10-14 on three stored tracks.** The mean drew a
  *  near-flat sheet: it deletes a kick drum the way §9's time reduction would (one loud
@@ -272,32 +345,60 @@ export function shapeMesh(bytes: ArrayLike<number>, rows: number, bands: number,
   const k = Math.max(1, Math.floor(detail.rowsPer));
   const pitch = PITCH * detail.spacing;
   const visible = Math.max(1, Math.round(VISIBLE_ROWS / detail.spacing));
-  if (k === 1 && !(detail.columns > 0)) {
+  if (k === 1 && !(detail.columns > 0) && !detail.motion) {
     return { values: bytes, rows, bands, rowSeconds, warp: X_WARP, pitch, visible, detail };
   }
+  // Across: every band, or the bands pooled into columns.
   const cols = detail.columns > 0 ? columnBands(bands, detail.columns) : null;
   const across = cols ? cols.length : bands;
-  const lines = Math.ceil(rows / k);
-  const values = new Float32Array(lines * across);
-  for (let line = 0; line < lines; line++) {
-    const r0 = line * k, r1 = Math.min(rows, r0 + k);
-    for (let c = 0; c < across; c++) {
-      const { from, to, at } = cols ? cols[c] : { from: c, to: c + 1, at: undefined };
-      let top = 0;
-      for (let r = r0; r < r1; r++) {
+  let perRow: ArrayLike<number> = bytes;
+  if (cols) {
+    const pooled = new Float32Array(rows * across);
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < across; c++) {
+        const { from, to, at } = cols[c];
+        let top = 0;
         if (at !== undefined) {
-          const f = at - from, lo = bytes[r * bands + from];
-          top = Math.max(top, lo + (bytes[r * bands + from + 1] - lo) * f);
+          const lo = bytes[r * bands + from];
+          top = lo + (bytes[r * bands + from + 1] - lo) * (at - from);
         } else {
           for (let b = from; b < to; b++) top = Math.max(top, bytes[r * bands + b]);
         }
+        pooled[r * across + c] = top;
       }
-      values[line * across + c] = top;
+    }
+    perRow = pooled;
+  }
+  // Along: the rows into lines.
+  const lines = Math.ceil(rows / k);
+  const values = new Float32Array(lines * across);
+  const shaped: Shaped = { values, rows: lines, bands: across, rowSeconds: rowSeconds * k, warp: cols ? 1 : X_WARP,
+                           pitch, visible, detail };
+  if (detail.motion) {
+    const live = { raw: perRow, settled: settle(perRow, rows, across, rowSeconds, detail.motion), rows, rowSeconds,
+                   motion: detail.motion };
+    const line = new Float32Array(across);
+    for (let l = 0; l < lines; l++) {
+      liveAt(live, across, lineTime(l, shaped.rowSeconds), line);
+      values.set(line, l * across);
+    }
+    shaped.live = live;
+    return shaped;
+  }
+  for (let l = 0; l < lines; l++) {
+    const r0 = l * k, r1 = Math.min(rows, r0 + k);
+    for (let c = 0; c < across; c++) {
+      let top = 0;
+      for (let r = r0; r < r1; r++) top = Math.max(top, perRow[r * across + c]);
+      values[l * across + c] = top;
     }
   }
-  return { values, rows: lines, bands: across, rowSeconds: rowSeconds * k, warp: cols ? 1 : X_WARP,
-           pitch, visible, detail };
+  return shaped;
 }
+
+/** The instant line `line` is taken from the live line: when the live line STANDS on it
+ *  (pulsarmap.ts `liveRow` = line), the centre of its window. */
+export const lineTime = (line: number, lineSeconds: number): number => (line + 0.5) * lineSeconds;
 
 /* ── the live window ─────────────────────────────────────────────────────────── */
 /** What one frame draws: snapshot rows `start` … `newest`, then the live line — so

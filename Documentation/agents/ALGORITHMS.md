@@ -1218,6 +1218,18 @@ picture above.
   drew a near-flat sheet: it averages a kick drum away (the M2 argument above) and cut the
   row-to-row variation by up to 40 %. The max is still a byte off the fixed span — a block half as
   loud draws half as high — so nothing per track enters. `check:pulsarmap` fails on a mean.
+- **In time with the music: a hit snaps, the rest glides** (`Detail.motion`, `settle`, `liveAt`).
+  Jag: "the wave looks like it's just randomly wiggles around. How can we sync it". Measured on
+  three stored tracks, two causes. ⚠️ **The front moved EARLY:** the live line blended toward the
+  next line, which holds audio not yet played, so a hit began to rise up to ~0.28 s before it
+  sounded; cross-correlated, the motion led the onsets by 80–86 ms. ⚠️ **Most motion was noise:**
+  only 17–36 % of line-to-line change was the spectrum moving together, and a band reversed
+  direction 51–60 % of the time — a coin toss. Now a band that rises more than 15 bytes (~4.6 dB)
+  over where it stands SNAPS on its own row (rising only in the 25 ms before the row's centre),
+  and anything smaller glides toward its byte (0.5 s). On a model of the same rule: motion on the
+  onsets (0 ms), reversals 32–44 %, half the step, and the snaps are 3–8 % of cells — the hits.
+  Causal and the same for every track; the live line is computed every frame into its own texel
+  row, and every snapshot is the live line at the instant it is taken. `high` has no motion.
 - **The light comes from above, behind and to the left on the faceted picture**; overhead, its
   facets all shade alike and the polygons vanish. No grid: it turns the triangles into a lattice.
 - **The window is 44 lines at 2 × `PITCH`** (`Detail.spacing`) — the same depth, so the follow

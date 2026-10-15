@@ -225,7 +225,7 @@ const {
   cellOf, liveWindow, lineOf, liveValue, bandCurve, rowCurve, rowsNeeded, slotOf, segmentsOf, columnsOf,
   followPose, rowZ, rowHeight, rampOf, ORBIT, AMPLITUDE, VISIBLE_ROWS, RING, SUBDIVISIONS, COLUMN_EVERY,
   LOOK_BEHIND, MIN_PITCH, MAX_PITCH, MAX_YAW, FOG_FAR, PITCH, DETAIL, shapeMesh, columnBands, trianglesOf,
-  SOFTWARE_MAX_TRIANGLES, LINE_WIDTH_PX, LIVE_WIDTH_PX,
+  SOFTWARE_MAX_TRIANGLES, LINE_WIDTH_PX, LIVE_WIDTH_PX, settle, liveAt, lineTime,
 } = stage;
 const glSrc = readFileSync(resolve(root, 'apps/kouros/src/components/ridges3d/gl.ts'), 'utf8');
 
@@ -459,14 +459,16 @@ const glSrc = readFileSync(resolve(root, 'apps/kouros/src/components/ridges3d/gl
 
   // ⚠️ A cell is its LOUDEST byte: one kick in a block of quiet rows survives. (A mean
   // drew a flat sheet — measured on three stored tracks — and fails this.)
+  const pooling = { ...low, motion: undefined };   // the rows pooled as stored, no motion
   const kick = new Uint8Array(low.rowsPer * bands).fill(40);
   kick[(low.rowsPer - 1) * bands] = 250;         // band 0 (column 0), the block's last row
-  const k = shapeMesh(kick, low.rowsPer, bands, ROW_SECONDS, low);
+  const k = shapeMesh(kick, low.rowsPer, bands, ROW_SECONDS, pooling);
   check(k.values[0] === 250 && k.values[k.bands - 1] === 40,
     'shapeMesh: a cell is the loudest byte it covers — one loud row among quiet ones is not averaged away');
   const halfBytes = Float32Array.from(bytes, (v) => v / 2);
-  const half = shapeMesh(halfBytes, rows, bands, ROW_SECONDS, low);
-  check(Array.from(half.values).every((v, i) => Math.abs(v - shaped.values[i] / 2) < 1e-9)
+  const pooled = shapeMesh(bytes, rows, bands, ROW_SECONDS, pooling);
+  const half = shapeMesh(halfBytes, rows, bands, ROW_SECONDS, pooling);
+  check(Array.from(half.values).every((v, i) => Math.abs(v - pooled.values[i] / 2) < 1e-9)
         && Array.from(shaped.values).every((v) => v >= 0 && v <= 255),
     'shapeMesh: a mesh half as loud draws exactly half as high, over the same fixed span — nothing per track');
 
@@ -493,6 +495,83 @@ const glSrc = readFileSync(resolve(root, 'apps/kouros/src/components/ridges3d/gl
   check(handoff, 'low-poly window: a line is taken from the live line at its centre, as in the detailed picture');
   check(columnsOf(12, 0) === 0 && low.columnEvery === 0,
     'columnsOf: no grid on the faceted picture — it turns the triangles back into a lattice');
+}
+
+/* ── the motion: in time with the music ──────────────────────────────────────
+   Jag 2026-10-14: "the wave looks like it's just randomly wiggles around — how can we
+   sync it". Measured: the live line rose up to ~0.28 s BEFORE a hit (it blended toward
+   the next line, which holds audio not yet played), and half of every band's moves were
+   reversals — noise. What must hold: a hit lands on its own row and the picture is never
+   more than `lead` ahead of the music; nothing reads the future beyond that; small
+   fluctuations glide; and a snapshot still leaves the front exactly as the live line was. */
+{
+  const m = DETAIL.low.motion;
+  const bands = 4, rows = 40;
+  check(m && m.snap > 0 && m.glide > 0 && m.lead > 0 && m.lead <= 0.05,
+    'DETAIL.low.motion: a hit snaps, the rest glides, and the front is at most 50 ms ahead of the music');
+
+  // A hit: quiet, then band 1 jumps at row 20.
+  const raw = new Uint8Array(rows * bands).fill(100);
+  for (let r = 20; r < rows; r++) raw[r * bands + 1] = 200;
+  const live = { raw, settled: settle(raw, rows, bands, ROW_SECONDS, m), rows, rowSeconds: ROW_SECONDS, motion: m };
+  const out = new Float32Array(bands);
+  const centre = 20.5 * ROW_SECONDS;
+  liveAt(live, bands, centre - m.lead - 1e-6, out);
+  const before = out[1];
+  liveAt(live, bands, centre, out);
+  const on = out[1];
+  liveAt(live, bands, centre - 0.5 * ROW_SECONDS, out);
+  const early = out[1];
+  check(before === 100 && early === 100 && on === 200,
+    `liveAt: a hit is still flat ${Math.round(m.lead * 1000)} ms before its row's centre and at full height ON it — ` +
+    'never the half-row-early swell of a blend toward the next line');
+
+  // Nothing reads the future past one row: change row 30 onwards, and every instant before
+  // row 29's centre is untouched.
+  const other = raw.slice(); for (let r = 30; r < rows; r++) for (let b = 0; b < bands; b++) other[r * bands + b] = 7;
+  const live2 = { ...live, raw: other, settled: settle(other, rows, bands, ROW_SECONDS, m) };
+  let causal = true;
+  const a = new Float32Array(bands), b2 = new Float32Array(bands);
+  for (let t = 0; t < 29.5 * ROW_SECONDS; t += 0.007) {
+    liveAt(live, bands, t, a); liveAt(live2, bands, t, b2);
+    if (a.some((v, i) => v !== b2[i])) causal = false;
+  }
+  check(causal && Array.from(settle(other, rows, bands, ROW_SECONDS, m).subarray(0, 30 * bands))
+                       .every((v, i) => v === live.settled[i]),
+    'settle / liveAt: causal — a row reads only the rows before it, and the live line at most the next row ' +
+    '(and a snap from it only `lead` early)');
+
+  // Small fluctuations glide; a hit snaps.
+  const wobble = new Uint8Array(rows * bands);
+  for (let r = 0; r < rows; r++) for (let b = 0; b < bands; b++) wobble[r * bands + b] = 120 + (r % 2 ? m.snap - 3 : 0);
+  const sw = settle(wobble, rows, bands, ROW_SECONDS, m);
+  let swing = 0;
+  for (let r = 20; r < rows; r++) swing = Math.max(swing, Math.abs(sw[r * bands] - sw[(r - 1) * bands]));
+  check(swing < (m.snap - 3) / 2,
+    `settle: a band flickering ${m.snap - 3} bytes every row moves under half that — it glides, not wiggles`);
+  check(live.settled[20 * bands + 1] === 200 && live.settled[19 * bands + 1] === 100,
+    'settle: a rise past `snap` lands at full height on its own row');
+
+  // The hand-off, by value: every snapshot IS the live line at the instant it is taken.
+  const bytes = Uint8Array.from({ length: 300 * 128 }, (_, i) => (i * 2654435761 >>> 24) & 0xff);
+  const sh = shapeMesh(bytes, 300, 128, ROW_SECONDS, DETAIL.low);
+  let same = true;
+  const line = new Float32Array(128);
+  for (let l = 0; l < sh.rows; l++) {
+    liveAt(sh.live, 128, lineTime(l, sh.rowSeconds), line);
+    for (let b = 0; b < 128; b++) if (line[b] !== sh.values[l * 128 + b]) same = false;
+  }
+  const w = liveWindow(lineTime(40, sh.rowSeconds) + 1e-9, sh.rowSeconds, sh.rows, sh.visible);
+  check(same && Math.abs(lineTime(w.live, sh.rowSeconds) - lineTime(40, sh.rowSeconds)) < 1e-6,
+    'shapeMesh: every snapshot is the live line at the instant it is taken — it leaves the front exactly as drawn');
+
+  // The renderer computes the live line every frame at the time its position stands for.
+  check(/liveAt\(mesh\.live, mesh\.bands, \(w\.live \+ 0\.5\) \* mesh\.rowSeconds, this\.liveLine\)/.test(glSrc)
+        && /if \(u_liveOwn == 1\) return texelFetch\(u_curves, ivec2\(seg, u_ring\), 0\)\.r \* AMPLITUDE;/.test(glSrc)
+        && /RING \+ 1, 0, gl\.RED/.test(glSrc),
+    'gl.ts: the live line is liveAt at its own time, one texel row after the ring, over the fixed span × AMPLITUDE');
+  check(shapeMesh(bytes, 300, 128, ROW_SECONDS, DETAIL.high).live === undefined,
+    'DETAIL.high: no motion — the detailed terrain is the stored rows, as it always was');
 }
 
 /* ── the camera ───────────────────────────────────────────────────────────── */

@@ -31,7 +31,7 @@ import { compileProgram, uniforms } from '@jkos/scene/gl';
 import type { RGB } from '@jkos/scene/math';
 import {
   AMPLITUDE, FLOOR_Y, FOG_FAR, FOG_NEAR, HALF_WIDTH, RING,
-  columnsOf, rowCurve, rowsNeeded, segmentsOf, slotOf, type LiveWindow, type Shaped,
+  columnsOf, liveAt, rowCurve, rowsNeeded, segmentsOf, slotOf, type LiveWindow, type Shaped,
 } from './stage';
 
 /* ⚠️ The (line, segment) arithmetic below is mirrored by `cellOf` / `lineOf` in
@@ -63,6 +63,7 @@ uniform int u_sub;             // segments per gap between two vertices
 uniform int u_columnEvery;     // the grid's spacing, in vertices
 uniform float u_warp;          // pulsarmap.ts X_WARP, or 1 when the columns are pre-warped
 uniform float u_pitch;         // depth between lines
+uniform int u_liveOwn;         // 1: the live line is its own texel row, u_ring (stage.ts liveAt)
 
 out float v_ramp;
 out float v_fog;
@@ -85,6 +86,9 @@ float heightAt(int row, int seg) {
 // blended (stage.ts liveValue); a snapshot is its own row.
 float lineHeight(int line, int seg) {
   if (line == u_lines - 1) {
+    // With a motion the live line is computed every frame (stage.ts liveAt) into the row
+    // after the ring — the same fixed span × AMPLITUDE as every other curve.
+    if (u_liveOwn == 1) return texelFetch(u_curves, ivec2(seg, u_ring), 0).r * AMPLITUDE;
     int next = min(u_liveRow + 1, u_rows - 1);
     return mix(heightAt(u_liveRow, seg), heightAt(next, seg), u_liveFrac);
   }
@@ -209,7 +213,7 @@ void main() {
 const UNIFORMS = [
   'u_curves', 'u_ring', 'u_rowStart', 'u_lines', 'u_liveRow', 'u_liveFrac', 'u_liveZ', 'u_per', 'u_bands',
   'u_rows', 'u_pass', 'u_viewProj', 'u_viewport', 'u_lineWidth', 'u_liveWidth',
-  'u_focusZ', 'u_surface', 'u_line', 'u_far', 'u_sub', 'u_columnEvery', 'u_warp', 'u_pitch', 'u_relief', 'u_light',
+  'u_focusZ', 'u_surface', 'u_line', 'u_far', 'u_sub', 'u_columnEvery', 'u_warp', 'u_pitch', 'u_relief', 'u_light', 'u_liveOwn',
 ] as const;
 
 export interface RidgeColors {
@@ -238,6 +242,8 @@ export class RidgeRenderer {
   /** Which row each ring slot holds; −1 = empty. */
   private held = new Int32Array(RING).fill(-1);
   private scratch = new Float32Array(0);
+  /** The live line's values (`liveAt`), before they are curved into `scratch`. */
+  private liveLine = new Float32Array(0);
 
   constructor(gl: WebGL2RenderingContext) {
     this.gl = gl;
@@ -259,7 +265,8 @@ export class RidgeRenderer {
     const width = segmentsOf(bands, mesh.detail.subdivisions) + 1;
     if (!this.texture) this.texture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, this.texture);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.R32F, width, RING, 0, gl.RED, gl.FLOAT, null);
+    // RING rows of snapshots, and one more for a live line of its own (`liveAt`).
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.R32F, width, RING + 1, 0, gl.RED, gl.FLOAT, null);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
@@ -267,6 +274,7 @@ export class RidgeRenderer {
     this.mesh = mesh;
     this.held.fill(-1);
     this.scratch = new Float32Array(width);
+    this.liveLine = new Float32Array(bands);
   }
 
   /** Spline every row this frame reads into its ring slot, unless the slot holds it. */
@@ -301,6 +309,14 @@ export class RidgeRenderer {
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, this.texture);
     this.fill(w);
+    if (mesh.live) {
+      // The live line, now: at the time its position stands for (stage.ts lineTime), so it
+      // is EXACTLY the snapshot it becomes as it reaches each line.
+      liveAt(mesh.live, mesh.bands, (w.live + 0.5) * mesh.rowSeconds, this.liveLine);
+      rowCurve(this.liveLine, 0, mesh.bands, this.scratch, 0, subdivisions);
+      gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, RING, this.scratch.length, 1, gl.RED, gl.FLOAT, this.scratch);
+    }
+    gl.uniform1i(u.u_liveOwn, mesh.live ? 1 : 0);
     gl.uniform1i(u.u_curves, 0);
     gl.uniform1i(u.u_ring, RING);
     gl.uniform1i(u.u_rowStart, w.start);
