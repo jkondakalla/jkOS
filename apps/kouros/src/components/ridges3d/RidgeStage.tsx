@@ -4,8 +4,8 @@ import { DEG, createRig, cutRig, isSoftwareRenderer, rigView, stepRig } from '@j
 import { useOrbitControls, useScene } from '@jkos/scene/react';
 import { RidgeRenderer, type RidgeColors } from './gl';
 import {
-  DETAIL, FOLLOW_DISTANCE, FOLLOW_PITCH, FOV, LOOK_BEHIND, ORBIT, RETURN_OMEGA, TARGET_Y, followPose, liveWindow,
-  shapeMesh, type DetailName,
+  DETAIL, FOLLOW_DISTANCE, FOLLOW_PITCH, FOV, LOOK_BEHIND, ORBIT, RETURN_OMEGA, SOFTWARE_MAX_TRIANGLES, TARGET_Y,
+  followPose, liveWindow, shapeMesh, trianglesOf, type DetailName,
 } from './stage';
 
 /**
@@ -52,7 +52,7 @@ export interface RidgeStageProps {
    *  track is positioned by. */
   livePosition?: () => number;
   playing?: boolean;
-  /** `low` (the default): a few pooled cells, flat facets — Jag's polygonal look. `high`:
+  /** `low` (the default): straight edges and flat facets — Jag's polygonal look. `high`:
    *  every stored band and row, splined — the smooth terrain. stage.ts `DETAIL`. */
   detail?: DetailName;
   /** WebGL2 is not available, or the context could not be made: draw in 2-D. */
@@ -86,11 +86,11 @@ export default function RidgeStage({
     create: (gl) => {
       // ⚠️ A CPU rasteriser is a WebGL2 context like any other, and pays per triangle:
       // the smooth terrain is ~190k a frame, 60 fps on any GPU and ~2 on SwiftShader.
-      // Refused here, `onUnsupported` mounts the 2-D strip, which a CPU draws easily.
-      // The low-poly one is ~600 triangles, which a CPU draws easily too.
+      // Over the budget (stage.ts SOFTWARE_MAX_TRIANGLES) it is refused here, and
+      // `onUnsupported` mounts the 2-D strip, which a CPU draws easily.
       const m = liveRef.current.shaped;
       const name = rendererName(gl);
-      if (m.detail.subdivisions > 1 && isSoftwareRenderer(name)) {
+      if (trianglesOf(m) > SOFTWARE_MAX_TRIANGLES && isSoftwareRenderer(name)) {
         throw new Error(`a software rasteriser (${name}) — the 2-D strip draws instead`);
       }
       const renderer = new RidgeRenderer(gl);

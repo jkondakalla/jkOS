@@ -164,6 +164,10 @@ export interface Detail {
   /** Stored rows pooled into one line. A line still stands for a fixed span of music —
    *  `rowsPer × row_seconds` — so the reveal rate is still a property of time. */
   rowsPer: number;
+  /** Depth between lines, in `PITCH`es. The window holds `VISIBLE_ROWS / spacing` lines,
+   *  so the history always reaches the same depth and the follow framing never moves;
+   *  what changes is how many seconds that depth holds. */
+  spacing: number;
   /** Vertices across a line; 0 = one per stored band. */
   columns: number;
   /** Segments per gap between two vertices (1 = straight edges). */
@@ -174,28 +178,43 @@ export interface Detail {
   relief: number;
   /** Where that light comes from — toward the light, unit length. */
   light: Vec3;
+  /** Line widths, CSS px: the snapshots, and the live line at the front. */
+  linePx: number;
+  livePx: number;
 }
 
 export const DETAIL: { readonly [K in DetailName]: Detail } = {
-  high: { rowsPer: 1, columns: 0, subdivisions: SUBDIVISIONS, columnEvery: COLUMN_EVERY, relief: 0.22,
-          light: [-0.33, 0.85, 0.41] },
-  /* Polygonal, but still a visualizer: ~5,500 triangles a frame against ~190k. Jag,
-     2026-10-14, of 12 columns × 4 rows (~500): "way too little detail to make it a cool
-     visual — the goal is a music visualizer"; of 24 × 2: "still too low detail". 64
-     columns (two bands each, on average) keep the spectrum's own peaks, and 2 rows to a
-     line (~0.19 s, ~5.4 lines a second) let a beat be its own ridge; at 1 row the facets
-     turn to slivers and the lines bury them — the detailed picture, only jagged.
-     No grid: it turns the triangles back into a quad lattice. The
-     light comes from above, behind and to the left — overhead, the shallow facets all
+  high: { rowsPer: 1, spacing: 1, columns: 0, subdivisions: SUBDIVISIONS, columnEvery: COLUMN_EVERY, relief: 0.22,
+          light: [-0.33, 0.85, 0.41], linePx: LINE_WIDTH_PX, livePx: LIVE_WIDTH_PX },
+  /* Faceted, and the whole spectrogram: every stored band, straight edges, each
+     triangle one flat facet — ~11,000 surface triangles a frame against the terrain's ~89,000. Jag, 2026-10-14,
+     in turn: 12 columns × 4 rows was "way too little detail to make it a cool visual —
+     the goal is a music visualizer"; 24 × 2 "still too low"; of 64 × 2, "I want a more
+     detailed spectrogram, not more frequent lines". So the detail goes ACROSS (every
+     band, the most the analysis holds), and a line stays 2 rows (~0.19 s, ~5.4 a
+     second): a cell about as deep as it is wide, so the facets read as triangles.
+     Thin lines (Jag: the weight was "adding too much visual noise") — the facets carry
+     the picture and the lines trace it. No grid: it turns the triangles into a lattice.
+     The light comes from above, behind and to the left — overhead, the facets all
      shade alike and the polygons vanish. */
-  low: { rowsPer: 2, columns: 64, subdivisions: 1, columnEvery: 0, relief: 1,
-         light: [-0.5007, 0.751, -0.4306] },
+  low: { rowsPer: 2, spacing: 2, columns: 0, subdivisions: 1, columnEvery: 0, relief: 1,
+         light: [-0.5007, 0.751, -0.4306], linePx: 0.5, livePx: 1.5 },
 };
+
+/** Triangles one frame of `m` draws: the surface between every pair of lines, two to a
+ *  segment (the front face, the lines and the grid are a few percent more). */
+export const trianglesOf = (m: Pick<Shaped, 'visible' | 'bands' | 'detail'>): number =>
+  m.visible * segmentsOf(m.bands, m.detail.subdivisions) * 2;
+
+/** The most a software rasteriser is asked to draw in 3-D, in `trianglesOf`. A CPU pays
+ *  per triangle: SwiftShader at 780 × 336 drew ~5,500 at 29 fps, ~11,000 at 15, and the
+ *  smooth terrain (~89,000) at 1.9. Above this the 2-D strip draws instead. */
+export const SOFTWARE_MAX_TRIANGLES = 6000;
 
 /** The mesh the renderer draws, in a detail. */
 export interface Shaped {
-  /** Row-major, `rows × bands`, over the fixed 0…255 span (a pooled cell is a mean, so
-   *  it may be fractional). */
+  /** Row-major, `rows × bands`, over the fixed 0…255 span (a column between two bands
+   *  is the line between them, so it may be fractional). */
   values: ArrayLike<number>;
   rows: number;
   bands: number;
@@ -205,7 +224,7 @@ export interface Shaped {
    *  vertex; 1 when the columns were already PLACED along the warped axis. */
   warp: number;
   /** Depth between lines, and lines drawn behind the live one — scaled together, so the
-   *  history reaches the same depth (~8 s) and the follow framing does not move. */
+   *  history reaches the same depth and the follow framing does not move. */
   pitch: number;
   visible: number;
   detail: Detail;
@@ -251,8 +270,8 @@ export function columnBands(bands: number, columns: number): Array<{ from: numbe
 export function shapeMesh(bytes: ArrayLike<number>, rows: number, bands: number, rowSeconds: number,
                           detail: Detail): Shaped {
   const k = Math.max(1, Math.floor(detail.rowsPer));
-  const pitch = PITCH * k;
-  const visible = Math.max(1, Math.round(VISIBLE_ROWS / k));
+  const pitch = PITCH * detail.spacing;
+  const visible = Math.max(1, Math.round(VISIBLE_ROWS / detail.spacing));
   if (k === 1 && !(detail.columns > 0)) {
     return { values: bytes, rows, bands, rowSeconds, warp: X_WARP, pitch, visible, detail };
   }

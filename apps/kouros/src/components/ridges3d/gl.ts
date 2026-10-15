@@ -30,7 +30,7 @@
 import { compileProgram, uniforms } from '@jkos/scene/gl';
 import type { RGB } from '@jkos/scene/math';
 import {
-  AMPLITUDE, FLOOR_Y, FOG_FAR, FOG_NEAR, HALF_WIDTH, LINE_WIDTH_PX, LIVE_WIDTH_PX, RING,
+  AMPLITUDE, FLOOR_Y, FOG_FAR, FOG_NEAR, HALF_WIDTH, RING,
   columnsOf, rowCurve, rowsNeeded, segmentsOf, slotOf, type LiveWindow, type Shaped,
 } from './stage';
 
@@ -318,8 +318,8 @@ export class RidgeRenderer {
     gl.uniform1i(u.u_rows, mesh.rows);
     gl.uniformMatrix4fv(u.u_viewProj, false, frame.viewProj);
     gl.uniform2f(u.u_viewport, frame.width, frame.height);
-    gl.uniform1f(u.u_lineWidth, LINE_WIDTH_PX * frame.dpr);
-    gl.uniform1f(u.u_liveWidth, LIVE_WIDTH_PX * frame.dpr);
+    gl.uniform1f(u.u_lineWidth, mesh.detail.linePx * frame.dpr);
+    gl.uniform1f(u.u_liveWidth, mesh.detail.livePx * frame.dpr);
     gl.uniform1f(u.u_focusZ, frame.focusZ);
     gl.uniform3fv(u.u_surface, colors.surface);
     gl.uniform3fv(u.u_line, colors.line);

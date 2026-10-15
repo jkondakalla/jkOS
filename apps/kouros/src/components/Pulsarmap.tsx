@@ -112,7 +112,7 @@ export default function Pulsarmap({
    *  every frame of a playing track, so ~10.8 rows a second flow rather than jump. */
   livePosition?: () => number;
   playing?: boolean;
-  /** The 3-D picture's detail — `low` (default) is the polygonal one, `high` the smooth
+  /** The 3-D picture's detail — `low` (default) is the faceted one, `high` the smooth
    *  terrain (ridges3d/stage.ts `DETAIL`). The 2-D fallback draws every band either way. */
   detail?: DetailName;
   className?: string;

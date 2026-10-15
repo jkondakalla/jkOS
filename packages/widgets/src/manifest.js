@@ -382,7 +382,7 @@ export const NODES = {
   pulsarmap: {
     kind: 'molecule', label: 'Pulsarmap', hint: "the playing track's spectrogram as ridgelines, revealed as it plays (KourOS)",
     props: {
-      detail: { type: 'enum', values: ['low', 'high'], doc: 'low (default): a few pooled cells as flat-lit triangles, the polygonal look; high: every stored band and row, splined into a smooth terrain' },
+      detail: { type: 'enum', values: ['low', 'high'], doc: 'low (default): every band, a line every two rows, straight edges and flat-lit triangles, the polygonal look; high: every band and row, splined into a smooth terrain' },
     },
     host: 'kouros', reads: 'player',
     example: { t: 'pulsarmap' },

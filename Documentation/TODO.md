@@ -179,8 +179,8 @@ yours. Both current snapshots are in `music/out/`.
   the rune layer is live on a phone for the first time. It has never met a thumb.
 - **Check on a real phone:** the 3-D pulsarmap's frame rate since it became a terrain (2026-10-14:
   ~190 k triangles a frame; 60 fps on a desktop GPU at phone size, and a software rasteriser now
-  gets the 2-D strip — the low-poly default since 2026-10-14 is ~5,500 and draws anywhere; the
-  `detail: "high"` terrain is the one to measure) and its feel under a thumb; the vibe space's scrub frame rate, whether
+  gets the 2-D strip — the faceted default since 2026-10-14 is ~11,000, an eighth of the
+  `detail: "high"` terrain) and its feel under a thumb; the vibe space's scrub frame rate, whether
   the adaptive render scale settles, and how the density worker (1.5 s for 3,000 tracks on the
   workstation) scales to 47,000 on a phone CPU.
 - **Listening session, not yet built:**

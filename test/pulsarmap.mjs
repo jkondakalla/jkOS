@@ -224,7 +224,8 @@ const stage = await importTs('apps/kouros/src/components/ridges3d/stage.ts', 'st
 const {
   cellOf, liveWindow, lineOf, liveValue, bandCurve, rowCurve, rowsNeeded, slotOf, segmentsOf, columnsOf,
   followPose, rowZ, rowHeight, rampOf, ORBIT, AMPLITUDE, VISIBLE_ROWS, RING, SUBDIVISIONS, COLUMN_EVERY,
-  LOOK_BEHIND, MIN_PITCH, MAX_PITCH, MAX_YAW, FOG_FAR, PITCH, DETAIL, shapeMesh, columnBands,
+  LOOK_BEHIND, MIN_PITCH, MAX_PITCH, MAX_YAW, FOG_FAR, PITCH, DETAIL, shapeMesh, columnBands, trianglesOf,
+  SOFTWARE_MAX_TRIANGLES, LINE_WIDTH_PX, LIVE_WIDTH_PX,
 } = stage;
 const glSrc = readFileSync(resolve(root, 'apps/kouros/src/components/ridges3d/gl.ts'), 'utf8');
 
@@ -394,25 +395,41 @@ const glSrc = readFileSync(resolve(root, 'apps/kouros/src/components/ridges3d/gl
 
   const low = DETAIL.low;
   const shaped = shapeMesh(bytes, rows, bands, ROW_SECONDS, low);
-  check(shaped.bands === low.columns && shaped.rows === Math.ceil(rows / low.rowsPer)
-        && Math.abs(shaped.rowSeconds - ROW_SECONDS * low.rowsPer) < 1e-12 && shaped.warp === 1
-        && low.subdivisions === 1 && segmentsOf(shaped.bands, low.subdivisions) === low.columns - 1,
-    `shapeMesh: low-poly is ${low.columns} straight-edged columns × a line every ${low.rowsPer} rows — ` +
-    'the row duration it carries is the pooled one, so the reveal is still currentTime / rowSeconds');
-  const lowTris = low.columns * Math.ceil(VISIBLE_ROWS / low.rowsPer) * 2;
-  check(lowTris * 10 < segmentsOf(128) * VISIBLE_ROWS * 2,
-    `DETAIL.low: ~${lowTris} triangles a frame, under a tenth of the detailed terrain — polygonal, and cheap anywhere`);
+  // Jag 2026-10-14: "a more detailed spectrogram, not more frequent lines" — every band
+  // across, a line every 2 rows, straight edges.
+  check(low.columns === 0 && shaped.bands === bands && shaped.warp === X_WARP && low.rowsPer === 2 && low.spacing === 2
+        && shaped.rows === Math.ceil(rows / low.rowsPer) && Math.abs(shaped.rowSeconds - ROW_SECONDS * low.rowsPer) < 1e-12
+        && low.subdivisions === 1 && segmentsOf(shaped.bands, low.subdivisions) === bands - 1,
+    'shapeMesh: the faceted picture is every stored band, straight-edged, a line every 2 rows — the row duration ' +
+    'it carries is the pooled one, so the reveal is still currentTime / rowSeconds');
+  check(low.linePx < LINE_WIDTH_PX && low.livePx < LIVE_WIDTH_PX && low.livePx > low.linePx,
+    'DETAIL.low: thinner lines than the terrain (Jag: "too much visual noise"), the live line still the heaviest');
+  check(/u_lineWidth, mesh\.detail\.linePx \* frame\.dpr/.test(glSrc) && /u_liveWidth, mesh\.detail\.livePx \* frame\.dpr/.test(glSrc),
+    'gl.ts: the line widths are the detail\'s');
+
+  // ⚠️ A software rasteriser draws 3-D only within its budget; the stage holds it to that.
+  const stageSrc = readFileSync(resolve(root, 'apps/kouros/src/components/ridges3d/RidgeStage.tsx'), 'utf8');
+  const highTris = trianglesOf(shapeMesh(bytes, rows, bands, ROW_SECONDS, DETAIL.high));
+  const lowTris = trianglesOf(shaped);
+  check(/trianglesOf\(m\) > SOFTWARE_MAX_TRIANGLES && isSoftwareRenderer\(name\)/.test(stageSrc)
+        && highTris > SOFTWARE_MAX_TRIANGLES && lowTris > SOFTWARE_MAX_TRIANGLES && lowTris * 7 < highTris,
+    `RidgeStage: a software rasteriser over ${SOFTWARE_MAX_TRIANGLES} triangles gets the 2-D strip — the terrain ` +
+    `(${highTris}) and the faceted picture (${lowTris}, about an eighth of it) both do`);
+  check(trianglesOf(shapeMesh(bytes, rows, bands, ROW_SECONDS, { ...low, columns: 64 })) <= SOFTWARE_MAX_TRIANGLES,
+    'SOFTWARE_MAX_TRIANGLES: admits the 64-column cut it was measured on (29 fps on SwiftShader)');
 
   // Columns sit evenly along the WARPED axis: every band pools into the column nearest
   // where bandFraction draws it, the columns cover every band once, in order.
-  const cols = columnBands(bands, low.columns);
+  // Pooled columns: the mechanism a coarser detail uses (measured at 12, 24 and 64).
+  const COARSE = 64;
+  const cols = columnBands(bands, COARSE);
   const own = cols.filter((r) => r.at === undefined);
   let covers = own[0].from === 0 && own[own.length - 1].to === bands, nearest = true, placed = true;
   for (let i = 0; i < own.length; i++) {
     if (!(own[i].to > own[i].from) || (i > 0 && own[i].from !== own[i - 1].to)) covers = false;
   }
   for (let c = 0; c < cols.length; c++) {
-    const target = c / (low.columns - 1);
+    const target = c / (COARSE - 1);
     if (cols[c].at !== undefined) {
       // A column no band falls in stands at its own place on the axis, between two bands.
       if (Math.abs(pm.bandFraction(cols[c].at, bands) - target) > 1e-9
@@ -420,7 +437,7 @@ const glSrc = readFileSync(resolve(root, 'apps/kouros/src/components/ridges3d/gl
       continue;
     }
     for (let b = cols[c].from; b < cols[c].to; b++) {
-      if (Math.abs(pm.bandFraction(b, bands) - target) > 0.5 / (low.columns - 1) + 1e-12) nearest = false;
+      if (Math.abs(pm.bandFraction(b, bands) - target) > 0.5 / (COARSE - 1) + 1e-12) nearest = false;
     }
   }
   check(covers, 'columnBands: every stored band pools into exactly one column, in order');
@@ -432,7 +449,7 @@ const glSrc = readFileSync(resolve(root, 'apps/kouros/src/components/ridges3d/gl
   {
     // That column is the straight line between its two bands, row by row.
     const ramp = Uint8Array.from({ length: bands }, (_, b) => Math.min(255, b * 20));
-    const v = shapeMesh(ramp, 1, bands, ROW_SECONDS, { ...low, rowsPer: 1 }).values;
+    const v = shapeMesh(ramp, 1, bands, ROW_SECONDS, { ...low, rowsPer: 1, columns: COARSE }).values;
     const c = cols.findIndex((r) => r.at !== undefined);
     check(Math.abs(v[c] - cols[c].at * 20) < 1e-4 && v[c] > v[c - 1] && v[c] < v[c + 1],
       'shapeMesh: a column between bands takes the line between them — the bass edge rises, it does not step');
@@ -455,7 +472,7 @@ const glSrc = readFileSync(resolve(root, 'apps/kouros/src/components/ridges3d/gl
 
   // The window: as deep as the detailed one, its far edge always in the fog, the ring big enough.
   check(Math.abs(shaped.pitch * shaped.visible - PITCH * VISIBLE_ROWS) < 1e-9,
-    'shapeMesh: the history reaches the same depth (~8 s) — the follow framing is the same in both details');
+    'shapeMesh: the history reaches the same depth — the follow framing is the same in both details');
   const TWENTY = Math.ceil(Math.ceil(20 * 60 / ROW_SECONDS) / low.rowsPer);
   let fogged = true, ring = true, steady = true, handoff = true;
   const perFrame = shaped.pitch * (1 / 60) / shaped.rowSeconds;
@@ -475,7 +492,7 @@ const glSrc = readFileSync(resolve(root, 'apps/kouros/src/components/ridges3d/gl
   check(steady, 'low-poly window: the camera flows the same step every frame of a 20-minute track — no step per line');
   check(handoff, 'low-poly window: a line is taken from the live line at its centre, as in the detailed picture');
   check(columnsOf(12, 0) === 0 && low.columnEvery === 0,
-    'columnsOf: no grid on the low-poly picture — on this few columns it turns the triangles back into a lattice');
+    'columnsOf: no grid on the faceted picture — it turns the triangles back into a lattice');
 }
 
 /* ── the camera ───────────────────────────────────────────────────────────── */
