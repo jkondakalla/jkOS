@@ -179,15 +179,16 @@ export interface Detail {
 export const DETAIL: { readonly [K in DetailName]: Detail } = {
   high: { rowsPer: 1, columns: 0, subdivisions: SUBDIVISIONS, columnEvery: COLUMN_EVERY, relief: 0.22,
           light: [-0.33, 0.85, 0.41] },
-  /* Polygonal, but still a visualizer: ~2,100 triangles a frame against ~190k. Jag,
-     2026-10-14, of the first cut (12 columns × 4 rows, ~500): "way too little detail to
-     make it a cool visual — the goal is a music visualizer". 24 columns give the
-     spectrum its peaks back, and 2 rows to a line (~0.19 s, ~5.4 lines a second) let a
-     beat be its own ridge; at 1 row the facets turn to slivers and the lines bury them.
-     No grid: on this few columns it turns the triangles back into a quad lattice. The
+  /* Polygonal, but still a visualizer: ~5,500 triangles a frame against ~190k. Jag,
+     2026-10-14, of 12 columns × 4 rows (~500): "way too little detail to make it a cool
+     visual — the goal is a music visualizer"; of 24 × 2: "still too low detail". 64
+     columns (two bands each, on average) keep the spectrum's own peaks, and 2 rows to a
+     line (~0.19 s, ~5.4 lines a second) let a beat be its own ridge; at 1 row the facets
+     turn to slivers and the lines bury them — the detailed picture, only jagged.
+     No grid: it turns the triangles back into a quad lattice. The
      light comes from above, behind and to the left — overhead, the shallow facets all
      shade alike and the polygons vanish. */
-  low: { rowsPer: 2, columns: 24, subdivisions: 1, columnEvery: 0, relief: 1,
+  low: { rowsPer: 2, columns: 64, subdivisions: 1, columnEvery: 0, relief: 1,
          light: [-0.5007, 0.751, -0.4306] },
 };
 
@@ -212,11 +213,17 @@ export interface Shaped {
 
 /** The stored bands each column pools: band `b` belongs to the column nearest where
  *  `bandFraction` draws it, so the columns sit EVENLY along the warped axis — the
- *  warp's own claim (equal sharpness per width), kept at any column count. A column no
- *  band falls in (only at absurd counts) takes the band drawn nearest it. */
-export function columnBands(bands: number, columns: number): Array<{ from: number; to: number }> {
-  const out = Array.from({ length: columns }, () => ({ from: -1, to: -1 }));
+ *  warp's own claim (equal sharpness per width), kept at any column count.
+ *
+ *  ⚠️ At the far left the warp draws the lowest bands WIDER apart than a column (at 64
+ *  columns, band 0 → column 0 and band 1 → column 2), so a column there holds no band.
+ *  It is not given a copy of a neighbour — that draws a flat step into the bass edge —
+ *  but stands at its own place on the axis, `at`, a fractional band: the straight line
+ *  between the two bands either side, which is what the picture draws there anyway. */
+export function columnBands(bands: number, columns: number): Array<{ from: number; to: number; at?: number }> {
   if (columns < 2) return columns === 1 ? [{ from: 0, to: bands }] : [];
+  const out: Array<{ from: number; to: number; at?: number }> =
+    Array.from({ length: columns }, () => ({ from: -1, to: -1 }));
   for (let b = 0; b < bands; b++) {
     const c = Math.round(bandFraction(b, bands) * (columns - 1));
     if (out[c].from < 0) out[c].from = b;
@@ -224,12 +231,10 @@ export function columnBands(bands: number, columns: number): Array<{ from: numbe
   }
   for (let c = 0; c < columns; c++) {
     if (out[c].from >= 0) continue;
-    let best = 0, gap = Infinity;
-    for (let b = 0; b < bands; b++) {
-      const d = Math.abs(bandFraction(b, bands) - c / (columns - 1));
-      if (d < gap) { gap = d; best = b; }
-    }
-    out[c] = { from: best, to: best + 1 };
+    // bandFraction inverted: the band drawn at c / (columns − 1).
+    const at = (bands - 1) * Math.pow(c / (columns - 1), 1 / X_WARP);
+    const from = Math.min(bands - 2, Math.floor(at));
+    out[c] = { from, to: from + 2, at };
   }
   return out;
 }
@@ -258,9 +263,16 @@ export function shapeMesh(bytes: ArrayLike<number>, rows: number, bands: number,
   for (let line = 0; line < lines; line++) {
     const r0 = line * k, r1 = Math.min(rows, r0 + k);
     for (let c = 0; c < across; c++) {
-      const { from, to } = cols ? cols[c] : { from: c, to: c + 1 };
+      const { from, to, at } = cols ? cols[c] : { from: c, to: c + 1, at: undefined };
       let top = 0;
-      for (let r = r0; r < r1; r++) for (let b = from; b < to; b++) top = Math.max(top, bytes[r * bands + b]);
+      for (let r = r0; r < r1; r++) {
+        if (at !== undefined) {
+          const f = at - from, lo = bytes[r * bands + from];
+          top = Math.max(top, lo + (bytes[r * bands + from + 1] - lo) * f);
+        } else {
+          for (let b = from; b < to; b++) top = Math.max(top, bytes[r * bands + b]);
+        }
+      }
       values[line * across + c] = top;
     }
   }

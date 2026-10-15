@@ -400,24 +400,45 @@ const glSrc = readFileSync(resolve(root, 'apps/kouros/src/components/ridges3d/gl
     `shapeMesh: low-poly is ${low.columns} straight-edged columns × a line every ${low.rowsPer} rows — ` +
     'the row duration it carries is the pooled one, so the reveal is still currentTime / rowSeconds');
   const lowTris = low.columns * Math.ceil(VISIBLE_ROWS / low.rowsPer) * 2;
-  check(lowTris < 4000 && lowTris * 40 < segmentsOf(128) * VISIBLE_ROWS * 2,
-    `DETAIL.low: ~${lowTris} triangles a frame, under a fortieth of the detailed terrain — polygonal, and cheap anywhere`);
+  check(lowTris * 10 < segmentsOf(128) * VISIBLE_ROWS * 2,
+    `DETAIL.low: ~${lowTris} triangles a frame, under a tenth of the detailed terrain — polygonal, and cheap anywhere`);
 
   // Columns sit evenly along the WARPED axis: every band pools into the column nearest
   // where bandFraction draws it, the columns cover every band once, in order.
   const cols = columnBands(bands, low.columns);
-  let covers = cols[0].from === 0 && cols[cols.length - 1].to === bands, nearest = true;
+  const own = cols.filter((r) => r.at === undefined);
+  let covers = own[0].from === 0 && own[own.length - 1].to === bands, nearest = true, placed = true;
+  for (let i = 0; i < own.length; i++) {
+    if (!(own[i].to > own[i].from) || (i > 0 && own[i].from !== own[i - 1].to)) covers = false;
+  }
   for (let c = 0; c < cols.length; c++) {
-    if (!(cols[c].to > cols[c].from) || (c > 0 && cols[c].from !== cols[c - 1].to)) covers = false;
+    const target = c / (low.columns - 1);
+    if (cols[c].at !== undefined) {
+      // A column no band falls in stands at its own place on the axis, between two bands.
+      if (Math.abs(pm.bandFraction(cols[c].at, bands) - target) > 1e-9
+          || !(cols[c].at >= cols[c].from && cols[c].at <= cols[c].from + 1)) placed = false;
+      continue;
+    }
     for (let b = cols[c].from; b < cols[c].to; b++) {
-      if (Math.abs(pm.bandFraction(b, bands) - c / (low.columns - 1)) > 0.5 / (low.columns - 1) + 1e-12) nearest = false;
+      if (Math.abs(pm.bandFraction(b, bands) - target) > 0.5 / (low.columns - 1) + 1e-12) nearest = false;
     }
   }
-  check(covers, 'columnBands: every stored band in exactly one column, in order, none empty');
+  check(covers, 'columnBands: every stored band pools into exactly one column, in order');
   check(nearest, 'columnBands: each band pools into the column nearest where the shared band axis draws it — ' +
     'so drawn evenly (warp 1) the columns ARE bandFraction');
+  check(placed && cols.some((r) => r.at !== undefined),
+    'columnBands: a column the warp leaves without a band (the far bass edge) stands at its own place on the ' +
+    'axis, between the bands either side — never a copy of a neighbour, which draws a flat step');
+  {
+    // That column is the straight line between its two bands, row by row.
+    const ramp = Uint8Array.from({ length: bands }, (_, b) => Math.min(255, b * 20));
+    const v = shapeMesh(ramp, 1, bands, ROW_SECONDS, { ...low, rowsPer: 1 }).values;
+    const c = cols.findIndex((r) => r.at !== undefined);
+    check(Math.abs(v[c] - cols[c].at * 20) < 1e-4 && v[c] > v[c - 1] && v[c] < v[c + 1],
+      'shapeMesh: a column between bands takes the line between them — the bass edge rises, it does not step');
+  }
   check(columnBands(bands, 100).every((r) => r.to > r.from),
-    'columnBands: even at a silly column count no column is empty');
+    'columnBands: even at a silly column count every column has bands to read');
 
   // ⚠️ A cell is its LOUDEST byte: one kick in a block of quiet rows survives. (A mean
   // drew a flat sheet — measured on three stored tracks — and fails this.)

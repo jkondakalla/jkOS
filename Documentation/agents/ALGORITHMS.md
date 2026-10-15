@@ -1199,14 +1199,14 @@ low a poly version as possible." The widget's `detail` prop picks (`low` default
 `ridges3d/stage.ts` `DETAIL` profiles drawn by one shader, and `high` renders byte-identical to the
 picture above.
 - **Low-poly is a coarser mesh, not a different analysis.** `shapeMesh` pools each block of 2 rows
-  × one of 24 columns into one cell, joins cells with straight edges, and lights every triangle as
-  one flat facet. ~2,100 triangles a frame against ~190 k — 71 fps on SwiftShader (the terrain:
-  1.9), so a software rasteriser draws it instead of falling back to 2-D.
-- ⚠️ **The first cut was too low (12 columns × 4 rows, ~500 triangles).** Jag: "way too little
-  detail to make it a cool visual. The goal of this is to be a music visualizer." At ~0.37 s a
-  line the beat was gone, and 12 columns flattened every spectrum to the same slope. 24 × 2
-  (~0.19 s, ~5.4 lines a second) is the middle ground; 1 row a line turned the facets to slivers
-  under the lines, and 32 columns read as spikes again.
+  × one of 64 columns into one cell, joins cells with straight edges, and lights every triangle as
+  one flat facet. ~5,500 triangles a frame against ~190 k — 28 fps on SwiftShader at 780 × 336
+  (the terrain: 1.9), so a software rasteriser draws it instead of falling back to 2-D.
+- ⚠️ **Two cuts were too low.** 12 columns × 4 rows (~500 triangles), Jag: "way too little detail
+  to make it a cool visual. The goal of this is to be a music visualizer" — at ~0.37 s a line the
+  beat was gone, and 12 columns flattened every spectrum to the same slope. 24 × 2: "still too low
+  detail." 64 × 2 (~0.19 s, ~5.4 lines a second) keeps the spectrum's own peaks. 1 row a line is
+  the wrong way to add detail: the facets turn to slivers and the lines bury them.
 - **The columns sit evenly along the warped axis.** Each band pools into the column nearest where
   `bandFraction` draws it, so the shader draws the columns at warp 1 and the low-poly picture
   keeps the shared band axis.
