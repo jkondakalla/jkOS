@@ -31,6 +31,7 @@
 
 import { X_WARP, bandFraction, liveRow } from '../pulsarmap';
 import { clamp, DEG, type OrbitDragLimits, type Vec3 } from '@jkos/scene/math';
+import { BAND_LEVEL, BAND_SPREAD } from './balance';
 
 /** World units. The line spans x ∈ [−HALF_WIDTH, HALF_WIDTH]. */
 export const HALF_WIDTH = 1;
@@ -103,7 +104,7 @@ export function bandX(band: number, bands: number): number {
 // special case — a slot holding the wrong row is simply refilled.
 
 /** Rows the ring holds: the whole window, the row after the live line, and spare. */
-export const RING = 128;
+export const RING = 256;
 /** The ring slot row `row` lives in. The shader's `row % u_ring`. */
 export const slotOf = (row: number): number => row % RING;
 
@@ -183,6 +184,76 @@ export interface Detail {
   livePx: number;
   /** How the lines MOVE (`settle`); none: every line is its rows as stored. */
   motion?: Motion;
+  /** A line every this many seconds, taken from the live line (needs `motion`) — finer
+   *  than the stored rows if it likes; none: a line every `rowsPer` rows. */
+  lineSeconds?: number;
+  /** true: a lit surface joins each line to the next (a terrain). false: no joins — each
+   *  line hangs an invisible curtain to the floor that hides the lines behind it, the
+   *  *Unknown Pleasures* plate. */
+  surface: boolean;
+  /** Each band evened out against the library (`balanceRow`); none: bytes as stored. */
+  balance?: Balance;
+  /** Where the follow camera looks from — none: FOLLOW_PITCH and TARGET_Y. */
+  view?: { pitch: number; targetY: number; distance?: number };
+  /** How far a line rises for every unit it has receded behind the live line — the
+   *  history climbing up AND back, the plate's stacked lines. None: it lies flat. */
+  rise?: number;
+  /** Where the history fades into the surface, as fractions of the window's depth —
+   *  begins at `near`, gone by `far`. None: FOG_NEAR … FOG_FAR. */
+  fade?: { near: number; far: number };
+  /** `cover`: the lines take their colours from the playing sleeve (views.css
+   *  `--kr-pulsar-cover-*`); none: the face's own pulsar tokens. */
+  palette?: 'cover';
+}
+
+/** Where `detail`'s history fades, in world units behind the live line. */
+export function fadeOf(detail: Detail): { near: number; far: number } {
+  if (!detail.fade) return { near: FOG_NEAR, far: FOG_FAR };
+  const depth = VISIBLE_ROWS * PITCH;          // the same for every detail (`spacing`)
+  return { near: detail.fade.near * depth, far: detail.fade.far * depth };
+}
+
+/** Jag, 2026-10-15: "weight the distribution so most activity is seen at the center … the
+ *  highs are barely used and there's a huge plateau on the bass even with small bass hits.
+ *  I'd like a more unified look throughout." balance.ts measured why: every band swings
+ *  about as far, but the bass RESTS ~100 bytes above the top. So each band is drawn as its
+ *  distance from the library's own level in that band (BAND_LEVEL), over its own range
+ *  (BAND_SPREAD) — and then weighted across the line, so the middle carries the action
+ *  and the edges lie nearly flat. Library-wide constants: nothing is measured per track,
+ *  and a louder byte always draws higher. */
+export interface Balance {
+  /** Where every band rests — at its library level — in bytes of height: one flat line. */
+  rest: number;
+  /** How far a band's typical swing (its BAND_SPREAD) moves it from `rest`, at the middle. */
+  swing: number;
+  /** How much of that swing the line's two ends keep; all of it at the middle, a half-sine
+   *  between — so the ends lie nearly flat and the middle carries the action. */
+  edge: number;
+}
+
+/** The most a balanced band may stand, in bytes of height: the swing may carry a peak
+ *  past the stored 255 (Jag: "allow for much higher visual peaks"), never past this. */
+export const BALANCED_MAX = 640;
+
+/** The weight across the line at `u` ∈ [0, 1] (where `bandFraction` draws the band). */
+export const centreWeight = (u: number, edge: number): number => edge + (1 - edge) * Math.sin(Math.PI * clamp(u, 0, 1));
+
+/** One stored row, balanced (`Balance`), into `out` from `offset` — bytes of HEIGHT over the
+ *  same fixed 0…255 span every picture shares:
+ *
+ *    height = rest + weight(where the band is drawn) × (byte − BAND_LEVEL) × swing / BAND_SPREAD
+ *
+ *  A row of other than BAND_LEVEL's bands is copied as stored: the table is the store's 128. */
+export function balanceRow(bytes: ArrayLike<number>, row: number, bands: number, balance: Balance,
+                           out: Float32Array, offset = 0): void {
+  const base = row * bands;
+  const measured = bands === BAND_LEVEL.length;
+  for (let b = 0; b < bands; b++) {
+    const x = bytes[base + b];
+    if (!measured) { out[offset + b] = x; continue; }
+    const w = centreWeight(bandFraction(b, bands), balance.edge);
+    out[offset + b] = clamp(balance.rest + w * (x - BAND_LEVEL[b]) * (balance.swing / BAND_SPREAD[b]), 0, BALANCED_MAX);
+  }
 }
 
 /** Jag, 2026-10-14: "the wave looks like it's just randomly wiggles around — how can we
@@ -213,21 +284,30 @@ export interface Motion {
 
 export const DETAIL: { readonly [K in DetailName]: Detail } = {
   high: { rowsPer: 1, spacing: 1, columns: 0, subdivisions: SUBDIVISIONS, columnEvery: COLUMN_EVERY, relief: 0.22,
-          light: [-0.33, 0.85, 0.41], linePx: LINE_WIDTH_PX, livePx: LIVE_WIDTH_PX },
-  /* Faceted, and the whole spectrogram: every stored band, straight edges, each
-     triangle one flat facet — ~11,000 surface triangles a frame against the terrain's ~89,000. Jag, 2026-10-14,
-     in turn: 12 columns × 4 rows was "way too little detail to make it a cool visual —
-     the goal is a music visualizer"; 24 × 2 "still too low"; of 64 × 2, "I want a more
-     detailed spectrogram, not more frequent lines". So the detail goes ACROSS (every
-     band, the most the analysis holds), and a line stays 2 rows (~0.19 s, ~5.4 a
-     second): a cell about as deep as it is wide, so the facets read as triangles.
-     Thin lines (Jag: the weight was "adding too much visual noise") — the facets carry
-     the picture and the lines trace it. No grid: it turns the triangles into a lattice.
-     The light comes from above, behind and to the left — overhead, the facets all
-     shade alike and the polygons vanish. */
-  low: { rowsPer: 2, spacing: 2, columns: 0, subdivisions: 1, columnEvery: 0, relief: 1,
+          light: [-0.33, 0.85, 0.41], linePx: LINE_WIDTH_PX, livePx: LIVE_WIDTH_PX, surface: true },
+  /* The *Unknown Pleasures* plate, live — Jag, 2026-10-15: "60 lines a second", "no more
+     mesh connections", "full detail", each line hiding the ones behind it, and the bands
+     balanced so the middle carries the action. Every stored band, straight edges; a line
+     every 1/60 s taken from the live line (finer than the ~10.8 stored rows a second:
+     between rows a line is the motion's own interpolation, not new information); half the
+     old spacing, twice the lines, so the history reaches the same depth (~3 s of music).
+     Thin lines (the weight was "adding too much visual noise"); the live line heaviest.
+     Then "allow for much higher visual peaks so that there are more peaks and valleys":
+     a band's typical swing reaches 230 bytes of height from a rest of 110 (2.7× the
+     stored swing — so `snap` is 40, the same ~4.6 dB at the middle), the glide is halved
+     so a valley opens rather than being held up, and the camera comes down to ~19° so
+     the lines read as silhouettes. And "have the past band go up and back rather than
+     just back": each line climbs 0.45 for every unit it recedes — the plate's stack —
+     and "have the further back lines fade out and the colours be derived from the track
+     cover": the history fades from 3 % of the window's depth and is gone by 25 % (~0.7 s
+     of music — the climb takes it off the top of the frame by about there anyway), so
+     only those lines are drawn; coloured from the sleeve. The motion is the one
+     that put it in time with the music (2026-10-14, `Motion`). */
+  low: { rowsPer: 1, spacing: 0.5, columns: 0, subdivisions: 1, columnEvery: 0, relief: 1,
          light: [-0.5007, 0.751, -0.4306], linePx: 0.5, livePx: 1.5,
-         motion: { snap: 15, glide: 0.5, lead: 0.025 } },
+         motion: { snap: 40, glide: 0.25, lead: 0.025 }, lineSeconds: 1 / 60, surface: false,
+         balance: { rest: 110, swing: 230, edge: 0.2 }, rise: 0.45, fade: { near: 0.03, far: 0.25 },
+         view: { pitch: 0.28, targetY: 0.3, distance: 2.4 }, palette: 'cover' },
 };
 
 /** Triangles one frame of `m` draws: the surface between every pair of lines, two to a
@@ -344,9 +424,16 @@ export function shapeMesh(bytes: ArrayLike<number>, rows: number, bands: number,
                           detail: Detail): Shaped {
   const k = Math.max(1, Math.floor(detail.rowsPer));
   const pitch = PITCH * detail.spacing;
-  const visible = Math.max(1, Math.round(VISIBLE_ROWS / detail.spacing));
-  if (k === 1 && !(detail.columns > 0) && !detail.motion) {
+  // Lines past the fade are invisible: the window ends just beyond it.
+  const visible = Math.max(1, Math.min(Math.round(VISIBLE_ROWS / detail.spacing),
+    detail.fade ? Math.ceil((detail.fade.far * VISIBLE_ROWS) / detail.spacing) + 2 : Infinity));
+  if (k === 1 && !(detail.columns > 0) && !detail.motion && !detail.balance) {
     return { values: bytes, rows, bands, rowSeconds, warp: X_WARP, pitch, visible, detail };
+  }
+  if (detail.balance) {
+    const balanced = new Float32Array(rows * bands);
+    for (let r = 0; r < rows; r++) balanceRow(bytes, r, bands, detail.balance, balanced, r * bands);
+    bytes = balanced;
   }
   // Across: every band, or the bands pooled into columns.
   const cols = detail.columns > 0 ? columnBands(bands, detail.columns) : null;
@@ -369,22 +456,20 @@ export function shapeMesh(bytes: ArrayLike<number>, rows: number, bands: number,
     }
     perRow = pooled;
   }
-  // Along: the rows into lines.
+  // Along: the rows into lines. With a motion each line is the live line at the instant it
+  // is taken, computed when it is asked for (`lineValues`) — at 60 lines a second a whole
+  // track's worth up front would be ~250,000 lines for 70 minutes.
+  if (detail.motion) {
+    const lineSeconds = detail.lineSeconds ?? rowSeconds * k;
+    const live = { raw: perRow, settled: settle(perRow, rows, across, rowSeconds, detail.motion), rows, rowSeconds,
+                   motion: detail.motion };
+    return { values: new Float32Array(0), rows: Math.max(1, Math.ceil((rows * rowSeconds) / lineSeconds)),
+             bands: across, rowSeconds: lineSeconds, warp: cols ? 1 : X_WARP, pitch, visible, detail, live };
+  }
   const lines = Math.ceil(rows / k);
   const values = new Float32Array(lines * across);
   const shaped: Shaped = { values, rows: lines, bands: across, rowSeconds: rowSeconds * k, warp: cols ? 1 : X_WARP,
                            pitch, visible, detail };
-  if (detail.motion) {
-    const live = { raw: perRow, settled: settle(perRow, rows, across, rowSeconds, detail.motion), rows, rowSeconds,
-                   motion: detail.motion };
-    const line = new Float32Array(across);
-    for (let l = 0; l < lines; l++) {
-      liveAt(live, across, lineTime(l, shaped.rowSeconds), line);
-      values.set(line, l * across);
-    }
-    shaped.live = live;
-    return shaped;
-  }
   for (let l = 0; l < lines; l++) {
     const r0 = l * k, r1 = Math.min(rows, r0 + k);
     for (let c = 0; c < across; c++) {
@@ -394,6 +479,13 @@ export function shapeMesh(bytes: ArrayLike<number>, rows: number, bands: number,
     }
   }
   return shaped;
+}
+
+/** Line `line` of `m`, into `out` (`m.bands` values): the live line at the instant it was
+ *  taken, or the stored (pooled) line. The renderer's one way to a snapshot. */
+export function lineValues(m: Shaped, line: number, out: Float32Array): void {
+  if (m.live) { liveAt(m.live, m.bands, lineTime(line, m.rowSeconds), out); return; }
+  for (let b = 0; b < m.bands; b++) out[b] = m.values[line * m.bands + b];
 }
 
 /** The instant line `line` is taken from the live line: when the live line STANDS on it
@@ -469,10 +561,10 @@ export interface Pose {
  * arrives at the front the instant its time begins and recedes one pitch per row of
  * music after. A spring here would only lag the music.
  */
-export function followPose(scroll: number, pitch = PITCH): Pose {
+export function followPose(scroll: number, pitch = PITCH, view?: Detail['view']): Pose {
   const focusZ = rowZ(Math.max(0, scroll), pitch);
-  return { focusZ, target: [0, TARGET_Y, focusZ - LOOK_BEHIND], yaw: 0, pitch: FOLLOW_PITCH,
-           distance: FOLLOW_DISTANCE };
+  return { focusZ, target: [0, view?.targetY ?? TARGET_Y, focusZ - LOOK_BEHIND], yaw: 0,
+           pitch: view?.pitch ?? FOLLOW_PITCH, distance: view?.distance ?? FOLLOW_DISTANCE };
 }
 
 /** How a drag orbits the stack (@jkos/scene `orbitDrag`): pitch clamped so the eye can

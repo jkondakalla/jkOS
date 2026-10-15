@@ -4,8 +4,7 @@ import { DEG, createRig, cutRig, isSoftwareRenderer, rigView, stepRig } from '@j
 import { useOrbitControls, useScene } from '@jkos/scene/react';
 import { RidgeRenderer, type RidgeColors } from './gl';
 import {
-  DETAIL, FOLLOW_DISTANCE, FOLLOW_PITCH, FOV, LOOK_BEHIND, ORBIT, RETURN_OMEGA, SOFTWARE_MAX_TRIANGLES, TARGET_Y,
-  followPose, liveWindow, shapeMesh, trianglesOf, type DetailName,
+  DETAIL, FOV, ORBIT, PITCH, RETURN_OMEGA, SOFTWARE_MAX_TRIANGLES, followPose, liveWindow, shapeMesh, trianglesOf, type DetailName,
 } from './stage';
 
 /**
@@ -39,6 +38,17 @@ const COLOR_FALLBACK: RidgeColors = {
 
 const LENS = { fov: FOV, near: 0.05, far: 30 };
 
+/** The three colours, read off the element — the sleeve's (`palette: 'cover'`) or the face's. */
+function readColors(el: HTMLElement, palette: 'cover' | undefined): RidgeColors {
+  const line = palette === 'cover' ? '--kr-pulsar-cover-line' : '--kr-pulsar-line';
+  const far = palette === 'cover' ? '--kr-pulsar-cover-far' : '--kr-pulsar-far';
+  return {
+    surface: tokenColor(el, '--kr-pulsar-surface', COLOR_FALLBACK.surface),
+    line: tokenColor(el, line, tokenColor(el, '--kr-pulsar-line', COLOR_FALLBACK.line)),
+    far: tokenColor(el, far, tokenColor(el, '--kr-pulsar-far', COLOR_FALLBACK.far)),
+  };
+}
+
 export interface RidgeStageProps {
   trackId: number;
   bytes: Uint8Array;
@@ -52,8 +62,9 @@ export interface RidgeStageProps {
    *  track is positioned by. */
   livePosition?: () => number;
   playing?: boolean;
-  /** `low` (the default): straight edges and flat facets — Jag's polygonal look. `high`:
-   *  every stored band and row, splined — the smooth terrain. stage.ts `DETAIL`. */
+  /** `low` (the default): the Unknown Pleasures plate, live — separate lines climbing back
+   *  and fading, coloured from the sleeve. `high`: every stored band and row, splined —
+   *  the smooth lit terrain. stage.ts `DETAIL`. */
   detail?: DetailName;
   /** WebGL2 is not available, or the context could not be made: draw in 2-D. */
   onUnsupported: () => void;
@@ -75,8 +86,10 @@ export default function RidgeStage({
   // The follow pose is the rig's HOME. Its target rides the playhead EXACTLY (cut
   // every frame — a spring would only lag the music), and yaw and pitch spring back to
   // it whenever no hand holds them.
+  // A detail may frame it its own way (stage.ts Detail.view); the rig starts there.
   const rig = useRef(createRig(
-    { target: [0, TARGET_Y, -LOOK_BEHIND], yaw: 0, pitch: FOLLOW_PITCH, distance: FOLLOW_DISTANCE },
+    (({ target, yaw, pitch, distance }) => ({ target, yaw, pitch, distance }))(
+      followPose(0, PITCH, DETAIL[detail].view)),
     { omega: { yaw: RETURN_OMEGA, pitch: RETURN_OMEGA } },
   )).current;
 
@@ -99,11 +112,7 @@ export default function RidgeStage({
     },
     // A face change (paper ↔ tube, or a sleeve accent) re-resolves the tokens.
     onTheme: (el) => {
-      colorsRef.current = {
-        surface: tokenColor(el, '--kr-pulsar-surface', COLOR_FALLBACK.surface),
-        line: tokenColor(el, '--kr-pulsar-line', COLOR_FALLBACK.line),
-        far: tokenColor(el, '--kr-pulsar-far', COLOR_FALLBACK.far),
-      };
+      colorsRef.current = readColors(el, liveRef.current.shaped.detail.palette);
     },
     onUnsupported,
     frame: ({ renderer, canvas, dt, reduced, aspect, dpr }) => {
@@ -111,8 +120,10 @@ export default function RidgeStage({
       const t = live.livePosition ? live.livePosition() : live.position;
       const m = live.shaped;
       const win = liveWindow(t, m.rowSeconds, m.rows, m.visible);
-      const pose = followPose(win.live, m.pitch);
+      const pose = followPose(win.live, m.pitch, m.detail.view);
       rig.targetGoal = pose.target;
+      rig.pitchGoal = pose.pitch;
+      rig.distanceGoal = pose.distance;
       cutRig(rig, 'target');
       const moving = stepRig(rig, dt, reduced);
       const view = rigView(rig, aspect, LENS);
@@ -122,6 +133,21 @@ export default function RidgeStage({
       return moving || (!!live.playing && !!live.livePosition);
     },
   });
+
+  // ── The sleeve's colours follow the sleeve ───────────────────────────────────────
+  // PlayerProvider sets the accent it derives from each cover as a style on the player
+  // scope, asynchronously, after the track has changed — no theme attribute moves, so
+  // useScene's onTheme never hears of it. Watch that one element's style instead.
+  useEffect(() => {
+    const canvas = scene.canvasRef.current;
+    const scope = canvas?.closest('.kr-player-scope');
+    if (!canvas || !scope || shaped.detail.palette !== 'cover') return;
+    const reread = () => { colorsRef.current = readColors(canvas, 'cover'); scene.kick(); };
+    reread();
+    const mo = new MutationObserver(reread);
+    mo.observe(scope, { attributes: true, attributeFilter: ['style'] });
+    return () => mo.disconnect();
+  }, [shaped.detail.palette, scene]);
 
   // ── A new track or detail: one texture upload ───────────────────────────────────
   const firstMesh = useRef(true);

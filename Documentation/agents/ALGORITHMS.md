@@ -1193,50 +1193,52 @@ the snapshots should look like they're being taken from this live version and pu
 The old verdict against a 3-D heightmap stands for what it was aimed at: the FULL matrix is
 1.3 M vertices. The window is 89 lines of 509 points.
 
-**Two details: faceted by default, the smooth terrain kept (2026-10-14).** Jag: "the existing
-pulsar map is too smooth. The goal is a polygonal look. Keep a detailed pulsar map, but give me as
-low a poly version as possible." The widget's `detail` prop picks (`low` default, `high`); both are
-`ridges3d/stage.ts` `DETAIL` profiles drawn by one shader, and `high` renders byte-identical to the
-picture above.
-- **`low` is every stored band, a line every 2 rows, straight edges, each triangle one flat facet.**
-  Not a different analysis — the same bytes, the rows pooled in pairs (~0.19 s, ~5.4 lines a
-  second), so a cell is about as deep as it is wide and the facets read as triangles. ~11,000
-  surface triangles a frame against the terrain's ~89,000.
-- ⚠️ **How it got there — three cuts were too coarse, and the fix was ACROSS, not along.** 12
-  columns × 4 rows (~0.37 s a line): "way too little detail to make it a cool visual. The goal of
-  this is to be a music visualizer." 24 × 2: "still too low detail." 64 × 2: "I want a more
-  detailed spectrogram, not more frequent lines." A line every stored row was tried and is wrong
-  for this look: the facets turn to slivers and the lines bury them.
-- **Thin lines** (0.5 CSS px, the live one 1.5; the terrain's are 1.25 and 2.25) — Jag: the weight
-  was "adding too much visual noise". The facets carry the picture; the lines trace it.
-- **Coarser columns remain a mechanism** (`columnBands`, any count): each band pools into the
-  column nearest where `bandFraction` draws it, so the columns sit evenly along the warped axis
-  and draw at warp 1. Past ~60 columns the warp leaves a column at the bass edge with no band of
-  its own; it stands at its own place on the axis, the line between the bands either side, never a
-  copy of a neighbour (a flat step).
-- ⚠️ **A pooled cell is its loudest byte, not the mean.** Measured on three stored tracks, the mean
-  drew a near-flat sheet: it averages a kick drum away (the M2 argument above) and cut the
-  row-to-row variation by up to 40 %. The max is still a byte off the fixed span — a block half as
-  loud draws half as high — so nothing per track enters. `check:pulsarmap` fails on a mean.
-- **In time with the music: a hit snaps, the rest glides** (`Detail.motion`, `settle`, `liveAt`).
-  Jag: "the wave looks like it's just randomly wiggles around. How can we sync it". Measured on
-  three stored tracks, two causes. ⚠️ **The front moved EARLY:** the live line blended toward the
-  next line, which holds audio not yet played, so a hit began to rise up to ~0.28 s before it
-  sounded; cross-correlated, the motion led the onsets by 80–86 ms. ⚠️ **Most motion was noise:**
-  only 17–36 % of line-to-line change was the spectrum moving together, and a band reversed
-  direction 51–60 % of the time — a coin toss. Now a band that rises more than 15 bytes (~4.6 dB)
-  over where it stands SNAPS on its own row (rising only in the 25 ms before the row's centre),
-  and anything smaller glides toward its byte (0.5 s). On a model of the same rule: motion on the
-  onsets (0 ms), reversals 32–44 %, half the step, and the snaps are 3–8 % of cells — the hits.
-  Causal and the same for every track; the live line is computed every frame into its own texel
-  row, and every snapshot is the live line at the instant it is taken. `high` has no motion.
-- **The light comes from above, behind and to the left on the faceted picture**; overhead, its
-  facets all shade alike and the polygons vanish. No grid: it turns the triangles into a lattice.
-- **The window is 44 lines at 2 × `PITCH`** (`Detail.spacing`) — the same depth, so the follow
-  framing did not move, and the fog still reaches each line before it leaves.
-- **A software rasteriser draws 3-D within `SOFTWARE_MAX_TRIANGLES` (6,000).** SwiftShader at
-  780 × 336: ~5,500 triangles at 29 fps, ~11,000 at 15, the terrain at 1.9. Both details are over
-  it now, so a CPU gets the 2-D strip, as before this work.
+**Two details: the plate by default, the smooth terrain kept (2026-10-14/15).** The widget's
+`detail` prop picks (`low` default, `high`); both are `ridges3d/stage.ts` `DETAIL` profiles drawn
+by one shader, and `high` renders byte-identical to the picture above. `low` arrived over two
+days of Jag's direction, each step rendered and looked at:
+- **Polygonal → full detail.** "Too smooth — the goal is a polygonal look"; 12 columns × 4 rows was
+  "way too little detail to make it a cool visual"; 24 × 2 "still too low"; 64 × 2 — "a more
+  detailed spectrogram, not more frequent lines". So: every stored band, straight edges. Coarser
+  columns remain a mechanism (`columnBands`): each band pools into the column nearest where
+  `bandFraction` draws it, a band-less column at the bass edge takes the line between its
+  neighbours, and ⚠️ **a pooled cell is its loudest byte, not the mean** — measured on three
+  tracks, the mean drew a near-flat sheet (it averages a kick away; −40 % row-to-row variation).
+- **In time with the music** (`Motion`, `settle`, `liveAt`) — "the wave looks like it's just
+  randomly wiggles around". ⚠️ The live line blended toward the next line, which holds audio not yet
+  played: a hit rose up to ~0.28 s early, the motion led the onsets by 80–86 ms (cross-correlated).
+  ⚠️ Only 17–36 % of line-to-line change was the spectrum moving together; a band reversed
+  direction 51–60 % of the time. Now a band that jumps past `snap` lands on its own row (rising only
+  in the 25 ms before its centre) and anything smaller glides: on a model of the rule, motion on the
+  onsets, reversals 32–44 %. Causal; the live line is computed every frame into its own texel row,
+  and every snapshot IS the live line at the instant it is taken.
+- **60 lines a second, no joins** — "60 lines a second", "no more mesh connections", each line
+  hiding the ones behind it. A line every 1/60 s, taken from the live line (finer than the ~10.8
+  stored rows a second: in between it is the motion's interpolation, not new information),
+  computed only as it enters the window (`lineValues` — a whole track up front would be ~250,000
+  lines for 70 minutes). No surface: each line drops a curtain to the floor in the background
+  colour — unseen, it hides what is behind it, the *Unknown Pleasures* plate.
+- ⚠️ **The balance** (`balance.ts`, `balanceRow`) — "the highs are barely used and there's a huge
+  plateau on the bass even with small bass hits … a more unified look". Measured over two disjoint
+  400-track samples (agreeing to 3 bytes): every band SWINGS about as far (p10–p90 within a track
+  78–94 bytes) but the bass RESTS ~100 bytes (~30 dB) above the top. So a band is drawn as its
+  distance from the library's own level in that band, over its own range, weighted by a half-sine
+  across the line (the ends keep `edge` = 20 % of the swing — "most activity at the center"), from a
+  flat rest. Library-wide, like the value range and `X_WARP`; never per track.
+- **Taller, climbing, fading, the sleeve's colours.** "Much higher visual peaks": a typical swing
+  reaches 230 bytes of height (2.7× the stored one; `BALANCED_MAX` 640), `snap` scaled with it to the
+  same ~4.6 dB, the glide halved so valleys open. "Go up and back rather than just back": each line
+  rises 0.45 per unit it recedes (`Detail.rise`, zero at the live line), with the camera lowered
+  (`Detail.view`). "Further back lines fade out": the history fades from 3 % to 25 % of the window's
+  depth (`Detail.fade`; the climb takes it off the frame by there), and only those ~46 lines are
+  drawn. "Colours derived from the track cover": `palette: 'cover'` reads `--kr-pulsar-cover-*`,
+  mixes of the accent `PlayerProvider` derives from the playing sleeve (`player/accent.ts`) —
+  ⚠️ declared on `.kr-player-scope`, where that accent is set; on `:root` they would only ever see
+  the fallback. The stage watches the scope's style, because the accent lands asynchronously after
+  a track change and no theme attribute moves.
+- **Cost.** ~11,700 surface-equivalent triangles a frame against the terrain's ~89,000.
+  `SOFTWARE_MAX_TRIANGLES` (6,000 — SwiftShader at 780 × 336 drew ~5,500 at 29 fps, ~11,000 at 15)
+  sends a software rasteriser to the 2-D strip for both details. The 2-D strip is unchanged.
 
 **The one number the renderer owns.** M2 measured that below **~9 px of row pitch** every line's
 excursion crosses two neighbours and the stack collapses into a uniform hatch — "a picture that

@@ -17,6 +17,8 @@
 //      with the depth test this IS the hidden-line removal, and it is what makes the
 //      history a terrain rather than a stack of separate curves (Jag, 2026-10-14).
 //   1. FRONT — per segment, the live line down to the floor: the terrain's front face.
+//      (A detail with no surface draws 4. CURTAINS instead: every line down to the floor
+//      in the background colour — unseen, they hide the lines behind: Unknown Pleasures.)
 //   2. LINES — per (line, segment), a quad extruded perpendicular to the segment IN
 //      SCREEN SPACE, a fixed CSS width at any distance and any DPR; the live line
 //      heavier. Depth-tested against the surface, never written.
@@ -30,8 +32,8 @@
 import { compileProgram, uniforms } from '@jkos/scene/gl';
 import type { RGB } from '@jkos/scene/math';
 import {
-  AMPLITUDE, FLOOR_Y, FOG_FAR, FOG_NEAR, HALF_WIDTH, RING,
-  columnsOf, liveAt, rowCurve, rowsNeeded, segmentsOf, slotOf, type LiveWindow, type Shaped,
+  AMPLITUDE, FLOOR_Y, HALF_WIDTH, RING, fadeOf,
+  columnsOf, liveAt, lineValues, rowCurve, rowsNeeded, segmentsOf, slotOf, type LiveWindow, type Shaped,
 } from './stage';
 
 /* ⚠️ The (line, segment) arithmetic below is mirrored by `cellOf` / `lineOf` in
@@ -51,7 +53,7 @@ uniform float u_liveZ;
 uniform int u_per;             // instances per line in this pass: segments, or grid columns
 uniform int u_bands;
 uniform int u_rows;
-uniform int u_pass;            // 0 surface, 1 front, 2 lines, 3 grid
+uniform int u_pass;            // 0 surface, 1 front, 2 lines, 3 grid, 4 curtains
 uniform mat4 u_viewProj;
 uniform vec2 u_viewport;       // device pixels
 uniform float u_lineWidth;     // device pixels
@@ -64,6 +66,8 @@ uniform int u_columnEvery;     // the grid's spacing, in vertices
 uniform float u_warp;          // pulsarmap.ts X_WARP, or 1 when the columns are pre-warped
 uniform float u_pitch;         // depth between lines
 uniform int u_liveOwn;         // 1: the live line is its own texel row, u_ring (stage.ts liveAt)
+uniform float u_rise;          // a line's lift per unit it has receded (stage.ts Detail.rise)
+uniform vec2 u_fade;           // where the history fades, distance behind the live line (stage.ts fadeOf)
 
 out float v_ramp;
 out float v_fog;
@@ -73,8 +77,6 @@ flat out int v_live;
 const float AMPLITUDE = ${AMPLITUDE.toFixed(6)};
 const float HALF_WIDTH = ${HALF_WIDTH.toFixed(6)};
 const float FLOOR_Y = ${FLOOR_Y.toFixed(6)};
-const float FOG_NEAR = ${FOG_NEAR.toFixed(6)};
-const float FOG_FAR = ${FOG_FAR.toFixed(6)};
 
 float heightAt(int row, int seg) {
   ivec2 texel = ivec2(seg, row % u_ring);
@@ -104,13 +106,16 @@ vec3 vertexAt(int line, int seg) {
   // here, or (u_warp = 1) already, by where shapeMesh placed the columns.
   float u = float(seg) / float((u_bands - 1) * u_sub);
   float x = -HALF_WIDTH + 2.0 * HALF_WIDTH * pow(u, u_warp);
-  return vec3(x, lineHeight(line, seg), lineZ(line));
+  // The history climbs as it recedes (the plate's stacked lines); the live line, at
+  // u_liveZ, never moves.
+  float z = lineZ(line);
+  return vec3(x, lineHeight(line, seg) + u_rise * (u_liveZ - z), z);
 }
 
 void emit(vec3 p, int line) {
   v_world = p;
   v_ramp = u_rows > 1 ? (p.z / u_pitch) / float(u_rows - 1) : 1.0;
-  v_fog = smoothstep(FOG_NEAR, FOG_FAR, u_focusZ - p.z);
+  v_fog = smoothstep(u_fade.x, u_fade.y, u_focusZ - p.z);
   v_live = line == u_lines - 1 ? 1 : 0;
 }
 
@@ -128,10 +133,11 @@ void main() {
     gl_Position = u_viewProj * vec4(p, 1.0);
     return;
   }
-  if (u_pass == 1) {
-    vec3 p = vertexAt(u_lines - 1, seg + end);
+  if (u_pass == 1 || u_pass == 4) {
+    int l = u_pass == 1 ? u_lines - 1 : line;
+    vec3 p = vertexAt(l, seg + end);
     if (side == 1) p.y = FLOOR_Y;
-    emit(p, u_lines - 1);
+    emit(p, l);
     gl_Position = u_viewProj * vec4(p, 1.0);
     return;
   }
@@ -203,6 +209,9 @@ void main() {
     c = mix(u_surface, ink, 0.05);
   } else if (u_pass == 2) {
     c = v_live == 1 ? u_line : ink;
+  } else if (u_pass == 4) {
+    // A curtain is the background itself: unseen, it only hides what is behind it.
+    c = u_surface;
   } else {
     c = mix(u_surface, ink, 0.5);
   }
@@ -213,7 +222,7 @@ void main() {
 const UNIFORMS = [
   'u_curves', 'u_ring', 'u_rowStart', 'u_lines', 'u_liveRow', 'u_liveFrac', 'u_liveZ', 'u_per', 'u_bands',
   'u_rows', 'u_pass', 'u_viewProj', 'u_viewport', 'u_lineWidth', 'u_liveWidth',
-  'u_focusZ', 'u_surface', 'u_line', 'u_far', 'u_sub', 'u_columnEvery', 'u_warp', 'u_pitch', 'u_relief', 'u_light', 'u_liveOwn',
+  'u_focusZ', 'u_surface', 'u_line', 'u_far', 'u_sub', 'u_columnEvery', 'u_warp', 'u_pitch', 'u_relief', 'u_light', 'u_liveOwn', 'u_rise', 'u_fade',
 ] as const;
 
 export interface RidgeColors {
@@ -257,9 +266,12 @@ export class RidgeRenderer {
    *  malformed length — a short buffer read against a remembered row count is a picture
    *  of the wrong rows. */
   setMesh(mesh: Shaped): void {
-    const { values, rows, bands } = mesh;
-    if (!(rows > 0) || !(bands > 1) || values.length !== rows * bands) {
-      throw new Error(`pulsarmap: ${values.length} values for a declared ${rows}x${bands}`);
+    // A live-sampled mesh holds its source rows, not its lines (stage.ts lineValues).
+    const { rows, bands } = mesh;
+    const values = mesh.live ? mesh.live.raw : mesh.values;
+    const declared = mesh.live ? mesh.live.rows : rows;
+    if (!(rows > 0) || !(bands > 1) || values.length !== declared * bands) {
+      throw new Error(`pulsarmap: ${values.length} values for a declared ${declared}x${bands}`);
     }
     const { gl } = this;
     const width = segmentsOf(bands, mesh.detail.subdivisions) + 1;
@@ -285,7 +297,8 @@ export class RidgeRenderer {
     for (let row = from; row < to; row++) {
       const slot = slotOf(row);
       if (this.held[slot] === row) continue;
-      rowCurve(mesh.values, row, mesh.bands, this.scratch, 0, mesh.detail.subdivisions);
+      lineValues(mesh, row, this.liveLine);
+      rowCurve(this.liveLine, 0, mesh.bands, this.scratch, 0, mesh.detail.subdivisions);
       gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, slot, this.scratch.length, 1, gl.RED, gl.FLOAT, this.scratch);
       this.held[slot] = row;
     }
@@ -317,6 +330,9 @@ export class RidgeRenderer {
       gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, RING, this.scratch.length, 1, gl.RED, gl.FLOAT, this.scratch);
     }
     gl.uniform1i(u.u_liveOwn, mesh.live ? 1 : 0);
+    gl.uniform1f(u.u_rise, mesh.detail.rise ?? 0);
+    const fade = fadeOf(mesh.detail);
+    gl.uniform2f(u.u_fade, fade.near, fade.far);
     gl.uniform1i(u.u_curves, 0);
     gl.uniform1i(u.u_ring, RING);
     gl.uniform1i(u.u_rowStart, w.start);
@@ -353,13 +369,17 @@ export class RidgeRenderer {
       gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, count);
     };
 
-    // 0–1. the surface and its front face, written to depth and pushed back so a line
-    //      lying on the surface wins
+    // 0–1. the surface and its front face — or, with no surface, every line's curtain —
+    //      written to depth and pushed back so a line lying on its own body wins
     gl.enable(gl.POLYGON_OFFSET_FILL);
     gl.polygonOffset(2, 2);
     gl.depthMask(true);
-    pass(0, segments, (w.lines - 1) * segments);
-    pass(1, segments, segments);
+    if (mesh.detail.surface) {
+      pass(0, segments, (w.lines - 1) * segments);
+      pass(1, segments, segments);
+    } else {
+      pass(4, segments, w.lines * segments);
+    }
     gl.disable(gl.POLYGON_OFFSET_FILL);
 
     // 2–3. the lines and the grid, tested against the surface, never written

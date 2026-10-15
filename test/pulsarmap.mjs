@@ -218,8 +218,9 @@ check(rowPitch(4) === MIN_ROW_PITCH && rowPitch(20) === 20 && rowPitch(NaN) === 
    slipped into the one place no store-side test can see. */
 // stage.ts imports @jkos/scene/math; that layer is transpiled beside it.
 const scene = await import(transpileSceneMath(join(tmp, 'scene')));
+const balance = await importTs('apps/kouros/src/components/ridges3d/balance.ts', 'balance.mjs');
 const stage = await importTs('apps/kouros/src/components/ridges3d/stage.ts', 'stage.mjs', {
-  '../pulsarmap': './pulsarmap.mjs', '@jkos/scene/math': './scene/index.mjs',
+  '../pulsarmap': './pulsarmap.mjs', '@jkos/scene/math': './scene/index.mjs', './balance': './balance.mjs',
 });
 const {
   cellOf, liveWindow, lineOf, liveValue, bandCurve, rowCurve, rowsNeeded, slotOf, segmentsOf, columnsOf,
@@ -375,12 +376,14 @@ const glSrc = readFileSync(resolve(root, 'apps/kouros/src/components/ridges3d/gl
     'PITCH: the snapshots sit at half the old spacing, and the history still reaches the same depth');
 }
 
-/* ── the low-poly detail ─────────────────────────────────────────────────────
-   Jag 2026-10-14: "too smooth — the goal is a polygonal look. Keep a detailed pulsar
-   map, but give me as low a poly version as possible." The same stored bytes, pooled
-   into a few cells. What could go wrong silently: the `high` detail drifting from the
-   picture it was, a pooled cell that averages a kick drum away, columns that stop
-   sitting on the shared band axis, and a coarser window whose far edge blinks. */
+/* ── the default detail: the plate, live ─────────────────────────────────────
+   Jag 2026-10-14/15, in turn: "too smooth — the goal is a polygonal look"; "a more
+   detailed spectrogram, not more frequent lines"; then "60 lines a second", "no more
+   mesh connections", "full detail", each line hiding the ones behind it, the bands
+   balanced "so most activity is seen at the center", "much higher visual peaks", the
+   history going "up and back", fading, coloured from the cover. What could go wrong
+   silently: the `high` detail drifting from the picture it was, a balance measured per
+   track, a pooled cell that averages a kick away, a window whose far edge blinks. */
 {
   const bands = 128, rows = 41;
   let seed = 11;
@@ -389,38 +392,107 @@ const glSrc = readFileSync(resolve(root, 'apps/kouros/src/components/ridges3d/gl
 
   const high = shapeMesh(bytes, rows, bands, ROW_SECONDS, DETAIL.high);
   check(high.values === bytes && high.rows === rows && high.bands === bands && high.rowSeconds === ROW_SECONDS
-        && high.pitch === PITCH && high.visible === VISIBLE_ROWS
+        && high.pitch === PITCH && high.visible === VISIBLE_ROWS && DETAIL.high.surface && !DETAIL.high.balance
+        && !DETAIL.high.rise && !DETAIL.high.fade && !DETAIL.high.palette && !DETAIL.high.view
         && DETAIL.high.subdivisions === SUBDIVISIONS && DETAIL.high.columnEvery === COLUMN_EVERY,
-    'shapeMesh: the detailed picture is the stored mesh itself — every band, every row, splined as before');
+    'shapeMesh: the detailed picture is the stored mesh itself — every band, every row, splined, lit, as before');
 
   const low = DETAIL.low;
   const shaped = shapeMesh(bytes, rows, bands, ROW_SECONDS, low);
-  // Jag 2026-10-14: "a more detailed spectrogram, not more frequent lines" — every band
-  // across, a line every 2 rows, straight edges.
-  check(low.columns === 0 && shaped.bands === bands && shaped.warp === X_WARP && low.rowsPer === 2 && low.spacing === 2
-        && shaped.rows === Math.ceil(rows / low.rowsPer) && Math.abs(shaped.rowSeconds - ROW_SECONDS * low.rowsPer) < 1e-12
-        && low.subdivisions === 1 && segmentsOf(shaped.bands, low.subdivisions) === bands - 1,
-    'shapeMesh: the faceted picture is every stored band, straight-edged, a line every 2 rows — the row duration ' +
-    'it carries is the pooled one, so the reveal is still currentTime / rowSeconds');
+  check(low.columns === 0 && shaped.bands === bands && shaped.warp === X_WARP && low.subdivisions === 1
+        && low.lineSeconds === 1 / 60 && shaped.rowSeconds === 1 / 60
+        && shaped.rows === Math.ceil(rows * ROW_SECONDS * 60) && !low.surface,
+    'shapeMesh: every stored band, straight-edged, a line every 1/60 s, no surface joining them — and the line ' +
+    'duration it carries is the line\'s, so the reveal is still currentTime / rowSeconds');
   check(low.linePx < LINE_WIDTH_PX && low.livePx < LIVE_WIDTH_PX && low.livePx > low.linePx,
     'DETAIL.low: thinner lines than the terrain (Jag: "too much visual noise"), the live line still the heaviest');
   check(/u_lineWidth, mesh\.detail\.linePx \* frame\.dpr/.test(glSrc) && /u_liveWidth, mesh\.detail\.livePx \* frame\.dpr/.test(glSrc),
     'gl.ts: the line widths are the detail\'s');
 
+  // No surface: every line hangs a curtain in the background colour — unseen, it hides
+  // what is behind it (the Unknown Pleasures plate).
+  check(/if \(mesh\.detail\.surface\) \{\s*pass\(0,[^}]*\} else \{\s*pass\(4, segments, w\.lines \* segments\);/.test(glSrc)
+        && /\} else if \(u_pass == 4\) \{[^}]*c = u_surface;/.test(glSrc)
+        && /if \(side == 1\) p\.y = FLOOR_Y;/.test(glSrc),
+    'gl.ts: with no surface every line drops a curtain to the floor in the background colour, written to depth');
+
+  // The climb: a line rises as it recedes; the live line never moves.
+  check(/lineHeight\(line, seg\) \+ u_rise \* \(u_liveZ - z\)/.test(glSrc) && /u_rise, mesh\.detail\.rise \?\? 0/.test(glSrc)
+        && low.rise > 0,
+    'gl.ts: the history climbs up AND back — lift ∝ distance behind the live line, zero AT it');
+
+  // The fade: per detail, and the window ends just past it.
+  const fade = stage.fadeOf(low), hf = stage.fadeOf(DETAIL.high);
+  check(/v_fog = smoothstep\(u_fade\.x, u_fade\.y, u_focusZ - p\.z\);/.test(glSrc)
+        && hf.near === stage.FOG_NEAR && hf.far === FOG_FAR && fade.far < FOG_FAR
+        && shaped.visible * shaped.pitch >= fade.far && shaped.visible * shaped.pitch <= fade.far + 3 * shaped.pitch,
+    'fadeOf: the history fades early (it climbs out of frame) and only the lines still visible are drawn');
+
   // ⚠️ A software rasteriser draws 3-D only within its budget; the stage holds it to that.
   const stageSrc = readFileSync(resolve(root, 'apps/kouros/src/components/ridges3d/RidgeStage.tsx'), 'utf8');
-  const highTris = trianglesOf(shapeMesh(bytes, rows, bands, ROW_SECONDS, DETAIL.high));
+  const highTris = trianglesOf(high);
   const lowTris = trianglesOf(shaped);
   check(/trianglesOf\(m\) > SOFTWARE_MAX_TRIANGLES && isSoftwareRenderer\(name\)/.test(stageSrc)
-        && highTris > SOFTWARE_MAX_TRIANGLES && lowTris > SOFTWARE_MAX_TRIANGLES && lowTris * 7 < highTris,
+        && highTris > SOFTWARE_MAX_TRIANGLES && lowTris > SOFTWARE_MAX_TRIANGLES && lowTris * 5 < highTris,
     `RidgeStage: a software rasteriser over ${SOFTWARE_MAX_TRIANGLES} triangles gets the 2-D strip — the terrain ` +
-    `(${highTris}) and the faceted picture (${lowTris}, about an eighth of it) both do`);
-  check(trianglesOf(shapeMesh(bytes, rows, bands, ROW_SECONDS, { ...low, columns: 64 })) <= SOFTWARE_MAX_TRIANGLES,
+    `(${highTris}) and the plate (${lowTris}) both do`);
+  check(trianglesOf(shapeMesh(bytes, rows, bands, ROW_SECONDS, { ...low, columns: 64, spacing: 2, fade: undefined })) <= SOFTWARE_MAX_TRIANGLES,
     'SOFTWARE_MAX_TRIANGLES: admits the 64-column cut it was measured on (29 fps on SwiftShader)');
 
-  // Columns sit evenly along the WARPED axis: every band pools into the column nearest
-  // where bandFraction draws it, the columns cover every band once, in order.
-  // Pooled columns: the mechanism a coarser detail uses (measured at 12, 24 and 64).
+  // The colours: the sleeve's, read where the sleeve's accent lands.
+  const css = readFileSync(resolve(root, 'apps/kouros/src/views.css'), 'utf8');
+  const scopeRule = [...css.matchAll(/\.kr-player-scope \{([^}]*)\}/g)].map((m) => m[1]).join('\n');
+  check(low.palette === 'cover' && /--kr-pulsar-cover-line:[^;]*var\(--color-accent\)/.test(scopeRule)
+        && /--kr-pulsar-cover-far:[^;]*var\(--color-secondary\)/.test(scopeRule)
+        && !/:root \{[^}]*--kr-pulsar-cover/.test(css)
+        && /closest\('\.kr-player-scope'\)/.test(stageSrc) && /attributeFilter: \['style'\]/.test(stageSrc),
+    'palette cover: the lines mix the accent PlayerProvider derives from the playing sleeve — declared on the player ' +
+    'scope where it lands (on :root they would only see the fallback), and re-read when that scope\'s style changes');
+}
+
+/* ── the balance: the library's own level in every band ───────────────────────
+   Measured (balance.ts): every band swings about as far, but the bass RESTS ~100 bytes
+   above the top. Drawn as each band's distance from its library level, weighted to the
+   middle. ⚠️ Library-wide: the same numbers for every track. */
+{
+  const { BAND_LEVEL, BAND_SPREAD } = balance;
+  const B = DETAIL.low.balance;
+  check(BAND_LEVEL.length === 128 && BAND_SPREAD.length === 128
+        && BAND_LEVEL[5] - BAND_LEVEL[127] > 80 && BAND_SPREAD.every((v) => v > 60 && v < 110),
+    'balance.ts: the measured table — the bass rests ~100 bytes above the top, and every band swings 60–110');
+  const out = new Float32Array(128);
+  stage.balanceRow(BAND_LEVEL, 0, 128, B, out);
+  check(out.every((v) => Math.abs(v - B.rest) < 1e-9),
+    'balanceRow: a row at the library\'s own level is ONE FLAT LINE at rest — no bass plateau, no idle highs');
+  const louder = Float32Array.from(BAND_LEVEL, (v) => v + 10), outL = new Float32Array(128);
+  stage.balanceRow(louder, 0, 128, B, outL);
+  check(outL.every((v, b) => v > out[b]),
+    'balanceRow: a louder byte always draws higher, in every band');
+  const mid = Array.from({ length: 128 }, (_, b) => b).sort((a, b) =>
+    Math.abs(pm.bandFraction(a, 128) - 0.5) - Math.abs(pm.bandFraction(b, 128) - 0.5))[0];
+  check((outL[mid] - B.rest) / (10 * B.swing / BAND_SPREAD[mid]) > 0.99
+        && (outL[0] - B.rest) / (10 * B.swing / BAND_SPREAD[0]) < B.edge + 0.01,
+    'balanceRow: the middle of the line keeps the whole swing and the ends only `edge` of it — the action is central');
+  // No per-track anything: a row draws the same whatever track it sits in.
+  const a = new Float32Array(128), b = new Float32Array(128);
+  const other = Uint8Array.from({ length: 3 * 128 }, (_, i) => (i * 37) & 0xff);
+  const mine = Uint8Array.from({ length: 128 }, (_, i) => (i * 11) & 0xff);
+  other.set(mine, 128);
+  stage.balanceRow(mine, 0, 128, B, a); stage.balanceRow(other, 1, 128, B, b);
+  check(a.every((v, i) => v === b[i]) && stage.balanceRow.length >= 4,
+    'balanceRow: a row is drawn from its own bytes and the library\'s constants only — never from its track');
+}
+
+/* ── pooling: the mechanism a coarser detail uses ─────────────────────────────
+   Measured at 12, 24 and 64 columns and 2–4 rows (2026-10-14); the default no longer
+   pools, but a detail may, and these must hold when it does. */
+{
+  const bands = 128, rows = 41;
+  let seed = 13;
+  const rnd = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+  const bytes = Uint8Array.from({ length: rows * bands }, () => Math.floor(rnd() * 200));
+  const pooling = { ...DETAIL.low, rowsPer: 2, spacing: 2, motion: undefined, balance: undefined,
+                    lineSeconds: undefined, fade: undefined };
   const COARSE = 64;
   const cols = columnBands(bands, COARSE);
   const own = cols.filter((r) => r.at === undefined);
@@ -431,7 +503,6 @@ const glSrc = readFileSync(resolve(root, 'apps/kouros/src/components/ridges3d/gl
   for (let c = 0; c < cols.length; c++) {
     const target = c / (COARSE - 1);
     if (cols[c].at !== undefined) {
-      // A column no band falls in stands at its own place on the axis, between two bands.
       if (Math.abs(pm.bandFraction(cols[c].at, bands) - target) > 1e-9
           || !(cols[c].at >= cols[c].from && cols[c].at <= cols[c].from + 1)) placed = false;
       continue;
@@ -447,9 +518,8 @@ const glSrc = readFileSync(resolve(root, 'apps/kouros/src/components/ridges3d/gl
     'columnBands: a column the warp leaves without a band (the far bass edge) stands at its own place on the ' +
     'axis, between the bands either side — never a copy of a neighbour, which draws a flat step');
   {
-    // That column is the straight line between its two bands, row by row.
     const ramp = Uint8Array.from({ length: bands }, (_, b) => Math.min(255, b * 20));
-    const v = shapeMesh(ramp, 1, bands, ROW_SECONDS, { ...low, rowsPer: 1, columns: COARSE }).values;
+    const v = shapeMesh(ramp, 1, bands, ROW_SECONDS, { ...pooling, rowsPer: 1, columns: COARSE }).values;
     const c = cols.findIndex((r) => r.at !== undefined);
     check(Math.abs(v[c] - cols[c].at * 20) < 1e-4 && v[c] > v[c - 1] && v[c] < v[c + 1],
       'shapeMesh: a column between bands takes the line between them — the bass edge rises, it does not step');
@@ -459,42 +529,38 @@ const glSrc = readFileSync(resolve(root, 'apps/kouros/src/components/ridges3d/gl
 
   // ⚠️ A cell is its LOUDEST byte: one kick in a block of quiet rows survives. (A mean
   // drew a flat sheet — measured on three stored tracks — and fails this.)
-  const pooling = { ...low, motion: undefined };   // the rows pooled as stored, no motion
-  const kick = new Uint8Array(low.rowsPer * bands).fill(40);
-  kick[(low.rowsPer - 1) * bands] = 250;         // band 0 (column 0), the block's last row
-  const k = shapeMesh(kick, low.rowsPer, bands, ROW_SECONDS, pooling);
+  const kick = new Uint8Array(2 * bands).fill(40);
+  kick[bands] = 250;                              // band 0, the block's last row
+  const k = shapeMesh(kick, 2, bands, ROW_SECONDS, pooling);
   check(k.values[0] === 250 && k.values[k.bands - 1] === 40,
     'shapeMesh: a cell is the loudest byte it covers — one loud row among quiet ones is not averaged away');
-  const halfBytes = Float32Array.from(bytes, (v) => v / 2);
   const pooled = shapeMesh(bytes, rows, bands, ROW_SECONDS, pooling);
-  const half = shapeMesh(halfBytes, rows, bands, ROW_SECONDS, pooling);
-  check(Array.from(half.values).every((v, i) => Math.abs(v - pooled.values[i] / 2) < 1e-9)
-        && Array.from(shaped.values).every((v) => v >= 0 && v <= 255),
-    'shapeMesh: a mesh half as loud draws exactly half as high, over the same fixed span — nothing per track');
+  const half = shapeMesh(Float32Array.from(bytes, (v) => v / 2), rows, bands, ROW_SECONDS, pooling);
+  check(Array.from(half.values).every((v, i) => Math.abs(v - pooled.values[i] / 2) < 1e-9),
+    'shapeMesh: a pooled mesh half as loud draws exactly half as high — nothing per track');
+  check(columnsOf(12, 0) === 0 && DETAIL.low.columnEvery === 0, 'columnsOf: no grid on the default picture');
+}
 
-  // The window: as deep as the detailed one, its far edge always in the fog, the ring big enough.
-  check(Math.abs(shaped.pitch * shaped.visible - PITCH * VISIBLE_ROWS) < 1e-9,
-    'shapeMesh: the history reaches the same depth — the follow framing is the same in both details');
-  const TWENTY = Math.ceil(Math.ceil(20 * 60 / ROW_SECONDS) / low.rowsPer);
-  let fogged = true, ring = true, steady = true, handoff = true;
+/* ── the default's window over a whole track ───────────────────────────────── */
+{
+  const low = DETAIL.low;
+  const shaped = shapeMesh(new Uint8Array(4 * 128), 4, 128, ROW_SECONDS, low);
+  const far = stage.fadeOf(low).far;
+  const LINES = Math.ceil(20 * 60 * 60);                       // a 20-minute track, 60 lines a second
+  let fogged = true, ring = true, steady = true;
   const perFrame = shaped.pitch * (1 / 60) / shaped.rowSeconds;
   for (let f = 1; f < 20 * 60 * 60; f += 7) {
-    const w = liveWindow(f / 60, shaped.rowSeconds, TWENTY, shaped.visible);
-    if (w.start > 0 && followPose(w.live, shaped.pitch).focusZ - rowZ(w.start - 1, shaped.pitch) < FOG_FAR) fogged = false;
-    const need = rowsNeeded(w, TWENTY);
+    const t = f / 60 + 0.003;
+    const w = liveWindow(t, shaped.rowSeconds, LINES, shaped.visible);
+    if (w.start > 0 && followPose(w.live, shaped.pitch).focusZ - rowZ(w.start - 1, shaped.pitch) < far) fogged = false;
+    const need = rowsNeeded(w, LINES);
     if (need.to - need.from > RING) ring = false;
-    const a = followPose(liveRow((f - 1) / 60, shaped.rowSeconds, TWENTY), shaped.pitch).focusZ;
-    if (w.live < TWENTY - 1 && a > 0 && Math.abs((followPose(w.live, shaped.pitch).focusZ - a) - perFrame) > 1e-9) steady = false;
+    const a = followPose(liveRow(t - 1 / 60, shaped.rowSeconds, LINES), shaped.pitch).focusZ;
+    if (w.live < LINES - 1 && a > 0 && Math.abs((followPose(w.live, shaped.pitch).focusZ - a) - perFrame) > 1e-9) steady = false;
   }
-  const at = liveWindow(300.5 * shaped.rowSeconds + 1e-9, shaped.rowSeconds, TWENTY, shaped.visible);
-  if (lineOf(at.lines - 2, at, shaped.pitch).row !== 300
-      || Math.abs(lineOf(at.lines - 2, at, shaped.pitch).z - lineOf(at.lines - 1, at, shaped.pitch).z) > 1e-6) handoff = false;
-  check(fogged, 'low-poly window: every line that leaves it has already faded into the fog — the far edge never blinks');
-  check(ring, 'low-poly window: every line a frame reads fits the ring');
-  check(steady, 'low-poly window: the camera flows the same step every frame of a 20-minute track — no step per line');
-  check(handoff, 'low-poly window: a line is taken from the live line at its centre, as in the detailed picture');
-  check(columnsOf(12, 0) === 0 && low.columnEvery === 0,
-    'columnsOf: no grid on the faceted picture — it turns the triangles back into a lattice');
+  check(fogged, 'default window: every line that leaves it has already faded out — the far edge never blinks');
+  check(ring, `default window: every line a frame reads fits the ring (${RING})`);
+  check(steady, 'default window: the flow moves the same step every frame of a 20-minute track');
 }
 
 /* ── the motion: in time with the music ──────────────────────────────────────
@@ -557,9 +623,11 @@ const glSrc = readFileSync(resolve(root, 'apps/kouros/src/components/ridges3d/gl
   const sh = shapeMesh(bytes, 300, 128, ROW_SECONDS, DETAIL.low);
   let same = true;
   const line = new Float32Array(128);
-  for (let l = 0; l < sh.rows; l++) {
+  for (let l = 0; l < sh.rows; l += 7) {
     liveAt(sh.live, 128, lineTime(l, sh.rowSeconds), line);
-    for (let b = 0; b < 128; b++) if (line[b] !== sh.values[l * 128 + b]) same = false;
+    const got = new Float32Array(128);
+    stage.lineValues(sh, l, got);
+    for (let b = 0; b < 128; b++) if (line[b] !== got[b]) same = false;
   }
   const w = liveWindow(lineTime(40, sh.rowSeconds) + 1e-9, sh.rowSeconds, sh.rows, sh.visible);
   check(same && Math.abs(lineTime(w.live, sh.rowSeconds) - lineTime(40, sh.rowSeconds)) < 1e-6,

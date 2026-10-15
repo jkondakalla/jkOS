@@ -384,6 +384,17 @@
   --kr-pulsar-far:     var(--color-faint);
 }
 
+/* The sleeve's own colours, for a pulsarmap that takes them (ridges3d/stage.ts
+   `palette: 'cover'`). Declared on the PLAYER SCOPE, not :root: that is where
+   PlayerProvider sets the accent it derived from the playing cover, and a custom
+   property resolves where it is declared — on :root these would only ever see the
+   app's fallback accent. Mixed toward ink so a line stays bright on either face: the
+   derived accent is clamped to a UI mid-tone (player/accent.ts). */
+.kr-player-scope {
+  --kr-pulsar-cover-line: color-mix(in srgb, var(--color-accent) 62%, var(--color-ink));
+  --kr-pulsar-cover-far:  color-mix(in srgb, var(--color-secondary) 70%, var(--color-paper));
+}
+
 .kr-pulsar {
   position: relative;
   width: 100%;
