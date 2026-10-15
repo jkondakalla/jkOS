@@ -3,6 +3,8 @@ import { rendererName, tokenColor } from '@jkos/scene/gl';
 import { DEG, createRig, cutRig, isSoftwareRenderer, rigView, stepRig } from '@jkos/scene/math';
 import { useOrbitControls, useScene } from '@jkos/scene/react';
 import { RidgeRenderer, type RidgeColors } from './gl';
+import { paletteFromPixels } from './coverPalette';
+import { coverPixels } from '../../player/accent';
 import {
   DETAIL, FOV, ORBIT, PITCH, RETURN_OMEGA, SOFTWARE_MAX_TRIANGLES, followPose, liveWindow, shapeMesh, trianglesOf, type DetailName,
 } from './stage';
@@ -38,14 +40,13 @@ const COLOR_FALLBACK: RidgeColors = {
 
 const LENS = { fov: FOV, near: 0.05, far: 30 };
 
-/** The three colours, read off the element — the sleeve's (`palette: 'cover'`) or the face's. */
-function readColors(el: HTMLElement, palette: 'cover' | undefined): RidgeColors {
-  const line = palette === 'cover' ? '--kr-pulsar-cover-line' : '--kr-pulsar-line';
-  const far = palette === 'cover' ? '--kr-pulsar-cover-far' : '--kr-pulsar-far';
+/** The face's three colours, read off the element. A sleeve's palette, when a detail
+ *  takes one, is drawn instead once it has loaded (`cover`, below). */
+function readColors(el: HTMLElement): RidgeColors {
   return {
     surface: tokenColor(el, '--kr-pulsar-surface', COLOR_FALLBACK.surface),
-    line: tokenColor(el, line, tokenColor(el, '--kr-pulsar-line', COLOR_FALLBACK.line)),
-    far: tokenColor(el, far, tokenColor(el, '--kr-pulsar-far', COLOR_FALLBACK.far)),
+    line: tokenColor(el, '--kr-pulsar-line', COLOR_FALLBACK.line),
+    far: tokenColor(el, '--kr-pulsar-far', COLOR_FALLBACK.far),
   };
 }
 
@@ -62,6 +63,8 @@ export interface RidgeStageProps {
    *  track is positioned by. */
   livePosition?: () => number;
   playing?: boolean;
+  /** The playing cover — a `palette: 'cover'` detail takes every colour from it. */
+  coverUrl?: string;
   /** `low` (the default): the Unknown Pleasures plate, live — separate lines climbing back
    *  and fading, coloured from the sleeve. `high`: every stored band and row, splined —
    *  the smooth lit terrain. stage.ts `DETAIL`. */
@@ -71,7 +74,7 @@ export interface RidgeStageProps {
 }
 
 export default function RidgeStage({
-  trackId, bytes, rows, bands, rowSeconds, position, livePosition, playing, detail = 'low', onUnsupported,
+  trackId, bytes, rows, bands, rowSeconds, position, livePosition, playing, detail = 'low', coverUrl, onUnsupported,
 }: RidgeStageProps) {
   const colorsRef = useRef<RidgeColors>(COLOR_FALLBACK);
 
@@ -112,7 +115,7 @@ export default function RidgeStage({
     },
     // A face change (paper ↔ tube, or a sleeve accent) re-resolves the tokens.
     onTheme: (el) => {
-      colorsRef.current = readColors(el, liveRef.current.shaped.detail.palette);
+      colorsRef.current = { ...readColors(el), cover: colorsRef.current.cover };
     },
     onUnsupported,
     frame: ({ renderer, canvas, dt, reduced, aspect, dpr }) => {
@@ -135,19 +138,30 @@ export default function RidgeStage({
   });
 
   // ── The sleeve's colours follow the sleeve ───────────────────────────────────────
-  // PlayerProvider sets the accent it derives from each cover as a style on the player
-  // scope, asynchronously, after the track has changed — no theme attribute moves, so
-  // useScene's onTheme never hears of it. Watch that one element's style instead.
+  // Every colour of a `palette: 'cover'` detail is the playing cover's (coverPalette.ts),
+  // read from the same downsampled draw the app's accent is (player/accent.ts). A late
+  // answer for the previous cover is dropped; a cover that cannot be read leaves the
+  // face's tokens drawing.
   useEffect(() => {
-    const canvas = scene.canvasRef.current;
-    const scope = canvas?.closest('.kr-player-scope');
-    if (!canvas || !scope || shaped.detail.palette !== 'cover') return;
-    const reread = () => { colorsRef.current = readColors(canvas, 'cover'); scene.kick(); };
-    reread();
-    const mo = new MutationObserver(reread);
-    mo.observe(scope, { attributes: true, attributeFilter: ['style'] });
-    return () => mo.disconnect();
-  }, [shaped.detail.palette, scene]);
+    if (shaped.detail.palette !== 'cover' || !coverUrl) {
+      colorsRef.current = { ...colorsRef.current, cover: undefined };
+      scene.kick();
+      return;
+    }
+    let current = true;
+    coverPixels(coverUrl)
+      .then((px) => {
+        if (!current) return;
+        colorsRef.current = { ...colorsRef.current, cover: px ? paletteFromPixels(px) : undefined };
+        scene.kick();
+      })
+      .catch(() => {
+        if (!current) return;
+        colorsRef.current = { ...colorsRef.current, cover: undefined };
+        scene.kick();
+      });
+    return () => { current = false; };
+  }, [coverUrl, shaped.detail.palette, scene]);
 
   // ── A new track or detail: one texture upload ───────────────────────────────────
   const firstMesh = useRef(true);

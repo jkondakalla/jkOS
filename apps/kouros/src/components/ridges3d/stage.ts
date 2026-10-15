@@ -201,8 +201,8 @@ export interface Detail {
   /** Where the history fades into the surface, as fractions of the window's depth —
    *  begins at `near`, gone by `far`. None: FOG_NEAR … FOG_FAR. */
   fade?: { near: number; far: number };
-  /** `cover`: the lines take their colours from the playing sleeve (views.css
-   *  `--kr-pulsar-cover-*`); none: the face's own pulsar tokens. */
+  /** `cover`: every colour — background, lines, peaks, the fade — from the playing sleeve
+   *  (coverPalette.ts); none: the face's own pulsar tokens. */
   palette?: 'cover';
 }
 

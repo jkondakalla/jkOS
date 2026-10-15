@@ -219,6 +219,7 @@ check(rowPitch(4) === MIN_ROW_PITCH && rowPitch(20) === 20 && rowPitch(NaN) === 
 // stage.ts imports @jkos/scene/math; that layer is transpiled beside it.
 const scene = await import(transpileSceneMath(join(tmp, 'scene')));
 const balance = await importTs('apps/kouros/src/components/ridges3d/balance.ts', 'balance.mjs');
+const coverPalette = await importTs('apps/kouros/src/components/ridges3d/coverPalette.ts', 'coverPalette.mjs');
 const stage = await importTs('apps/kouros/src/components/ridges3d/stage.ts', 'stage.mjs', {
   '../pulsarmap': './pulsarmap.mjs', '@jkos/scene/math': './scene/index.mjs', './balance': './balance.mjs',
 });
@@ -439,15 +440,20 @@ const glSrc = readFileSync(resolve(root, 'apps/kouros/src/components/ridges3d/gl
   check(trianglesOf(shapeMesh(bytes, rows, bands, ROW_SECONDS, { ...low, columns: 64, spacing: 2, fade: undefined })) <= SOFTWARE_MAX_TRIANGLES,
     'SOFTWARE_MAX_TRIANGLES: admits the 64-column cut it was measured on (29 fps on SwiftShader)');
 
-  // The colours: the sleeve's, read where the sleeve's accent lands.
-  const css = readFileSync(resolve(root, 'apps/kouros/src/views.css'), 'utf8');
-  const scopeRule = [...css.matchAll(/\.kr-player-scope \{([^}]*)\}/g)].map((m) => m[1]).join('\n');
-  check(low.palette === 'cover' && /--kr-pulsar-cover-line:[^;]*var\(--color-accent\)/.test(scopeRule)
-        && /--kr-pulsar-cover-far:[^;]*var\(--color-secondary\)/.test(scopeRule)
-        && !/:root \{[^}]*--kr-pulsar-cover/.test(css)
-        && /closest\('\.kr-player-scope'\)/.test(stageSrc) && /attributeFilter: \['style'\]/.test(stageSrc),
-    'palette cover: the lines mix the accent PlayerProvider derives from the playing sleeve — declared on the player ' +
-    'scope where it lands (on :root they would only see the fallback), and re-read when that scope\'s style changes');
+  // The colours: every one of them the playing sleeve's (coverPalette.ts), read from the
+  // same downsampled draw as the app's accent, and dropped if a later cover answered first.
+  const accentSrc = readFileSync(resolve(root, 'apps/kouros/src/player/accent.ts'), 'utf8');
+  check(low.palette === 'cover' && /coverPixels\(coverUrl\)/.test(stageSrc) && /paletteFromPixels\(px\)/.test(stageSrc)
+        && /if \(!current\) return;/.test(stageSrc) && /const data = await coverPixels\(url\);/.test(accentSrc),
+    'palette cover: the stage reads the playing cover through accent.ts coverPixels — the one way the app reads a ' +
+    'sleeve — into coverPalette, and a late answer for an earlier cover is dropped');
+  check(/if \(u_cover == 1\) \{/.test(glSrc) && /if \(u_pass == 5 \|\| u_pass == 4\) \{\s*k = ground;/.test(glSrc)
+        && /color = vec4\(mix\(k, ground, v_fog\), 1\.0\);/.test(glSrc)
+        && /gl_FragCoord\.y \/ u_viewport\.y/.test(glSrc),
+    'gl.ts: with a cover, the background, the curtains and the fade are ONE screen-space gradient — a curtain is ' +
+    'unseen against it and a line fades into exactly what is behind it');
+  check(/p\.y - u_rise \* \(u_liveZ - p\.z\) - u_crestFrom/.test(glSrc),
+    'gl.ts: a line turns toward the crest by its own height — the climb taken back out, so colour reads the music');
 }
 
 /* ── the balance: the library's own level in every band ───────────────────────
@@ -640,6 +646,43 @@ const glSrc = readFileSync(resolve(root, 'apps/kouros/src/components/ridges3d/gl
     'gl.ts: the live line is liveAt at its own time, one texel row after the ring, over the fixed span × AMPLITUDE');
   check(shapeMesh(bytes, 300, 128, ROW_SECONDS, DETAIL.high).live === undefined,
     'DETAIL.high: no motion — the detailed terrain is the stored rows, as it always was');
+}
+
+/* ── the cover palette ───────────────────────────────────────────────────────
+   Jag 2026-10-15: "use gradients made of colours pulled from the album cover for every
+   aspect of this visualizer." What must hold: the hues are the COVER's (found by hue,
+   never a mean — accent.ts's lesson), the ground is dark and the lines bright whatever
+   the sleeve, and a monochrome sleeve stays monochrome. */
+{
+  const { paletteFromPixels, rgbToHsl, GROUND_LIGHT, STOP_LIGHT, CREST_LIGHT } = coverPalette;
+  const image = (fill) => { const d = new Uint8ClampedArray(32 * 32 * 4); for (let i = 0; i < 32 * 32; i++) d.set([...fill(i), 255], i * 4); return d; };
+  const hsl = (c) => rgbToHsl(c[0], c[1], c[2]);
+  const hueOf = (c) => hsl(c)[0];
+  const gap = (a, b) => { const d = Math.abs(a - b) % 1; return Math.min(d, 1 - d); };
+
+  // Half red, half blue, on a near-black frame.
+  const rb = paletteFromPixels(image((i) => (i % 32 < 4 ? [8, 8, 10] : (i < 512 ? [200, 30, 30] : [30, 50, 200]))));
+  const hues = rb.stops.map(hueOf);
+  check(rb.stops.length >= 2 && hues.some((h) => gap(h, 0) < 0.03) && hues.some((h) => gap(h, 0.64) < 0.04),
+    'paletteFromPixels: the line\'s gradient holds the cover\'s own hues (red and blue) — never their mud-purple mean');
+  const rgb = paletteFromPixels(image((i) => (i % 32 < 4 ? [8, 8, 10] : [[200, 30, 30], [30, 170, 40], [30, 50, 200]][Math.floor(i / 342)])));
+  const three = rgb.stops.map(hueOf);
+  check(rgb.stops.length === 3 && [0, 0.35, 0.64].every((t) => three.some((h) => gap(h, t) < 0.04))
+        && rgb.stops.every((c) => hsl(c)[1] >= 0.44),
+    'paletteFromPixels: three hues on the cover, three saturated stops — each one the cover\'s');
+  check([rb, paletteFromPixels(image(() => [250, 250, 245])), paletteFromPixels(image(() => [5, 5, 5]))].every((p) =>
+          p.ground.every((c) => hsl(c)[2] <= GROUND_LIGHT[1] + 1e-9)
+          && p.stops.every((c) => hsl(c)[2] >= STOP_LIGHT[0] - 1e-9) && hsl(p.crest)[2] >= CREST_LIGHT - 1e-9),
+    'paletteFromPixels: the ground is dark and the lines and crest bright for ANY sleeve — white, black or colourful');
+
+  // Navy with white linework — Unknown Pleasures.
+  const up = paletteFromPixels(image((i) => ((i * 7) % 11 === 0 ? [240, 240, 240] : [2, 14, 26])));
+  check(up.stops.every((c) => hsl(c)[1] < 0.5) && hsl(up.crest)[1] < 0.2 && hsl(up.ground[0])[1] > 0.3
+        && gap(hueOf(up.ground[0]), 0.58) < 0.05,
+    'paletteFromPixels: a monochrome sleeve stays monochrome — navy ground, pale lines, white crest');
+  check(JSON.stringify(paletteFromPixels(image((i) => [i % 256, (i * 3) % 256, 90])))
+        === JSON.stringify(paletteFromPixels(image((i) => [i % 256, (i * 3) % 256, 90]))),
+    'paletteFromPixels: a pure function of the pixels');
 }
 
 /* ── the camera ───────────────────────────────────────────────────────────── */

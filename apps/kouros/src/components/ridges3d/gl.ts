@@ -30,6 +30,7 @@
 // the low-poly one. The four draws are the same.
 
 import { compileProgram, uniforms } from '@jkos/scene/gl';
+import type { CoverPalette } from './coverPalette';
 import type { RGB } from '@jkos/scene/math';
 import {
   AMPLITUDE, FLOOR_Y, HALF_WIDTH, RING, fadeOf,
@@ -53,7 +54,7 @@ uniform float u_liveZ;
 uniform int u_per;             // instances per line in this pass: segments, or grid columns
 uniform int u_bands;
 uniform int u_rows;
-uniform int u_pass;            // 0 surface, 1 front, 2 lines, 3 grid, 4 curtains
+uniform int u_pass;            // 0 surface, 1 front, 2 lines, 3 grid, 4 curtains, 5 background
 uniform mat4 u_viewProj;
 uniform vec2 u_viewport;       // device pixels
 uniform float u_lineWidth;     // device pixels
@@ -68,8 +69,12 @@ uniform float u_pitch;         // depth between lines
 uniform int u_liveOwn;         // 1: the live line is its own texel row, u_ring (stage.ts liveAt)
 uniform float u_rise;          // a line's lift per unit it has receded (stage.ts Detail.rise)
 uniform vec2 u_fade;           // where the history fades, distance behind the live line (stage.ts fadeOf)
+uniform float u_crestFrom;     // the line height its colour starts toward the crest at …
+uniform float u_crestSpan;     // … and how far above that it is all crest (palette: 'cover')
 
 out float v_ramp;
+out float v_u;                 // across the line, 0 (lowest band) … 1
+out float v_crest;             // how far toward its crest a line stands here, 0 … 1
 out float v_fog;
 out vec3 v_world;
 flat out int v_live;
@@ -114,6 +119,9 @@ vec3 vertexAt(int line, int seg) {
 
 void emit(vec3 p, int line) {
   v_world = p;
+  v_u = (p.x + HALF_WIDTH) / (2.0 * HALF_WIDTH);
+  // The line's own height — the climb (u_rise) taken back out, so a colour reads the music.
+  v_crest = clamp((p.y - u_rise * (u_liveZ - p.z) - u_crestFrom) / u_crestSpan, 0.0, 1.0);
   v_ramp = u_rows > 1 ? (p.z / u_pitch) / float(u_rows - 1) : 1.0;
   v_fog = smoothstep(u_fade.x, u_fade.y, u_focusZ - p.z);
   v_live = line == u_lines - 1 ? 1 : 0;
@@ -126,6 +134,12 @@ void main() {
   int end = corner / 2;
   int side = corner & 1;
 
+  if (u_pass == 5) {
+    // The background: one full-screen quad at the far plane, behind everything.
+    v_world = vec3(0.0); v_ramp = 0.0; v_fog = 0.0; v_live = 0; v_u = 0.0; v_crest = 0.0;
+    gl_Position = vec4(float(side) * 2.0 - 1.0, float(end) * 2.0 - 1.0, 1.0, 1.0);
+    return;
+  }
   if (u_pass == 0) {
     int l = line + side;
     vec3 p = vertexAt(l, seg + end);
@@ -187,14 +201,57 @@ uniform vec3 u_line;
 uniform vec3 u_far;
 uniform float u_relief;        // stage.ts Detail.relief
 uniform vec3 u_light;          // stage.ts Detail.light, unit length
+// palette: 'cover' — every colour from the playing sleeve (coverPalette.ts).
+uniform int u_cover;
+uniform vec2 u_viewport;       // device pixels
+uniform vec3 u_ground0;        // the background, bottom …
+uniform vec3 u_ground1;        // … to top
+uniform vec3 u_stops[4];       // the line's gradient across the spectrum
+uniform int u_stopCount;
+uniform vec3 u_crest;          // the lightest: peaks and the live line lean to it
 
 in float v_ramp;
+in float v_u;
+in float v_crest;
 in float v_fog;
 in vec3 v_world;
 flat in int v_live;
 out vec4 color;
 
+// The background at this pixel. The curtains and the fade use it too, so a curtain is
+// unseen against it and a line fades into exactly what is behind it.
+vec3 groundAt() {
+  return mix(u_ground0, u_ground1, clamp(gl_FragCoord.y / u_viewport.y, 0.0, 1.0));
+}
+
+vec3 stopsAt(float u) {
+  float x = clamp(u, 0.0, 1.0) * float(u_stopCount - 1);
+  int i = min(int(floor(x)), u_stopCount - 2);
+  return mix(u_stops[i], u_stops[i + 1], x - float(i));
+}
+
 void main() {
+  if (u_cover == 1) {
+    vec3 ground = groundAt();
+    vec3 hue = stopsAt(v_u);
+    vec3 k;
+    if (u_pass == 5 || u_pass == 4) {
+      k = ground;
+    } else if (u_pass == 2) {
+      // A line takes the spectrum's gradient, and turns toward the crest as it peaks;
+      // the live line leans to the crest even at rest.
+      k = mix(hue, u_crest, v_live == 1 ? 0.3 + 0.7 * v_crest : 0.85 * v_crest);
+    } else if (u_pass == 0) {
+      vec3 n = normalize(cross(dFdx(v_world), dFdy(v_world)));
+      if (n.y < 0.0) n = -n;
+      float lit = clamp(dot(n, u_light), 0.0, 1.0);
+      k = mix(ground, hue, 0.04 + u_relief * lit * lit);
+    } else {
+      k = mix(ground, hue, u_pass == 1 ? 0.05 : 0.5);
+    }
+    color = vec4(mix(k, ground, v_fog), 1.0);
+    return;
+  }
   vec3 ink = mix(u_far, u_line, v_ramp);
   vec3 c;
   if (u_pass == 0) {
@@ -223,12 +280,16 @@ const UNIFORMS = [
   'u_curves', 'u_ring', 'u_rowStart', 'u_lines', 'u_liveRow', 'u_liveFrac', 'u_liveZ', 'u_per', 'u_bands',
   'u_rows', 'u_pass', 'u_viewProj', 'u_viewport', 'u_lineWidth', 'u_liveWidth',
   'u_focusZ', 'u_surface', 'u_line', 'u_far', 'u_sub', 'u_columnEvery', 'u_warp', 'u_pitch', 'u_relief', 'u_light', 'u_liveOwn', 'u_rise', 'u_fade',
+  'u_crestFrom', 'u_crestSpan', 'u_cover', 'u_ground0', 'u_ground1', 'u_stops', 'u_stopCount', 'u_crest',
 ] as const;
 
 export interface RidgeColors {
   surface: RGB;
   line: RGB;
   far: RGB;
+  /** The playing sleeve's palette, for a detail with `palette: 'cover'`; until it has
+   *  loaded (or when it cannot), the three tokens above draw. */
+  cover?: CoverPalette;
 }
 
 export interface RidgeFrame {
@@ -333,6 +394,21 @@ export class RidgeRenderer {
     gl.uniform1f(u.u_rise, mesh.detail.rise ?? 0);
     const fade = fadeOf(mesh.detail);
     gl.uniform2f(u.u_fade, fade.near, fade.far);
+    const bal = mesh.detail.balance;
+    gl.uniform1f(u.u_crestFrom, ((bal ? bal.rest : 0) / 255) * AMPLITUDE);
+    gl.uniform1f(u.u_crestSpan, ((bal ? bal.swing : 255) / 255) * AMPLITUDE);
+    const cover = mesh.detail.palette === 'cover' ? colors.cover : undefined;
+    gl.uniform1i(u.u_cover, cover ? 1 : 0);
+    if (cover) {
+      const stops = cover.stops.slice(0, 4);
+      const flat = new Float32Array(12);
+      stops.forEach((c, i) => flat.set(c, i * 3));
+      gl.uniform3fv(u.u_stops, flat);
+      gl.uniform1i(u.u_stopCount, Math.max(2, stops.length));
+      gl.uniform3fv(u.u_ground0, cover.ground[0]);
+      gl.uniform3fv(u.u_ground1, cover.ground[1]);
+      gl.uniform3fv(u.u_crest, cover.crest);
+    }
     gl.uniform1i(u.u_curves, 0);
     gl.uniform1i(u.u_ring, RING);
     gl.uniform1i(u.u_rowStart, w.start);
@@ -371,6 +447,12 @@ export class RidgeRenderer {
 
     // 0–1. the surface and its front face — or, with no surface, every line's curtain —
     //      written to depth and pushed back so a line lying on its own body wins
+    // The sleeve's background, behind everything.
+    if (cover) {
+      gl.depthMask(false);
+      pass(5, 1, 1);
+    }
+
     gl.enable(gl.POLYGON_OFFSET_FILL);
     gl.polygonOffset(2, 2);
     gl.depthMask(true);

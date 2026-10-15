@@ -100,7 +100,7 @@ function mix(a: string, b: string, t: number): string {
 }
 
 export default function Pulsarmap({
-  trackId, position, livePosition, playing, detail, className,
+  trackId, position, livePosition, playing, detail, coverUrl, className,
 }: {
   trackId: number | null;
   /** Seconds into the track, from the player engine — which reads it off the
@@ -115,6 +115,8 @@ export default function Pulsarmap({
   /** The 3-D picture's detail — `low` (default) is the live plate, `high` the smooth
    *  terrain (ridges3d/stage.ts `DETAIL`). The 2-D fallback draws every band either way. */
   detail?: DetailName;
+  /** The playing cover — the 3-D picture takes its colours from it. */
+  coverUrl?: string;
   className?: string;
 }) {
   const [data, setData] = useState<PulsarmapData | null>(null);
@@ -259,6 +261,7 @@ export default function Pulsarmap({
           livePosition={livePosition}
           playing={playing}
           detail={detail}
+          coverUrl={coverUrl}
           onUnsupported={() => setUse3d(false)}
         />
       </div>

@@ -12,7 +12,7 @@ import { hasWebGL2 } from '@jkos/scene/gl';
 import Pulsarmap from '../components/Pulsarmap';
 import VibeSpace from '../components/vibespace/VibeSpace';
 import { decodeMap, energyWord, type DecodedMap } from '../components/vibespace/geometry';
-import { usePlayer } from '../player/PlayerProvider';
+import { nowPlayingArt, usePlayer } from '../player/PlayerProvider';
 import type { MapRegion, VibeMap, VibePoint } from '../api';
 
 /** The pulsarmap reads the engine itself: it positions every FRAME from the media
@@ -21,7 +21,7 @@ function PulsarmapKind({ node }: { node: NodeOf<'pulsarmap'> }) {
   const p = usePlayer();
   if (!p.track) return null;
   return <Pulsarmap trackId={p.track.id} position={p.globalPos} livePosition={p.livePosition} playing={p.playing}
-                    detail={node.detail} />;
+                    detail={node.detail} coverUrl={nowPlayingArt(p)} />;
 }
 
 /** The labelled region nearest a point, in the map's own display space. */

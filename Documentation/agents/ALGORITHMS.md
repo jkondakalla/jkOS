@@ -1231,11 +1231,19 @@ days of Jag's direction, each step rendered and looked at:
   rises 0.45 per unit it recedes (`Detail.rise`, zero at the live line), with the camera lowered
   (`Detail.view`). "Further back lines fade out": the history fades from 3 % to 25 % of the window's
   depth (`Detail.fade`; the climb takes it off the frame by there), and only those ~46 lines are
-  drawn. "Colours derived from the track cover": `palette: 'cover'` reads `--kr-pulsar-cover-*`,
-  mixes of the accent `PlayerProvider` derives from the playing sleeve (`player/accent.ts`) —
-  ⚠️ declared on `.kr-player-scope`, where that accent is set; on `:root` they would only ever see
-  the fallback. The stage watches the scope's style, because the accent lands asynchronously after
-  a track change and no theme attribute moves.
+  drawn.
+- **Every colour from the cover** (`coverPalette.ts`, `palette: 'cover'`) — "use gradients made of
+  colours pulled from the album cover for every aspect of this visualizer". The cover's pixels
+  (`player/accent.ts` `coverPixels`, the one way the app reads a sleeve) give a dark GROUND (a
+  vertical gradient, the cover's dark end to its leading hue), two to four bright STOPS (the
+  cover's hues, found by hue on the wheel — never a mean, accent.ts's lesson — walked in wheel
+  order, the line's gradient across the spectrum) and a CREST (its lightest colour: peaks turn
+  toward it by their own height, the climb taken back out; the live line leans to it). Hue and
+  saturation are the cover's; lightness is pulled so it can be seen — ground dark, lines bright, a
+  monochrome sleeve still monochrome. ⚠️ The background, the curtains and the fade are ONE
+  screen-space gradient (`groundAt`, `gl_FragCoord`), so a curtain stays unseen and a line fades
+  into exactly what is behind it. The palette replaced a two-colour hookup through CSS tokens on
+  the player scope (same day). `high` draws in the face's tokens, byte-identical to before.
 - **Cost.** ~11,700 surface-equivalent triangles a frame against the terrain's ~89,000.
   `SOFTWARE_MAX_TRIANGLES` (6,000 — SwiftShader at 780 × 336 drew ~5,500 at 29 fps, ~11,000 at 15)
   sends a software rasteriser to the 2-D strip for both details. The 2-D strip is unchanged.

@@ -94,6 +94,21 @@ function loadImage(url: string): Promise<HTMLImageElement> {
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
+/** The cover's RGBA pixels, drawn down to `size` × `size` — what every colour this app
+ *  takes from a sleeve is read from (this accent; the pulsarmap's palette,
+ *  components/ridges3d/coverPalette.ts). Null when there is no 2-D context; THROWS on a
+ *  failed load or a tainted canvas, so a caller decides how to degrade. */
+export async function coverPixels(url: string, size = 32): Promise<Uint8ClampedArray | null> {
+  const img = await loadImage(url);
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  if (!ctx) return null;
+  ctx.drawImage(img, 0, 0, size, size);
+  return ctx.getImageData(0, 0, size, size).data;   // throws on a tainted canvas
+}
+
 /** Dominant-hue extraction over a downsampled canvas draw. Degrades to `{}` (no
  *  override) on ANY failure — a cross-origin cover art host tainting the canvas
  *  (getImageData throws SecurityError), a 404, a missing canvas 2d context, or a
@@ -101,15 +116,8 @@ const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v
  *  configured accent. */
 export async function deriveAccentFromArt(url: string): Promise<DerivedAccent> {
   try {
-    const img = await loadImage(url);
-    const SIZE = 32;
-    const canvas = document.createElement('canvas');
-    canvas.width = SIZE;
-    canvas.height = SIZE;
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    if (!ctx) return {};
-    ctx.drawImage(img, 0, 0, SIZE, SIZE);
-    const { data } = ctx.getImageData(0, 0, SIZE, SIZE);   // throws on a tainted canvas
+    const data = await coverPixels(url);
+    if (!data) return {};
 
     const weight = new Float64Array(HUE_BINS);
     const sumS = new Float64Array(HUE_BINS);
