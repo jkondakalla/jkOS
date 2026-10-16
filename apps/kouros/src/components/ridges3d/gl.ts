@@ -292,6 +292,13 @@ export interface RidgeColors {
   cover?: CoverPalette;
 }
 
+/** What RidgeStage drives: this file's renderer, or the vaporwave one (vapor.ts). */
+export interface PulsarRenderer {
+  setMesh(mesh: Shaped): void;
+  draw(frame: RidgeFrame, colors: RidgeColors): void;
+  dispose(): void;
+}
+
 export interface RidgeFrame {
   viewProj: Float32Array;
   window: LiveWindow;
@@ -302,7 +309,7 @@ export interface RidgeFrame {
   dpr: number;
 }
 
-export class RidgeRenderer {
+export class RidgeRenderer implements PulsarRenderer {
   private gl: WebGL2RenderingContext;
   private program: WebGLProgram;
   private u: Record<(typeof UNIFORMS)[number], WebGLUniformLocation | null>;

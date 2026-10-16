@@ -220,6 +220,7 @@ check(rowPitch(4) === MIN_ROW_PITCH && rowPitch(20) === 20 && rowPitch(NaN) === 
 const scene = await import(transpileSceneMath(join(tmp, 'scene')));
 const balance = await importTs('apps/kouros/src/components/ridges3d/balance.ts', 'balance.mjs');
 const coverPalette = await importTs('apps/kouros/src/components/ridges3d/coverPalette.ts', 'coverPalette.mjs');
+const vaporSignals = await importTs('apps/kouros/src/components/ridges3d/vaporSignals.ts', 'vaporSignals.mjs');
 const stage = await importTs('apps/kouros/src/components/ridges3d/stage.ts', 'stage.mjs', {
   '../pulsarmap': './pulsarmap.mjs', '@jkos/scene/math': './scene/index.mjs', './balance': './balance.mjs',
 });
@@ -683,6 +684,61 @@ const glSrc = readFileSync(resolve(root, 'apps/kouros/src/components/ridges3d/gl
   check(JSON.stringify(paletteFromPixels(image((i) => [i % 256, (i * 3) % 256, 90])))
         === JSON.stringify(paletteFromPixels(image((i) => [i % 256, (i * 3) % 256, 90]))),
     'paletteFromPixels: a pure function of the pixels');
+}
+
+/* ── the vaporwave exploration (detail: 'vapor') ─────────────────────────────
+   Jag 2026-10-15: "a way more vaporwave version … keep it tied to the music. This is an
+   exploration rather than a throwaway." What must hold: it is the default's lines and
+   motion under a different renderer, and NOTHING in it moves by a clock — every effect
+   is a function of the live line and of time IN THE TRACK, so a pause holds the picture. */
+{
+  const { stepVapor, vaporState, HIT_FLOOR, TEAR_AT } = vaporSignals;
+  const B = DETAIL.low.balance;
+  const V = DETAIL.vapor;
+  check(V.motion === DETAIL.low.motion && V.balance === DETAIL.low.balance && V.lineSeconds === DETAIL.low.lineSeconds
+        && V.columns === DETAIL.low.columns && !V.palette,
+    'DETAIL.vapor: the default\'s lines, balance and motion exactly — only the picture is different');
+
+  const flat = new Float32Array(128).fill(B.rest);
+  const quiet = vaporState();
+  for (let t = 10; t < 12; t += 1 / 30) stepVapor(quiet, flat, t, B);
+  check(quiet.bass === 0 && quiet.highs === 0 && quiet.loud === 0 && quiet.hit === 0 && quiet.tear === 0 && quiet.stripe === 0,
+    'stepVapor: a line at rest is silence — no sun swell, no stars, no hits, no tears, no stripe scroll');
+
+  const held = { ...quiet, prev: quiet.prev && quiet.prev.slice() };
+  const loudLine = Float32Array.from(flat, (v, b) => v + (b < 22 ? 200 : 60));
+  const a = stepVapor({ ...held }, loudLine, 12 + 1 / 30, B);
+  const paused = stepVapor(stepVapor({ ...held }, loudLine, 12 + 1 / 30, B), loudLine, 12 + 1 / 30, B);
+  check(a.bass > 0.8 && a.hit > 0.5 && a.beat > 0.5,
+    'stepVapor: the bass and an onset arrive with the line that carries them');
+  check(paused.stripe === a.stripe && paused.sway === a.sway && paused.hue === a.hue && paused.hit === a.hit,
+    'stepVapor: a paused track (the same time twice) advances nothing — no clock is hiding in it');
+  const back = stepVapor({ ...a, prev: a.prev && a.prev.slice() }, loudLine, 5, B);
+  check(back.stripe === a.stripe && back.sway === a.sway && back.hue === a.hue,
+    'stepVapor: a seek backwards accumulates nothing');
+
+  const small = vaporState();
+  stepVapor(small, flat, 20, B);
+  stepVapor(small, Float32Array.from(flat, (v) => v + HIT_FLOOR * 0.9), 20 + 1 / 30, B);
+  const big = vaporState();
+  stepVapor(big, flat, 20, B);
+  stepVapor(big, Float32Array.from(flat, (v) => v + HIT_FLOOR + 30 * TEAR_AT + 5), 20 + 1 / 30, B);
+  check(small.hit === 0 && small.tear === 0 && big.hit > TEAR_AT && big.tear > 0.75,
+    `stepVapor: a rise under the onset floor (${HIT_FLOOR}/band/frame, measured) is the glide, not a hit; a big one tears`);
+
+  const stageSrc = readFileSync(resolve(root, 'apps/kouros/src/components/ridges3d/RidgeStage.tsx'), 'utf8');
+  const pmSrc = readFileSync(resolve(root, 'apps/kouros/src/components/Pulsarmap.tsx'), 'utf8');
+  const vaporSrc = readFileSync(resolve(root, 'apps/kouros/src/components/ridges3d/vapor.ts'), 'utf8');
+  check(/vapor \? new VaporRenderer\(gl\) : new RidgeRenderer\(gl\)/.test(stageSrc)
+        && /key=\{detail === 'vapor' \? 'vapor' : 'ridges'\}/.test(pmSrc)
+        && /const t = \(w\.live \+ 0\.5\) \* mesh\.rowSeconds;/.test(vaporSrc) && /stepVapor\(this\.signals, cur, t, bal\)/.test(vaporSrc),
+    'vapor: its own renderer, chosen at mount (a switch remounts), driven by the live line at the time it stands for');
+  for (const [name, src] of [['vapor.ts', vaporSrc],
+    ['vaporSignals.ts', readFileSync(resolve(root, 'apps/kouros/src/components/ridges3d/vaporSignals.ts'), 'utf8')]]) {
+    const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+    const clocks = ['setInterval', 'setTimeout', 'Date.now', 'performance.now', 'requestAnimationFrame'].filter((c) => code.includes(c));
+    check(!clocks.length, `purity: ${name} holds no clock (${clocks.join(', ') || 'none'}) — the music moves it`);
+  }
 }
 
 /* ── the camera ───────────────────────────────────────────────────────────── */

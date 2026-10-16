@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef } from 'react';
 import { rendererName, tokenColor } from '@jkos/scene/gl';
 import { DEG, createRig, cutRig, isSoftwareRenderer, rigView, stepRig } from '@jkos/scene/math';
 import { useOrbitControls, useScene } from '@jkos/scene/react';
-import { RidgeRenderer, type RidgeColors } from './gl';
+import { RidgeRenderer, type PulsarRenderer, type RidgeColors } from './gl';
+import { VaporRenderer } from './vapor';
 import { paletteFromPixels } from './coverPalette';
 import { coverPixels } from '../../player/accent';
 import {
@@ -96,7 +97,10 @@ export default function RidgeStage({
     { omega: { yaw: RETURN_OMEGA, pitch: RETURN_OMEGA } },
   )).current;
 
-  const scene = useScene<RidgeRenderer>({
+  // ⚠️ The renderer is chosen ONCE, at mount: Pulsarmap keys this component on it, so a
+  // switch to or from `vapor` remounts rather than swapping programs inside one context.
+  const vapor = useRef(detail === 'vapor').current;
+  const scene = useScene<PulsarRenderer>({
     name: 'kouros pulsarmap',
     attributes: { antialias: true, alpha: false, depth: true, powerPreference: 'low-power' },
     create: (gl) => {
@@ -109,7 +113,7 @@ export default function RidgeStage({
       if (trianglesOf(m) > SOFTWARE_MAX_TRIANGLES && isSoftwareRenderer(name)) {
         throw new Error(`a software rasteriser (${name}) — the 2-D strip draws instead`);
       }
-      const renderer = new RidgeRenderer(gl);
+      const renderer: PulsarRenderer = vapor ? new VaporRenderer(gl) : new RidgeRenderer(gl);
       renderer.setMesh(m);
       return renderer;
     },

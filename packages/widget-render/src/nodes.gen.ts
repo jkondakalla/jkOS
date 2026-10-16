@@ -89,7 +89,7 @@ export type WidgetNode =
   /** Week — the seven-day time grid (@jkos/cards). Reads `items` and `todayIso`. */
   | { t: 'week' }
   /** Pulsarmap — the playing track's spectrogram as ridgelines, revealed as it plays (KourOS). Reads `player`. */
-  | { t: 'pulsarmap'; /** low (default): the Unknown Pleasures plate, live — every band, 60 lines a second climbing back and fading, coloured from the playing sleeve; high: every band and row, splined into a smooth lit terrain */ detail?: 'low' | 'high' }
+  | { t: 'pulsarmap'; /** low (default): the Unknown Pleasures plate, live — every band, 60 lines a second climbing back and fading, coloured from the playing sleeve; high: every band and row, splined into a smooth lit terrain; vapor: an exploration — the same lines under a striped sun, a neon grid and a VHS screen, every effect moved by the music */ detail?: 'low' | 'high' | 'vapor' }
   /** Vibe space — the library as a cloud you move through — energy one way, the sound the others; tap to pin a place (KourOS). */
   | { t: 'vibespace'; /** the vibe space — KourOS's discoverMap document (its packed points, regions, stops, axes) */ map: Binding; /** the pinned place, { x, y, z, w } — what the cloud marks; none: it pins the densest region itself */ pin?: Binding; /** the playing track's id — its point glints */ playing?: Binding; on?: { pin?: ActionChain; play?: ActionChain } }
   /** Stat — one headline number, with its context. */

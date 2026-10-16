@@ -159,7 +159,7 @@ export function cellOf(instance: number, per: number): { line: number; seg: numb
 // high), and every rule above — no normalisation, `currentTime` every frame, the shared
 // band axis — holds for it unchanged.
 
-export type DetailName = 'high' | 'low';
+export type DetailName = 'high' | 'low' | 'vapor';
 
 export interface Detail {
   /** Stored rows pooled into one line. A line still stands for a fixed span of music —
@@ -282,33 +282,41 @@ export interface Motion {
   lead: number;
 }
 
+/* The *Unknown Pleasures* plate, live — Jag, 2026-10-15: "60 lines a second", "no more
+   mesh connections", "full detail", each line hiding the ones behind it, and the bands
+   balanced so the middle carries the action. Every stored band, straight edges; a line
+   every 1/60 s taken from the live line (finer than the ~10.8 stored rows a second:
+   between rows a line is the motion's own interpolation, not new information); half the
+   old spacing, twice the lines, so the history reaches the same depth (~3 s of music).
+   Thin lines (the weight was "adding too much visual noise"); the live line heaviest.
+   Then "allow for much higher visual peaks so that there are more peaks and valleys":
+   a band's typical swing reaches 230 bytes of height from a rest of 110 (2.7× the
+   stored swing — so `snap` is 40, the same ~4.6 dB at the middle), the glide is halved
+   so a valley opens rather than being held up, and the camera comes down to ~16° so
+   the lines read as silhouettes. And "have the past band go up and back rather than
+   just back": each line climbs 0.45 for every unit it recedes — the plate's stack —
+   and "have the further back lines fade out and the colours be derived from the track
+   cover": the history fades from 3 % of the window's depth and is gone by 25 % (~0.7 s
+   of music — the climb takes it off the top of the frame by about there anyway), so
+   only those lines are drawn; coloured from the sleeve. The motion is the one
+   that put it in time with the music (2026-10-14, `Motion`). */
+const LOW: Detail = { rowsPer: 1, spacing: 0.5, columns: 0, subdivisions: 1, columnEvery: 0, relief: 1,
+       light: [-0.5007, 0.751, -0.4306], linePx: 0.5, livePx: 1.5,
+       motion: { snap: 40, glide: 0.25, lead: 0.025 }, lineSeconds: 1 / 60, surface: false,
+       balance: { rest: 110, swing: 230, edge: 0.2 }, rise: 0.45, fade: { near: 0.03, far: 0.25 },
+       view: { pitch: 0.28, targetY: 0.3, distance: 2.4 }, palette: 'cover' };
+
 export const DETAIL: { readonly [K in DetailName]: Detail } = {
   high: { rowsPer: 1, spacing: 1, columns: 0, subdivisions: SUBDIVISIONS, columnEvery: COLUMN_EVERY, relief: 0.22,
           light: [-0.33, 0.85, 0.41], linePx: LINE_WIDTH_PX, livePx: LIVE_WIDTH_PX, surface: true },
-  /* The *Unknown Pleasures* plate, live — Jag, 2026-10-15: "60 lines a second", "no more
-     mesh connections", "full detail", each line hiding the ones behind it, and the bands
-     balanced so the middle carries the action. Every stored band, straight edges; a line
-     every 1/60 s taken from the live line (finer than the ~10.8 stored rows a second:
-     between rows a line is the motion's own interpolation, not new information); half the
-     old spacing, twice the lines, so the history reaches the same depth (~3 s of music).
-     Thin lines (the weight was "adding too much visual noise"); the live line heaviest.
-     Then "allow for much higher visual peaks so that there are more peaks and valleys":
-     a band's typical swing reaches 230 bytes of height from a rest of 110 (2.7× the
-     stored swing — so `snap` is 40, the same ~4.6 dB at the middle), the glide is halved
-     so a valley opens rather than being held up, and the camera comes down to ~19° so
-     the lines read as silhouettes. And "have the past band go up and back rather than
-     just back": each line climbs 0.45 for every unit it recedes — the plate's stack —
-     and "have the further back lines fade out and the colours be derived from the track
-     cover": the history fades from 3 % of the window's depth and is gone by 25 % (~0.7 s
-     of music — the climb takes it off the top of the frame by about there anyway), so
-     only those lines are drawn; coloured from the sleeve. The motion is the one
-     that put it in time with the music (2026-10-14, `Motion`). */
-  low: { rowsPer: 1, spacing: 0.5, columns: 0, subdivisions: 1, columnEvery: 0, relief: 1,
-         light: [-0.5007, 0.751, -0.4306], linePx: 0.5, livePx: 1.5,
-         motion: { snap: 40, glide: 0.25, lead: 0.025 }, lineSeconds: 1 / 60, surface: false,
-         balance: { rest: 110, swing: 230, edge: 0.2 }, rise: 0.45, fade: { near: 0.03, far: 0.25 },
-         view: { pitch: 0.28, targetY: 0.3, distance: 2.4 }, palette: 'cover' },
+  low: LOW,
+  /* The vaporwave exploration (ridges3d/vapor.ts, Jag 2026-10-15) — the default's lines,
+     motion and balance exactly, drawn by its own renderer: a little less climb and a longer
+     fade so the stack reaches toward the sun, and a camera nearly level with the horizon. */
+  vapor: { ...LOW, rise: 0.3, fade: { near: 0.04, far: 0.42 }, view: { pitch: 0.1, targetY: 0.36, distance: 2.5 },
+           palette: undefined },
 };
+
 
 /** Triangles one frame of `m` draws: the surface between every pair of lines, two to a
  *  segment (the front face, the lines and the grid are a few percent more). */

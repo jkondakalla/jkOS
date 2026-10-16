@@ -252,6 +252,7 @@ export default function Pulsarmap({
     return (
       <div ref={hostRef} className={`kr-pulsar is-3d${className ? ' ' + className : ''}`}>
         <RidgeStage
+          key={detail === 'vapor' ? 'vapor' : 'ridges'}
           trackId={trackId}
           bytes={ready.bytes}
           rows={ready.count}

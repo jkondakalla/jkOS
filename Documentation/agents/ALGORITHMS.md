@@ -1244,6 +1244,19 @@ days of Jag's direction, each step rendered and looked at:
   screen-space gradient (`groundAt`, `gl_FragCoord`), so a curtain stays unseen and a line fades
   into exactly what is behind it. The palette replaced a two-colour hookup through CSS tokens on
   the player scope (same day). `high` draws in the face's tokens, byte-identical to before.
+- **`vapor` — an exploration, opt-in** (`vapor.ts`, `vaporSignals.ts`; Jag: "a way more vaporwave
+  version … go insane", then "keep it tied to the music. This is an exploration rather than a
+  throwaway"). The default's lines, balance and motion exactly, under its own renderer: a dusk sky,
+  a striped retro sun, a magenta grid laid in the lines' own z (so it scrolls with the track), the
+  lines' reflections, neon lines whitening as they peak, then bloom, an RGB split, a VHS tear,
+  grain, scanlines, a CRT curve. ⚠️ **Nothing in it moves by a clock** — every effect is a field of
+  `stepVapor`, a pure function of the live line and of time IN THE TRACK: the sun swells on the bass
+  and its stripes scroll with the mids, the stars twinkle with the treble, the sky breathes with the
+  loudness, the palette turns with the spectral centroid and the loudness, the camera sways as far
+  as it is loud and punches in on a hit, and the split and the tear fire on onsets — measured over
+  60 s of Feel Good Inc (summed rise per band per frame: median 0.7, p90 8.7, p99 42), so the floor
+  is ~p88 and a tear needs ~p99. A paused track holds the picture. Its camera is a performance, not
+  a map: a drag does not orbit it. The demo video's VHS on-screen text is not in the app.
 - **Cost.** ~11,700 surface-equivalent triangles a frame against the terrain's ~89,000.
   `SOFTWARE_MAX_TRIANGLES` (6,000 — SwiftShader at 780 × 336 drew ~5,500 at 29 fps, ~11,000 at 15)
   sends a software rasteriser to the 2-D strip for both details. The 2-D strip is unchanged.

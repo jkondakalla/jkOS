@@ -382,7 +382,7 @@ export const NODES = {
   pulsarmap: {
     kind: 'molecule', label: 'Pulsarmap', hint: "the playing track's spectrogram as ridgelines, revealed as it plays (KourOS)",
     props: {
-      detail: { type: 'enum', values: ['low', 'high'], doc: 'low (default): the Unknown Pleasures plate, live — every band, 60 lines a second climbing back and fading, coloured from the playing sleeve; high: every band and row, splined into a smooth lit terrain' },
+      detail: { type: 'enum', values: ['low', 'high', 'vapor'], doc: 'low (default): the Unknown Pleasures plate, live — every band, 60 lines a second climbing back and fading, coloured from the playing sleeve; high: every band and row, splined into a smooth lit terrain; vapor: an exploration — the same lines under a striped sun, a neon grid and a VHS screen, every effect moved by the music' },
     },
     host: 'kouros', reads: 'player',
     example: { t: 'pulsarmap' },
