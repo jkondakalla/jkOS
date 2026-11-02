@@ -1,13 +1,13 @@
 # jkOS — TODO
 
 **The one list of open work.** When something is done, delete it — git is the history.
-Where this and the code disagree, the code wins. Last re-walked against the source 2026-09-24.
+Where this and the code disagree, the code wins. Last re-walked against the source 2026-11-02.
 
 ---
 
 ## 1 · Yours — only you can do these
 
-Roughly in order: the first one gates every deploy.
+In order: everything above "Deploy staging" gates the deploy, everything below follows it.
 
 - **Finish the off-box backup.** Two commands in [`infra/backup/README.md`](../infra/backup/README.md):
   one writes the NAS's `authorized_keys`, one sets the GPG passphrase only you should know. Then
@@ -16,6 +16,11 @@ Roughly in order: the first one gates every deploy.
   without the GPG key; nothing has run since. Do this **before deploying anything**: `staging`
   now holds migrations for jkAuth, BeigeBoard and KourOS. (The hourly on-box ZFS snapshot of
   `Luna/Backends` does exist, as `pool.snapshottask` id 1.)
+- **Give `truenas_admin` docker back — durably.** The NAS rebooted 2026-09-23 and the Post-Init
+  script (`usermod -aG docker truenas_admin`, `initshutdownscript` id 1) runs but does not stick:
+  `getent group docker` is empty afterwards, so no agent can reach a container. Run
+  `sudo usermod -aG docker truenas_admin` now; for the next boot, the script likely needs to
+  wait for the docker service before it runs (it is racing the middleware's `/etc/group` rewrite).
 - **Generate the service-client secrets.** `JKOS_SERVICE_CLIENTS` and `JKOS_DELEGATION_CLIENTS`
   in [`apps/jkauth/.env.example`](../apps/jkauth/.env.example); `JKOS_SERVICE_CLIENT_ID`/`_SECRET`
   in LazurOS's. `openssl rand -hex 32`; grant `beigeboard:create`, not `beigeboard:write`.
@@ -38,11 +43,40 @@ Roughly in order: the first one gates every deploy.
   authorise the key under `rrsync -wo -no-del`. The first cycle delivers the existing snapshots.
   ⚠️ Then **restart the KourOS container**: the running one bind-mounted the plain directory and
   does not see a dataset mounted over it afterwards.
-- **Re-download two zero-byte FLACs:**
-  `Dodheimsgard - Black Medium Current (2023)/08. Abyss Perihelion Transit.flac` and
-  `Geese - Getting Killed (2025)/11. Long Island City Here I Come.flac`.
-- **LazurOS's two hardware facts:** `TODO_EMILY_MAC` and `TODO_EMILY_IP` in
-  [`apps/lazuros/deployment.jag.json`](../apps/lazuros/deployment.jag.json).
+- **Deploy staging** ("Sync Staging"), once the backup, the secrets and analysis delivery are
+  in place, then **restart nginx** (never reload). Staging has not been deployed since
+  2026-09-25 and holds everything in §3.
+- **Retire the two folded/removed apps on the NAS, after the deploy.** The audiobook data exists
+  on staging only (production never had a data dir for it). An agent can do 1–4 once docker
+  works; 5 is yours.
+  1. **Snapshot the audiobook app's DB**, never the live file (its data is still all in the `-wal`):
+     `docker exec staging-papyros-app node -e "require('better-sqlite3')('/data/papyros.db').exec(\"VACUUM INTO '/data/papyros.snapshot.db'\")"`,
+     then copy `papyros.snapshot.db` and `covers/` from `…/Staging/papyros-data/` into
+     `…/Staging/kouros-data/import/`.
+  2. **Dry run, read it, then apply:**
+     `docker exec staging-kouros-app node scripts/import-papyros.js --from /data/import/papyros.snapshot.db --covers /data/import/covers`,
+     then the same with `--apply`. It matches books by folder path (both apps mount `/audiobooks`
+     from the same host path), never overwrites newer KourOS progress, and a second `--apply` is a
+     no-op ([the script's header](../apps/kouros/backend/scripts/import-papyros.js)).
+  3. **Check** a book you were mid-way through shows *Resume* in KourOS → Books.
+  4. **Remove the containers:** `staging-papyros-app`, `sylibos-frontend`/`sylibos-api` and
+     `staging-sylibos-*`. The deploy already unroutes them (jkAuth migrations 021/022).
+  5. **Yours:** the `papyros.jkos.net` and `sylibos.jkos.net` DNS records, and the data dirs
+     (`…/Staging/papyros-data`, `…/{Production,Staging}/sylibos-data`) once you're satisfied.
+     Offline downloads made in the old audiobook app stay on its origin; download again in KourOS.
+  6. **Then delete the importer** (`import-papyros.js`, its smoke, the schema fixture, its test-port
+     claim and its `package.json` chain entry) and this item — the last names left in the repo
+     apart from the SQL literals in jkAuth migrations 012/021/022, which stay as the record.
+- **Try the listening session on staging, after the deploy.** Nothing to configure (additive
+  migrations, no new env, no nginx change). Only a real device can show:
+  1. **The phone as the output, screen locked.** Play on the phone (the TWA), lock it, then pause,
+     skip, seek and change its volume from the desktop.
+  2. **"Tap play on …".** Move playback to a device nobody has touched since it loaded. A browser
+     that refuses to autoplay should make the other devices say so (headless Chromium autoplays,
+     so this path has never been seen).
+  3. **Through Cloudflare.** Confirm the real edge streams `text/event-stream`.
+  4. **Reload the output tab mid-song.** The other devices should keep showing the song and its
+     second throughout, never a blank "nothing playing" (fixed 2026-09-24, not browser-driven).
 - **The native apps: the release key, then install.** Everything is built and verified except the
   parts that need you. Steps in [OPERATIONS.md § Native apps](OPERATIONS.md#native-apps-android--desktop).
   1. **An Android toolchain.** `node native/android/toolchain.mjs install ~/Android/jkos --adb` (no
@@ -81,44 +115,20 @@ Roughly in order: the first one gates every deploy.
      The TWAs' URL bar, KourOS's lock-screen controls through Chrome, jkOS Home as the default home
      (the corner hold, the offline screen with Wi-Fi off, rotation), and the desktop app's KDE
      media keys (Chromium's MPRIS bridge, expected but unseen).
-- **Give `truenas_admin` docker back — durably.** The NAS rebooted 2026-09-23 and the Post-Init
-  script (`usermod -aG docker truenas_admin`, `initshutdownscript` id 1) runs but does not stick:
-  `getent group docker` is empty afterwards, so no agent can reach a container. Run
-  `sudo usermod -aG docker truenas_admin` now; for the next boot, the script likely needs to
-  wait for the docker service before it runs (it is racing the middleware's `/etc/group` rewrite).
-- **Retire the two folded/removed apps on the NAS, after the deploy.** The audiobook data exists
-  on staging only (production never had a data dir for it). An agent can do 1–4 once docker
-  works; 5 is yours.
-  1. **Snapshot the audiobook app's DB**, never the live file (its data is still all in the `-wal`):
-     `docker exec staging-papyros-app node -e "require('better-sqlite3')('/data/papyros.db').exec(\"VACUUM INTO '/data/papyros.snapshot.db'\")"`,
-     then copy `papyros.snapshot.db` and `covers/` from `…/Staging/papyros-data/` into
-     `…/Staging/kouros-data/import/`.
-  2. **Dry run, read it, then apply:**
-     `docker exec staging-kouros-app node scripts/import-papyros.js --from /data/import/papyros.snapshot.db --covers /data/import/covers`,
-     then the same with `--apply`. It matches books by folder path (both apps mount `/audiobooks`
-     from the same host path), never overwrites newer KourOS progress, and a second `--apply` is a
-     no-op ([the script's header](../apps/kouros/backend/scripts/import-papyros.js)).
-  3. **Check** a book you were mid-way through shows *Resume* in KourOS → Books.
-  4. **Remove the containers:** `staging-papyros-app`, `sylibos-frontend`/`sylibos-api` and
-     `staging-sylibos-*`. The deploy already unroutes them (jkAuth migrations 021/022).
-  5. **Yours:** the `papyros.jkos.net` and `sylibos.jkos.net` DNS records, and the data dirs
-     (`…/Staging/papyros-data`, `…/{Production,Staging}/sylibos-data`) once you're satisfied.
-     Offline downloads made in the old audiobook app stay on its origin; download again in KourOS.
-  6. **Then delete the importer** (`import-papyros.js`, its smoke, the schema fixture, its test-port
-     claim and its `package.json` chain entry) and this item — the last names left in the repo
-     apart from the SQL literals in jkAuth migrations 012/021/022, which stay as the record.
-- **Try the listening session on staging, after the deploy.** Nothing to configure (additive
-  migrations, no new env, no nginx change). Only a real device can show:
-  1. **The phone as the output, screen locked.** Play on the phone (the TWA), lock it, then pause,
-     skip, seek and change its volume from the desktop.
-  2. **"Tap play on …".** Move playback to a device nobody has touched since it loaded. A browser
-     that refuses to autoplay should make the other devices say so (headless Chromium autoplays,
-     so this path has never been seen).
-  3. **Through Cloudflare.** Confirm the real edge streams `text/event-stream`.
-  4. **Reload the output tab mid-song.** The other devices should keep showing the song and its
-     second throughout, never a blank "nothing playing" (fixed 2026-09-24, not browser-driven).
 - **Production DNS for KourOS.** It's reachable on staging only (`staging.jkos.net/kouros/`).
-- **Deploy / promote** is always your button.
+- **Re-download two zero-byte FLACs:**
+  `Dodheimsgard - Black Medium Current (2023)/08. Abyss Perihelion Transit.flac` and
+  `Geese - Getting Killed (2025)/11. Long Island City Here I Come.flac`.
+- **LazurOS's two hardware facts:** `TODO_EMILY_MAC` and `TODO_EMILY_IP` in
+  [`apps/lazuros/deployment.jag.json`](../apps/lazuros/deployment.jag.json).
+- **Local leftovers on Emily, yours to delete** (gitignored, so nothing tracks them):
+  `apps/papyros/.env` (a retired app's env file: read it for anything you still need first),
+  `music/meshes-2s.db` (396 MB, superseded by `meshes.db`), the stray dev databases
+  `./jkos-auth.db*` and `apps/jkauth/src/jkos-auth.db`, and `music/.backfill.pid` (its process
+  is gone).
+- **Promote and tag.** "Deploy to prod" promotes `origin/staging`, so `main` is not on the deploy
+  path (its last merge is 2026-07-30). Tag the promoted commit as the pre-release (the only tag
+  so far is `v0.1`), and fast-forward `main` to it if you want `main` to mean "released".
 
 ---
 
@@ -126,6 +136,11 @@ Roughly in order: the first one gates every deploy.
 
 Each one blocks work an agent could otherwise do alone. Answer in place.
 
+- **What is in the end-of-2026 pre-release, and what is it called?** Scoped to "staging,
+  hardened and deployed": §1 through "Promote and tag", plus whatever of §4 fits. Named as
+  after the pre-release rather than left half-done: §6 phases 6–11, LazurOS L1–L3 (§5), KourOS
+  Alpha on a device, the Node 22 move. ⭐ *Recommended.* Then a version: `v0.2.0-pre` (after
+  `v0.1`), with release notes an agent drafts from §3 once you've picked the scope.
 - **Where does the backup status get published?** The backup runs on the workstation and every
   service runs on the NAS, so no backend can see `last-run.txt`. ORDECK's `useSystems` would render
   it for free once it's reachable.
@@ -155,11 +170,13 @@ Each one blocks work an agent could otherwise do alone. Answer in place.
 
 ## 3 · What's on staging and not deployed
 
-**Everything since 2026-08-26.** Stages A–E of the reset program, the security fixes (including
-the email-OTP expiry fix), the audiobook fold and the listening session. That includes
-**migrations across jkAuth (through 024: native sign-in, additive), BeigeBoard and KourOS
-(8–15)**, which is why the backup comes first. Staging jkAuth also turns on native sign-in
-(`JKOS_NATIVE_ENV=staging`) for KourOS Alpha.
+**Everything since 2026-07-30**, when `main` was last merged; the staging *deploy* last ran
+2026-09-25. Stages A–E of the reset program, the security fixes (including the email-OTP expiry
+fix), the audiobook fold, the listening session, widget phases 1–5, KourOS Alpha and jkAuth's
+native sign-in, and the 2026-11-02 dependency fixes. That includes **migrations across jkAuth
+(through 024: native sign-in, additive), BeigeBoard and KourOS (8–15)**, which is why the backup
+comes first. Staging jkAuth also turns on native sign-in (`JKOS_NATIVE_ENV=staging`) for
+KourOS Alpha.
 
 **Music data on staging:** none that staging reads. Its KourOS now reads `/analysis/…`, which is
 empty until delivery is set up (§1). The hand-copied `music-index.db` (2026-09-23) and the old 2 s
