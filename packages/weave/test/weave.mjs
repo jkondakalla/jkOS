@@ -58,6 +58,10 @@ ok('entry without string id rejected', !!checkDocShape({ app: 'x', version: 1, d
 ok('relative entry path passes', checkDocShape({ app: 'x', version: 1, capabilities: [{ id: 'a', method: 'POST', path: '/items/:id' }] }, 'capabilities') === null)
 ok('entry path repeating the edge prefix rejected', /edge prefix/.test(checkDocShape({ app: 'x', version: 1, capabilities: [{ id: 'a', method: 'POST', path: '/api/x/a' }] }, 'capabilities') || ''))
 ok('entry path without a leading slash rejected', !!checkDocShape({ app: 'x', version: 1, datasets: [{ id: 'd', path: 'items' }] }, 'datasets'))
+// One spelling for scopes: a singular `scope` was read by some readers and not others.
+ok('declared scopes array passes', checkDocShape({ app: 'x', version: 1, capabilities: [{ id: 'a', method: 'POST', scopes: ['x:write'] }] }, 'capabilities') === null)
+ok('a singular `scope` is refused', /'scopes'/.test(checkDocShape({ app: 'x', version: 1, capabilities: [{ id: 'a', method: 'POST', scope: 'x:write' }] }, 'capabilities') || ''))
+ok('scopes as a string is refused', !!checkDocShape({ app: 'x', version: 1, datasets: [{ id: 'd', scopes: 'x:read' }] }, 'datasets'))
 
 // the producer (serve handlers) throws on a bad doc, returns a handler on a good one
 assert.throws(() => serveDatasets({ app: 'x', version: 1, datasets: [{}] }), /needs a string id/)

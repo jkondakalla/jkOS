@@ -150,7 +150,7 @@ let CAPS = [];
 
 function renderFields() {
   const cap = CAPS.find(c => c.id === $('cap').value);
-  $('capdesc').textContent = cap ? (cap.description || '') : '';
+  $('capdesc').textContent = cap ? (cap.doc || '') : '';
   $('fields').innerHTML = (cap && cap.body || []).map(f => {
     const req = f.required ? ' <span class="req">*</span>' : '';
     return '<div class="field">' +

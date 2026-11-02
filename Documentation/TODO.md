@@ -369,8 +369,8 @@ review page has the shots.
 
 - **Found building the widget factory:** the AccuWeather key sits in `localStorage` and request URLs
   (ORDECK has no backend to host a `defineConnector`); ORDECK's `BbItem` is hand-typed rather
-  than BeigeBoard's `ITEM_SHAPE`; `doc`/`description` and `scope`/`scopes` are spelled both ways
-  across apps (the prober misses LazurOS's scopes).
+  than BeigeBoard's `ITEM_SHAPE`; a dataset's prose is `description` in KourOS and LazurOS and
+  `doc` nowhere, because `DatasetDef` declares neither (capabilities are all `doc`).
 - **jkAuth has two authorization policies.** `policy.js` holds route actions; `roleClaims()` in
   `db.js` decides the `aud`/`scope` claims every token carries. Folding it in touches the
   token-minting path. It's pinned as an exact three-comparison exception so it can't grow.

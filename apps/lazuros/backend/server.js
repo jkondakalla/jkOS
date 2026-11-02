@@ -107,12 +107,19 @@ app.use('/api/lazuros/jobs', jobsRouter);
 
 /* ── Capability routes — DERIVED from the doc (data, not branches) ───────────────
    Adding a sixth capability to docs.js auto-gets a route; the only per-capability
-   logic is the `targetTier`/`scope` it already declares. makeHandler creates the job
+   logic is the `targetTier`/`scopes` it already declares. makeHandler creates the job
    and probe/wakes the resolved tier's ComputeBackend. Full paths keep these under the
    weaveAuth prefix gate above; weaveWriteGate enforces the write scope. The declared
-   path is relative to apiBase (docs.js ROUTE_PREFIX says why the prefix goes back on). */
+   path is relative to apiBase (docs.js ROUTE_PREFIX says why the prefix goes back on).
+   ⚠️ The gate is derived from the declaration, so a capability that declares no scope
+   must not boot: weaveWriteGate({ scope: undefined }) checks no scope and says nothing
+   (worker-e2e Part F holds the routes to it). */
 for (const cap of CAPABILITIES_DOC.capabilities) {
-  app.post(ROUTE_PREFIX + cap.path, weaveWriteGate({ scope: cap.scope }), makeHandler(cap));
+  const [scope, ...more] = cap.scopes || [];
+  if (!scope || more.length) {
+    throw new Error(`lazuros: capability '${cap.id}' must declare exactly one scope, got ${JSON.stringify(cap.scopes)}`);
+  }
+  app.post(ROUTE_PREFIX + cap.path, weaveWriteGate({ scope }), makeHandler(cap));
 }
 
 /* ── Internal worker API — bearer-token gated, no jkAuth ─────────────────────────

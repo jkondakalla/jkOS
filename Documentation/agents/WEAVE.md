@@ -536,8 +536,8 @@ a hand-written per-app list you must **enlist** in (§4); **owed** means decided
 | 2 | Edge slug == app id | derived | `prove` `slug-vs-id` (**drift**) |
 | 3 | Edge reachability | `edge:'standard'` → generated nginx | `check:nginx` (**fails**) + `nginx-coverage` (**drift**) |
 | 4 | Identity | `weaveAuth(opts)` | **no gate** — runtime only (`exit(1)` in prod with no key) |
-| 5 | Write authorization | `weaveWriteGate({scope})` | app smoke tests only |
-| 6 | Scope namespace `<id>:verb`, declared on every write capability | `scopeFor(id, verb)`; `scope`/`scopes` on each non-GET capability, then `node packages/suite-manifest/scripts/gen-scopes.mjs` | `prove` `scope-identifier` (**drift**) + `check:scopes` (**fails** on an undeclared write scope or a stale jkAuth copy) |
+| 5 | Write authorization | `weaveWriteGate({scope})` | app smoke tests; the scope refusal per declared capability only in LazurOS's `worker-e2e` (Part F) |
+| 6 | Scope namespace `<id>:verb`, declared on every write capability | `scopeFor(id, verb)`; `scopes` (an array — `docShape` refuses a singular `scope`) on each non-GET capability, then `node packages/suite-manifest/scripts/gen-scopes.mjs` | `prove` `scope-identifier` (**drift**) + `check:scopes` (**fails** on an undeclared write scope or a stale jkAuth copy) |
 | 7 | Cross-origin | `weaveCors(resolver)` | **unenforced** |
 | 8 | Liveness | `healthHandler(service)` | `prove --live` `live-health` (**drift**, live only) |
 | 9–10 | Capability + dataset declarations | `serveCapabilities`/`serveDatasets` | `docShape` throws at boot; `live-docshape` (**drift**, live) |

@@ -70,6 +70,17 @@ export function checkDocShape(doc, listKey) {
     if (listKey === 'datasets' && entry.shape !== undefined && entry.shape !== 'jobs') {
       return `datasets entry '${entry.id}' shape must be 'jobs' (the one common shape there is)`
     }
+    /* Scopes have one spelling: `scopes`, an array (capability.ts / dataset.ts). LazurOS
+       declared `scope: 'lazuros:write'`, which jkAuth's grant read, the prober did not, and
+       its own routes read by the singular name — so renaming it on one side alone switched
+       the write gate's scope check off with no error. One spelling, refused otherwise. */
+    if ('scope' in entry) {
+      return `${listKey} entry '${entry.id}' declares 'scope' — the field is 'scopes', an array`
+    }
+    if (entry.scopes !== undefined
+      && (!Array.isArray(entry.scopes) || !entry.scopes.every((s) => typeof s === 'string' && s))) {
+      return `${listKey} entry '${entry.id}' scopes must be an array of non-empty strings`
+    }
     if (entry.path !== undefined) {
       if (typeof entry.path !== 'string' || !entry.path.startsWith('/')) {
         return `${listKey} entry '${entry.id}' path must be a string starting with '/'`

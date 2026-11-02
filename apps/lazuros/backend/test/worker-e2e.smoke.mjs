@@ -76,7 +76,7 @@ function fakeOllama(response) {
 }
 
 // ── Boot the real State node with a given deployment config on an ephemeral port ──
-async function bootNode(deployment, label) {
+async function bootNode(deployment, label, env = {}) {
   const cfgPath = join(tmp, `deployment-${label}.json`);
   const dbPath = join(tmp, `state-${label}.db`);
   writeFileSync(cfgPath, JSON.stringify(deployment));
@@ -95,6 +95,7 @@ async function bootNode(deployment, label) {
       LAZUROS_DEPLOYMENT_CONFIG: cfgPath,
       NODE_ENV: 'test',
       // no JKOS_AUTH_* → weave dev-stub user { sub:1, role:'admin' }
+      ...env,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -353,6 +354,33 @@ async function main() {
   const bogus = await jsonReq(node.base, 'GET', '/api/lazuros/jobs?definitely_not_a_declared_filter=xyz');
   ok(bogus.status === 200 && Array.isArray(bogus.json) && bogus.json.length === (unfiltered.json || []).length,
     'an undeclared query param is silently ignored (200, same row set as unfiltered)');
+
+  // ═══ Part F — every capability route enforces the scope it DECLARES ═════════
+  // The routes are derived from docs.js, gate included, so the declaration IS the control.
+  // The dev-stub user above carries no `scope` array, and the gate lets such a token
+  // through by design (rollout-safe) — so nothing above could see a gate that checks no
+  // scope at all. One would: weaveWriteGate({ scope: undefined }) checks nothing and says
+  // nothing, which is what a declaration renamed under server.js would hand it. Real
+  // verification (forged RS256 tokens), one capability at a time, from the declaration.
+  const { forgeTokens } = await import('../../../../test/lib/smoke.mjs');
+  const { publicKey, mkToken } = forgeTokens();
+  const authed = await bootNode(ALWAYS_ON, 'scoped', { JKOS_AUTH_PUBLIC_KEY: publicKey, JKOS_AUTH_ISSUER: 'jkos-auth' });
+  const asToken = (token, cap) => fetch(`${authed.base}${apiBase}${cap.path}`, {
+    method: cap.method,
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+    body: JSON.stringify({ text: 'scope probe' }),
+  });
+  const READ_ONLY = mkToken({ sub: 7, role: 'admin', aud: ['lazuros'], scope: ['lazuros:read'] });
+  for (const cap of CAPABILITIES_DOC.capabilities) {
+    const declared = cap.scopes || [];
+    ok(declared.length === 1, `capability '${cap.id}' declares exactly one scope (${JSON.stringify(cap.scopes)})`);
+    const refused = await asToken(READ_ONLY, cap);
+    const rj = await refused.json().catch(() => ({}));
+    ok(refused.status === 403 && rj.code === 'INSUFFICIENT_SCOPE',
+      `'${cap.id}' refuses a token without its declared scope — 403 INSUFFICIENT_SCOPE (got ${refused.status} ${rj.code})`);
+    const held = await asToken(mkToken({ sub: 7, role: 'admin', aud: ['lazuros'], scope: declared }), cap);
+    ok(held.status !== 403 && held.status !== 401, `'${cap.id}' admits a token holding ${declared.join(', ')} (got ${held.status})`);
+  }
 
   console.log(`\n✅ worker-e2e: ${pass} assertions`);
 }

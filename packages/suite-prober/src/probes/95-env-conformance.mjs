@@ -263,7 +263,7 @@ export default {
     let checked = 0;
     for (const app of model.apps.values()) {
       for (const cap of app.docs?.capabilities || []) {
-        const scopes = cap.scopes || (cap.scope ? [cap.scope] : []);
+        const scopes = cap.scopes || [];
         for (const sc of scopes) {
           const [scApp, verb] = String(sc).split(':');
           if (scApp !== app.id) {
