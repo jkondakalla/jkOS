@@ -377,8 +377,6 @@ review page has the shots.
 - **KourOS `/api/albums` still pages by `offset`.** A deliberate exception to the pagination ruling,
   safe while the catalog changes only on rescan. ⚠️ It becomes the bug the moment the catalog gains
   incremental writes (a user-editable tag, a rating that reorders).
-- **`qs` carries a MODERATE advisory** (a DoS reachable through Express in every backend), below the
-  `check:audit` floor. The fix needs the Express upgrade, not a range floor.
 - **Two deferred Weave seams** ([WEAVE.md §7](agents/WEAVE.md)): registry-driven CORS, when a peer
   genuinely can't be nginx-proxied; and runtime `app_registry` CRUD (plus cache bust and dynamic
   nginx), when apps must be added without a deploy.
