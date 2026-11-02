@@ -14,8 +14,8 @@
     "dist": "node scripts/dist.mjs"
   },
   "devDependencies": {
-    "electron": "44.4.5",
-    "electron-builder": "26.15.3"
+    "electron": "44.10.1",
+    "electron-builder": "26.18.1"
   },
   "pnpm": {
     "overrides": {
