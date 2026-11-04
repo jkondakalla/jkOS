@@ -151,4 +151,32 @@ ok('jobPhase: DONE is done, FAILED failed, anything else pending',
   jobPhase({ status: 'DONE' }) === 'done' && jobPhase({ status: 'FAILED' }) === 'failed' && jobPhase({ status: 'IN_PROGRESS' }) === 'pending' && jobPhase(null) === 'pending')
 ok('the doc shape refuses a shape other than jobs', /shape must be 'jobs'/.test(checkDocShape({ app: 'x', version: 1, datasets: [{ id: 'd', shape: 'queue' }] }, 'datasets') || ''))
 
+// ── 6. weaveAuth refuses to start in production without an audience ─────────────
+// One cookie reaches every *.jkos.net host, so the token's `aud` is the only thing
+// stopping a token minted for one app from being spent at another. Verifying it is
+// opt-in per service (JKOS_APP_ID), and an opt-in nobody opted into is no control:
+// weaveAuth exits rather than boot a production service that skips the check.
+// Driven in a child process because the guard calls process.exit.
+console.log('6 · weaveAuth refuses to start in production without an audience')
+{
+  const { spawnSync } = await import('node:child_process')
+  const { generateKeyPairSync } = await import('node:crypto')
+  const { publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 })
+  const pem = publicKey.export({ type: 'spki', format: 'pem' })
+  const serverEntry = require.resolve('../src/server/index.js')
+  const boot = (env, opts = '{}') => {
+    const base = { ...process.env, NODE_ENV: 'production', JKOS_AUTH_PUBLIC_KEY: pem }
+    delete base.JKOS_APP_ID
+    delete base.JKOS_AUTH_JWKS_URI
+    return spawnSync(process.execPath,
+      ['-e', `require(${JSON.stringify(serverEntry)}).weaveAuth(${opts}); console.log('BOOTED')`],
+      { env: { ...base, ...env }, encoding: 'utf8' })
+  }
+  const bare = boot({})
+  ok('no JKOS_APP_ID and no appId in production → exit 1, naming the missing audience',
+    bare.status === 1 && /JKOS_APP_ID/.test(bare.stderr) && !/BOOTED/.test(bare.stdout), `(status ${bare.status})`)
+  ok('…JKOS_APP_ID set → boots', /BOOTED/.test(boot({ JKOS_APP_ID: 'kouros' }).stdout))
+  ok('…an appId passed in code → boots (LazurOS\'s route)', /BOOTED/.test(boot({}, "{ appId: 'lazuros' }").stdout))
+}
+
 console.log(`\nPASS: ${pass} passed, 0 failed`)
