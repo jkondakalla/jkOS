@@ -394,6 +394,15 @@ review page has the shots.
 - **KourOS `/api/albums` still pages by `offset`.** A deliberate exception to the pagination ruling,
   safe while the catalog changes only on rescan. ⚠️ It becomes the bug the moment the catalog gains
   incremental writes (a user-editable tag, a rating that reorders).
+- **Three controls held by configuration or habit** (each is a known gap in
+  [CONTROLS.md](CONTROLS.md); close it there too):
+  - BeigeBoard stores calendar OAuth tokens in plaintext when `CALENDAR_ENC_KEY` is unset. The
+    fix is weaveAuth's shape: refuse to start in production without the key. ⚠️ Check that the
+    key is set on the NAS *before* that ships, or BeigeBoard won't boot on the next deploy.
+  - jkDeploy's `jkos_auth.py` checks `aud` only when `JKOS_APP_ID` is set, and it isn't. It needs
+    a registry row for jkDeploy first, or the check refuses every token.
+  - Nothing runs the gate except the author: no CI, no commit hook. A pre-push hook is the cheap
+    half. CI needs Python, Docker and Chromium on the runner.
 - **Two deferred Weave seams** ([WEAVE.md §7](agents/WEAVE.md)): registry-driven CORS, when a peer
   genuinely can't be nginx-proxied; and runtime `app_registry` CRUD (plus cache bust and dynamic
   nginx), when apps must be added without a deploy.
