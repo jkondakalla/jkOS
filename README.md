@@ -15,22 +15,6 @@ Built by [Jag Kondakalla](https://jaaggruthkondakalla.com) as a portfolio projec
 Each security control is enforced in code and covered by a test. All 21 controls are listed in
 [CONTROLS.md](Documentation/CONTROLS.md), with the code and test for each.
 
-## Architecture
-
-```mermaid
-flowchart LR
-  U["Browser or app"] -->|HTTPS| N["nginx (TLS)"]
-  N --> P["ORDECK"]
-  N --> A["jkAuth"]
-  N --> B["BeigeBoard"]
-  N --> K["KourOS"]
-  N -->|"admin only"| S["Staging and jkDeploy"]
-  B --> D[("SQLite on ZFS")]
-  K --> D
-```
-
-Everything runs in Docker behind one nginx server. Each app keeps its own SQLite database on the NAS.
-
 ## 1. Single sign-on and sessions
 
 - jkAuth signs tokens with RS256. The private key stays in jkAuth. Other apps verify tokens with the
@@ -135,6 +119,22 @@ known gaps.
 The test suite checks this file. Every file it cites must exist, every test it cites must run, and
 every event it cites must be one jkAuth actually writes. This is one of 36 conformance checks in the
 suite.
+
+## Architecture
+
+```mermaid
+flowchart LR
+  U["Browser or app"] -->|HTTPS| N["nginx (TLS)"]
+  N --> P["ORDECK"]
+  N --> A["jkAuth"]
+  N --> B["BeigeBoard"]
+  N --> K["KourOS"]
+  N -->|"admin only"| S["Staging and jkDeploy"]
+  B --> D[("SQLite on ZFS")]
+  K --> D
+```
+
+Everything runs in Docker behind one nginx server. Each app keeps its own SQLite database on the NAS.
 
 ## Run it
 
