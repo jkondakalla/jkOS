@@ -241,5 +241,31 @@ const OFF_GATE = new Map([
   }
 }
 
+// ── 6 · The repo's front page cites real paths ───────────────────────────────
+// README.md at the root is what GitHub shows a visitor; it links into the code as
+// proof, so a dead link there is a claim with nothing behind it.
+{
+  let dead = 0;
+  for (const m of read('README.md').matchAll(PATH_RE)) {
+    if (!existsSync(join(ROOT, m[1]))) { dead++; console.error(`  ✗ README.md cites a path that does not exist: ${m[1]}`); }
+  }
+  ok('every repo path the root README cites resolves', dead === 0, `— ${dead} broken reference(s)`);
+
+  // Its three headline numbers are derived here, like README's trap count above:
+  // a front-page number that was true when written is the stale-summary defect.
+  const front = read('README.md');
+  const controlRows = read('Documentation/CONTROLS.md').split('\n').filter(l => /^\| [A-Z]{2}-\d+ \|/.test(l)).length;
+  const walk = d => readdirSync(join(ROOT, d), { withFileTypes: true })
+    .flatMap(e => e.isDirectory() ? walk(`${d}/${e.name}`) : e.name.endsWith('.js') ? [`${d}/${e.name}`] : []);
+  const eventCount = new Set(walk('apps/jkauth/src')
+    .flatMap(f => [...read(f).matchAll(/logEvent\('([a-z0-9_]+)'/g)].map(m => m[1]))).size;
+  ok(`the root README's control count matches CONTROLS.md's ${controlRows} rows`,
+    new RegExp(`full list of ${controlRows} is in`).test(front), `— expected "full list of ${controlRows}"`);
+  ok(`the root README's event count matches the ${eventCount} events jkAuth writes`,
+    new RegExp(`That covers ${eventCount} kinds of\\s+event`).test(front), `— expected "${eventCount} kinds of event"`);
+  ok(`the root README's check count matches the ${checks.length} check:* scripts`,
+    new RegExp(`\\b${checks.length} conformance\\s+checks`).test(front), `— expected "${checks.length} conformance checks"`);
+}
+
 console.log(`\ndocs: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
