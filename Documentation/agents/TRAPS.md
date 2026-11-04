@@ -1047,3 +1047,9 @@ Every trap here was hit building `native/` on 2026-09-24; see [NATIVE.md](NATIVE
   `@jkos/player`'s engine now has idempotent `play()` / `pause()` that ask the element, which
   is never stale (`packages/player/src/engine/usePlayerEngine.ts`); `toggle()` is for a button
   press, where exactly one step runs.
+
+- **KourOS's `<audio>` element is not in the DOM.** `@jkos/player` creates its media element with
+  `document.createElement('audio')` and never attaches it (`packages/player/src/backend/htmlMedia.ts`,
+  `gaplessDual.ts`). A browser-driving script that looks for it with `document.querySelector('audio')`
+  finds nothing, so it can neither pause playback nor read the position that way. Drive playback
+  through the app's own controls.
