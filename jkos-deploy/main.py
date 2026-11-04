@@ -16,10 +16,13 @@ import jkos_auth
 # — a port of the canonical node verifier, so this controller can't drift from the
 # rest of the suite the way the old inline jwt.decode did.
 STAGING_BRANCH = os.getenv("STAGING_BRANCH", "staging")
-# Branch the prod checkout resets to on deploy. Set to "staging" so promoting
-# deploys the exact commit just tested on staging.jkos.net — no GitHub merge
-# step (the server has no push credentials anyway).
-PROD_BRANCH = os.getenv("PROD_BRANCH", "main")
+# Branch the prod checkout resets to on deploy. It defaults to STAGING_BRANCH so
+# promoting deploys the exact commit just tested on staging.jkos.net — no GitHub
+# merge step (the server has no push credentials anyway). The default lives in
+# code, not only in docker-compose.yml: it used to be "main", a branch nothing
+# had updated since July, so a run without the compose env would have promoted
+# months-old code to production.
+PROD_BRANCH = os.getenv("PROD_BRANCH") or STAGING_BRANCH
 
 # Paths as THIS container sees them (the host checkouts are bind-mounted here).
 PROD_DIR = "/webhost/jkOS"
