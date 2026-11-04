@@ -124,6 +124,7 @@ Documentation is a map, not the territory — where a doc and the code disagree,
 | [TODO.md](TODO.md) | **Everything still open, in one place** — what only you can do first, then the decisions you owe, then the engineering backlog. Close an item by deleting it. |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | How the systems fit together — shape, runtime topology, the Weave fabric, each app, the data layer, the gate. |
 | [OPERATIONS.md](OPERATIONS.md) | Running and deploying it — dev commands, Docker, the deploy controller, nginx, cold start from zero, TrueNAS paths, secrets, the Android and desktop apps. |
+| [CONTROLS.md](CONTROLS.md) | **The controls matrix** — every access, session, audit and change control, the code that enforces it, the test that proves it and the record it leaves; plus the known gaps. Held to the code by `check:docs`. |
 | [LAZUROS_STARTUP.md](LAZUROS_STARTUP.md) | Bringing LazurOS up on real hardware, phase by phase. ⚠️ **Read before any LazurOS deploy** — it isn't in the staging stack and two bind mounts fail silently if you skip the pre-flight. |
 | [The design handoff](https://claude.ai/code/artifact/5e53f12f-cf7d-4e22-b066-4087b47a3e80) | **Published, not in the repo.** The design system and 17 hero shots of the running suite. The 2× originals are generated into `Documentation/Images/`, which is gitignored (they're screenshots of your own data). |
 

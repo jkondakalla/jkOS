@@ -191,5 +191,55 @@ for (const d of docFiles) {
 }
 ok('every repo path the docs cite resolves', broken === 0, `— ${broken} broken reference(s)`);
 
+// ── 5 · CONTROLS.md is held to the code ──────────────────────────────────────
+// The controls matrix is the one doc written for an outside reader (an auditor, a
+// reviewer) and the one whose every row is a CLAIM: "this is enforced here, proved by
+// that, and leaves this record". A matrix that is confidently right about rows that
+// stopped being true is worse than none. So each row is parsed, not trusted:
+//   · every cited path exists (incl. test/, which the scan above does not cover)
+//   · every "Proved by" test is one the gate RUNS — a test that exists but never
+//     runs proves nothing — unless it is named off-gate below, with its reason
+//   · every evidence event is one jkAuth actually writes (derived from the
+//     logEvent('…') literals, never a typed list)
+const OFF_GATE = new Map([
+  ['jkos-deploy/scripts/selftest.sh', 'needs a Docker daemon; CONTROLS.md names it as a known gap'],
+]);
+{
+  const controls = read('Documentation/CONTROLS.md');
+  const walk = d => readdirSync(join(ROOT, d), { withFileTypes: true })
+    .flatMap(e => e.isDirectory() ? walk(`${d}/${e.name}`) : e.name.endsWith('.js') ? [`${d}/${e.name}`] : []);
+  const events = new Set(walk('apps/jkauth/src')
+    .flatMap(f => [...read(f).matchAll(/logEvent\('([a-z0-9_]+)'/g)].map(m => m[1])));
+  ok('jkAuth writes audit events (the evidence vocabulary is non-empty)', events.size > 0);
+
+  const ticks = cell => [...cell.matchAll(/`([^`]+)`/g)].map(m => m[1]);
+  const paths = cell => ticks(cell).filter(t => t.includes('/') && !t.includes('*'));
+  const rows = controls.split('\n').filter(l => /^\| [A-Z]{2}-\d+ \|/.test(l));
+  ok('CONTROLS.md has a matrix', rows.length > 0);
+  const ids = new Set();
+  for (const row of rows) {
+    const cells = row.split('|').slice(1, -1).map(c => c.trim());
+    const [id] = cells;
+    ok(`CONTROLS.md ${id} has six columns`, cells.length === 6, `— found ${cells.length}`);
+    if (cells.length !== 6) continue;
+    const [, , , enforced, proved, evidence] = cells;
+    ok(`CONTROLS.md ${id} is a unique id`, !ids.has(id));
+    ids.add(id);
+    ok(`CONTROLS.md ${id} names the code that enforces it`, paths(enforced).length > 0);
+    ok(`CONTROLS.md ${id} names the test that proves it`, paths(proved).length > 0);
+    for (const p of [...paths(enforced), ...paths(proved)]) {
+      ok(`CONTROLS.md ${id} cites ${p}, which exists`, existsSync(join(ROOT, p)));
+    }
+    for (const p of paths(proved)) {
+      ok(`CONTROLS.md ${id}'s proof ${p} is run by the gate`, runFiles.has(p) || OFF_GATE.has(p),
+        '— a test that never runs proves nothing; wire it in, or name it in OFF_GATE with the reason');
+    }
+    for (const e of ticks(evidence).filter(t => /^[a-z0-9_]+$/.test(t))) {
+      ok(`CONTROLS.md ${id}'s evidence '${e}' is an event jkAuth writes`, events.has(e),
+        '— no logEvent call writes it');
+    }
+  }
+}
+
 console.log(`\ndocs: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
