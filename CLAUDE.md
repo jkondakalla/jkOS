@@ -19,6 +19,10 @@ Repo root is `/media/jag/The Forge/jkOS` — **the path has a space; quote it.**
   list; `pnpm native:gen` projects it into the Android and desktop builds, and `check:native` holds
   their security posture.
 - `Documentation/ARCHITECTURE.md` and `OPERATIONS.md` are the map and the runbook.
+- **`Documentation/CONTROLS.md` is the controls matrix:** every access, session, audit and change
+  control, with the code, test and audit event behind it. It is public (the root `README.md` links
+  it) and `check:docs` parses it. Adding, moving or weakening a control means updating its row, and
+  closing a known gap means deleting it from the list there.
 - **The code is the source of truth. A doc is a map;** where they disagree, fix the doc.
 - Three skills encode suite knowledge: `suite-health` (run the gates in order, map a failure to
   its cause), `new-tester` (write a test in the house pattern and wire it into the gate) and
