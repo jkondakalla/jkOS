@@ -405,8 +405,47 @@ function checkTwaCoverage(text) {
   return true
 }
 
+/* The edge's default server is declared, and it refuses. nginx hands a request whose
+   hostname matches no server_name to the port's default server, and when none is declared
+   that is simply the first block it reads — which made every unknown domain pointed at this
+   edge (Jag's portfolio domain, the retired sylibos.jkos.net) serve the KourOS app, because
+   apps-generated.conf is included first. Include order is not a control. This holds that
+   exactly one block is the default for each port, that it is the same block, that it names
+   no real host, and that it refuses: no TLS handshake on 443 and a 444 on 80, with nothing
+   it could serve (no location, root or proxy_pass). Comments are stripped first, so a
+   comment describing a directive can't satisfy or trip the check. */
+function checkDefaultServer() {
+  const strip = (t) => t.replace(/#[^\n]*/g, '')
+  const files = ['standalone.conf', 'apps-generated.conf']
+  const blocks = files.flatMap((f) => serverBlocks(strip(readFileSync(join(DIR, f), 'utf8')))
+    .map((b) => ({ ...b, file: f })))
+  const defaultsOn = (port) => blocks.filter((b) =>
+    new RegExp(`\\blisten\\s+${port}\\b[^;]*\\bdefault_server\\b`).test(b.body))
+  const d80 = defaultsOn(80)
+  const d443 = defaultsOn(443)
+  const problems = []
+  if (d80.length !== 1) problems.push(`${d80.length} default servers on port 80 (want exactly 1)`)
+  if (d443.length !== 1) problems.push(`${d443.length} default servers on port 443 (want exactly 1)`)
+  if (d80.length === 1 && d443.length === 1) {
+    const b = d443[0]
+    if (b !== d80[0]) problems.push('the port 80 and port 443 defaults are different blocks')
+    if (b.names.some((n) => n && n !== '_')) problems.push(`the default server names real hosts: ${b.names.join(' ')}`)
+    if (!/\bssl_reject_handshake\s+on\s*;/.test(b.body)) problems.push('the default server does not refuse the TLS handshake (ssl_reject_handshake on)')
+    if (!/\breturn\s+444\s*;/.test(b.body)) problems.push('the default server does not close the connection (return 444)')
+    if (/\b(location|root|proxy_pass|alias|include)\b/.test(b.body)) problems.push('the default server can serve content (location/root/proxy_pass/alias/include)')
+  }
+  if (problems.length) {
+    console.error(`✗ the edge's default server is not a refusal: ${problems.join('; ')}. ` +
+      'Without one, an unknown hostname is served by whichever block nginx reads first.')
+    return false
+  }
+  console.log('✓ unknown hostnames are refused: one declared default server for ports 80 and 443, and it serves nothing')
+  return true
+}
+
 if (process.argv.includes('--check')) {
   let drift = !checkStandaloneAssetlinks()
+  if (!checkDefaultServer()) drift = true
   for (const t of targets) {
     let current = ''
     try { current = readFileSync(t.path, 'utf8') } catch { /* missing → drift */ }
