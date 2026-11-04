@@ -81,7 +81,7 @@ standalone-nginx
             /auth/     → staging-jkos-auth:3100
             /beigeboard/ → staging-bb-app:3001
             /kouros/   → staging-kouros-app:3011    (apps-generated-staging.conf)
-            /deploy/   → jkos-deploy:8000
+            /deploy/   → jkos-deploy:8090
 ```
 
 LazurOS runs `network_mode: host` (it needs to broadcast raw Wake-on-LAN packets) and is

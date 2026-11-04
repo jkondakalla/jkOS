@@ -92,10 +92,11 @@ as an isolated Compose project; rebuild it manually from the TrueNAS host.
 `bash jkos-deploy/scripts/selftest.sh` is a read-only dry run of the recovery path (scripts
 parse, compose configs validate, nginx conf loads, break-glass gates hold).
 
-### Break-glass access (prod-jkAuth outage)
+### Break-glass access (staging-jkAuth outage)
 
-The `/deploy` console is admin-gated by **prod** jkAuth — so if prod jkAuth is down, you
-can't sign in to the one tool that redeploys it (a bootstrap deadlock). Two escape hatches:
+The `/deploy` console is admin-gated by **staging** jkAuth (issuer `jkos-auth-staging`, keys from
+`staging-jkos-auth`), so if staging jkAuth is down you can't sign in to the one tool that
+redeploys it (a bootstrap deadlock). A prod jkAuth outage doesn't affect it. Two escape hatches:
 
 - **Break-glass bearer (ARCH-8).** Set `BREAK_GLASS_TOKEN` in the controller's TrueNAS-side
   env (never the repo — `openssl rand -hex 32`). While jkAuth is *unreachable*, the console
@@ -458,7 +459,7 @@ cd /mnt/Luna/Webhost/jkOS/infra/nginx && docker compose up -d
 # 2. Production (first build: 5–15 min on cold ZFS)
 cd /mnt/Luna/Webhost/jkOS && docker compose up -d --build
 
-# 3. Staging (prod must be healthy first — staging gates against prod jkAuth)
+# 3. Staging (gated by its own jkAuth, not prod's)
 cd /mnt/Luna/Webhost/jkOS-staging && docker compose -f docker-compose.staging.yml up -d --build
 ```
 
