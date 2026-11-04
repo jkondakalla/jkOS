@@ -27,6 +27,8 @@ Each security control is enforced in code and covered by a test. All 22 controls
 - Revoked sessions are kept with a reason, not deleted.
 - Database triggers block a sign-in code from being used twice, and a session from moving to
   another client.
+- Permissions live in one table ([policy.js](apps/jkauth/src/policy.js)). Routes check an action,
+  never a role, and [a test](test/policy.mjs) fails if one checks a role directly.
 
 ```mermaid
 sequenceDiagram
@@ -103,12 +105,25 @@ Output from a failed deploy:
 Code: [lib-deploy.sh](infra/scripts/lib-deploy.sh), [jkos-deploy/main.py](jkos-deploy/main.py),
 [nginx config generator](infra/nginx/gen-nginx-weave.mjs).
 
-## 4. Access policy
+## 4. Vibe map
 
-All permissions live in one table in [policy.js](apps/jkauth/src/policy.js). It lists each action
-(such as `widgets:publish` or `events:read:all`) and the roles allowed to do it: guest, user, admin.
-Routes check an action, never a role directly. [test/policy.mjs](test/policy.mjs) fails if a route
-checks a role on its own.
+KourOS, the music app, places every track in a 3-D map you can move through, with a fourth axis
+for energy (calm to intense). It is a small AI system built on a subject that is easy to check by
+ear.
+
+- Each of 47,691 tracks becomes a 512-dimensional vector from a pretrained audio model (CLAP),
+  computed from a mel spectrogram. Tracks that sound alike end up close together.
+- Similarity is cosine similarity. Over 1,506 tracks, a track's nearest neighbour was on the same
+  album 40.0% of the time, against 29.0% for a hand-built baseline and 0.9% by chance.
+- The map reduces 512 dimensions to four. Energy is a ridge regression direction. It is removed
+  before a PCA picks the three spatial axes, so the cloud shows everything except energy.
+- The fit is checked against thresholds set before the first run. A fit that fails is not
+  shipped, and the map is marked "held".
+- KourOS checks five reference tracks against their stored coordinates before it trusts the map.
+
+The model is pretrained. This project is the pipeline, the math and the checks around it. Code:
+[mapbasis.py](music/mapbasis.py). Design record:
+[ALGORITHMS.md §4 and §9](Documentation/agents/ALGORITHMS.md).
 
 ## 5. Controls matrix
 
