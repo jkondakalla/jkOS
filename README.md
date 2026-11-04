@@ -1,121 +1,112 @@
 # jkOS
 
-**A self-hosted suite of apps, built as an access-control and audit exercise.**
+A self-hosted suite of web apps running on TrueNAS SCALE. It has single sign-on, an audit log, and
+separate staging and production environments.
 
-jkOS runs on a home server (TrueNAS SCALE, ZFS, Docker) behind one Nginx front door with TLS.
-It is a set of apps:
-- **ORDECK**, the portal.
-- **jkAuth**, single sign-on and the app directory.
-- **BeigeBoard**, for tasks, goals and calendars.
-- **KourOS**, for music and audiobooks.
-- A deploy console.
+| App | Purpose |
+|---|---|
+| ORDECK | Portal |
+| jkAuth | Single sign-on and app directory |
+| BeigeBoard | Tasks, goals and calendar |
+| KourOS | Music and audiobooks |
+| jkDeploy | Deploy console |
 
-Production and staging are kept separate. Every app trusts one identity service and nothing else.
+Built by [Jag Kondakalla](https://jaaggruthkondakalla.com) as a portfolio project for IT audit roles.
+Each security control is enforced in code and covered by a test. All 21 controls are listed in
+[CONTROLS.md](Documentation/CONTROLS.md), with the code and test for each.
 
-It is also the portfolio piece of [Jag Kondakalla](https://jaaggruthkondakalla.com), who is moving
-into IT audit. The rule it is built on: **a control that exists in configuration but not in code
-is the worst kind of defect.** So each control below is enforced in code, proved by a test that
-runs on every commit, and leaves a record. The full list of 21 is in
-[CONTROLS.md](Documentation/CONTROLS.md), which the build checks against the code.
+## Architecture
 
 ```mermaid
 flowchart LR
-  U[Browser / app] -->|HTTPS| N[Nginx<br/>one front door, TLS]
-  N --> P[ORDECK portal]
-  N --> A[jkAuth<br/>SSO + audit log]
-  N --> B[BeigeBoard]
-  N --> K[KourOS]
-  N -->|admin-only| S[staging.jkos.net<br/>staging mirrors + deploy console]
-  A -. public key .-> B & K & S
-  B & K --> D[(SQLite per app<br/>on ZFS)]
+  U["Browser or app"] -->|HTTPS| N["nginx (TLS)"]
+  N --> P["ORDECK"]
+  N --> A["jkAuth"]
+  N --> B["BeigeBoard"]
+  N --> K["KourOS"]
+  N -->|"admin only"| S["Staging and jkDeploy"]
+  B --> D[("SQLite on ZFS")]
+  K --> D
 ```
 
----
+Everything runs in Docker behind one nginx server. Each app keeps its own SQLite database on the NAS.
 
-## 1 · Sign-in that can't be replayed
+## 1. Single sign-on and sessions
 
-Single sign-on with RS256-signed tokens. The private key never leaves jkAuth. Every other service
-verifies with the public key, and accepts a token only if it was issued **for that service**.
-One cookie reaches every `*.jkos.net` host, so without that audience check a token minted for one
-app could be spent at all of them. Every Node backend
-[refuses to start in production](packages/weave/src/server/auth.js) without an audience to check.
-
-Sessions are built to survive theft:
-- **Short-lived access:** the access token expires after 15 minutes.
-- **Rotation:** the refresh token rotates on every use. Replaying an old one revokes every token
-  from that sign-in.
-- **A hard ceiling:** a session has an absolute lifetime no amount of refreshing extends.
-- **Evidence kept:** a revoked session is kept as a record with its reason, not deleted.
-- **Rules in the database:** two rules sit in the database itself, below the application. A
-  native sign-in code is redeemed once, and a session never changes its client.
+- jkAuth signs tokens with RS256. The private key stays in jkAuth. Other apps verify tokens with the
+  public key.
+- Each token lists the apps it is valid for, and an app rejects a token meant for another app.
+  Backends refuse to start in production if this check isn't configured.
+- Access tokens expire after 15 minutes.
+- Refresh tokens rotate on every use. Reusing an old one revokes the whole session.
+- Sessions have a maximum lifetime, even if they keep refreshing.
+- Revoked sessions are kept with a reason, not deleted.
+- Database triggers block a sign-in code from being used twice, and a session from moving to
+  another client.
 
 ```mermaid
 sequenceDiagram
   participant U as User
   participant A as jkAuth
-  participant X as Any app
-  U->>A: sign in (+ second factor)
-  A-->>U: access token (15 min, aud = apps this role may use) + refresh token
-  U->>X: request with token
-  X->>X: verify signature, issuer, expiry, and aud includes this app
-  U->>A: refresh
-  A-->>U: new pair; the old refresh token is now spent
-  Note over U,A: replaying a spent token → whole sign-in revoked, refresh_reuse logged
+  participant X as App
+  U->>A: Sign in
+  A-->>U: Access token (15 min) and refresh token
+  U->>X: Request with access token
+  X->>X: Check signature, issuer, expiry and audience
+  U->>A: Refresh
+  A-->>U: New tokens, old refresh token retired
+  U->>A: Replay the old refresh token
+  A-->>U: Rejected, session revoked, event logged
 ```
 
-**Proof:** [apps/jkauth/test/security.mjs](apps/jkauth/test/security.mjs) boots the real server and
-attacks it over HTTP. It replays rotated tokens, outlives the absolute cap, and forges a token that is
-valid in every way except its audience. Code: [tokens.js](apps/jkauth/src/tokens.js),
+Test: [security.mjs](apps/jkauth/test/security.mjs) starts the real server and tries token replay,
+expired sessions, and a token issued for the wrong app. Code: [tokens.js](apps/jkauth/src/tokens.js),
 [db.js](apps/jkauth/src/db.js).
 
-## 2 · Every decision leaves a record
+## 2. Audit log
 
-jkAuth writes each authentication decision to an `auth_events` table. That covers 40 kinds of
-event: sign-ins and failures, lockouts, second-factor failures, password changes, token reuse,
-refused service credentials, and admin publishes.
-- **Trusted IP only:** the client IP comes from exactly one trusted proxy hop (Nginx), so a
-  client can't write its own into the log. The service [refuses to boot](apps/jkauth/src/app.js)
-  if that setting drifts.
-- **Records stay readable:** an over-long record is clipped and stays valid JSON.
-- **Logging never blocks:** a failure to log never fails a sign-in.
-- **Scoped reading:** users read their own trail. Only an admin reads everyone's.
+jkAuth records 40 event types in an `auth_events` table, including sign-ins, failed sign-ins,
+lockouts, password changes, token reuse and denied service requests.
 
-Example rows (documentation IPs):
+- The client IP comes from nginx only, so a client can't fake it. jkAuth won't start if that setting
+  changes.
+- Users can see their own events. Admins can see everyone's.
+- If writing an event fails, the sign-in still works.
+
+Example rows (IPs are from reserved documentation ranges):
 
 ```
-created_at                type                 user  ip            meta
-2026-11-03T21:14:02.118Z  login_fail           3     203.0.113.24  {"email":"…"}
-2026-11-03T21:14:09.502Z  login_locked         3     203.0.113.24
-2026-11-03T21:20:41.007Z  refresh_reuse        5     198.51.100.7  {"family":"…"}
-2026-11-03T21:22:15.664Z  service_token_denied       192.0.2.10    {"client_id":"…"}
+created_at                type                  user  ip            meta
+2026-11-03T21:14:02.118Z  login_fail            3     203.0.113.24  {"email":"…"}
+2026-11-03T21:14:09.502Z  login_locked          3     203.0.113.24
+2026-11-03T21:20:41.007Z  refresh_reuse         5     198.51.100.7  {"family":"…"}
+2026-11-03T21:22:15.664Z  service_token_denied        192.0.2.10    {"client_id":"…"}
 ```
 
-**Proof:** [security.mjs](apps/jkauth/test/security.mjs) asserts the events are written.
-[multiuser.mjs](apps/jkauth/test/multiuser.mjs) asserts one user can't read another's.
+Tests: [security.mjs](apps/jkauth/test/security.mjs) checks that events are written.
+[multiuser.mjs](apps/jkauth/test/multiuser.mjs) checks that users can't read each other's events.
 
-## 3 · Production only gets what staging tested
+## 3. Deployments
 
 ```mermaid
 flowchart LR
-  C[commit to staging] --> G{gate<br/>pnpm test:contracts}
-  G -->|green| S[Deploy staging<br/>admin-only URL]
-  S --> T[tested on staging]
-  T -->|admin clicks Promote| P[Production<br/>reset to the same commit]
-  P --> V{every container running,<br/>none unhealthy?}
-  V -->|no| F[deploy fails loudly]
+  C["Commit"] --> T["Test suite"]
+  T --> S["Staging, admin only"]
+  S -->|"Promote, admin only"| P["Production, same commit"]
+  P --> V{"All containers up?"}
+  V -->|yes| OK["Deploy done"]
+  V -->|no| F["Deploy fails"]
 ```
 
-- **Admin-only staging:** every staging URL sits behind Nginx, which asks jkAuth whether the
-  visitor is an admin before serving anything.
-- **Separate sign-ins:** production and staging use different token issuers and cookie names, so a
-  staging session grants nothing in production.
-- **Admin-only deploys:** deploy and promote need an admin session.
-- **The exact commit:** promotion resets production to the commit staging ran. There is no merge
-  step, and the server holds no credential to push code.
-- **A deploy only counts when it runs:** a deploy is "done" only when every container is up. Nginx
-  config is validated before Nginx is restarted.
+- Staging is admin-only. nginx checks with jkAuth before serving any staging page.
+- Staging and production use separate sign-ins. A staging login doesn't work in production.
+- Deploying requires an admin account.
+- Production is reset to the exact commit that ran on staging. There is no merge step, and the
+  server can't push code.
+- A deploy fails if any container isn't running or reports itself unhealthy. The nginx config is
+  tested before nginx restarts.
 
-What a deploy with a crash-looping container prints:
+Output from a failed deploy:
 
 ```
 === Verifying containers ===
@@ -126,39 +117,35 @@ What a deploy with a crash-looping container prints:
 ```
 
 Code: [lib-deploy.sh](infra/scripts/lib-deploy.sh), [jkos-deploy/main.py](jkos-deploy/main.py),
-[the Nginx generator](infra/nginx/gen-nginx-weave.mjs).
+[nginx config generator](infra/nginx/gen-nginx-weave.mjs).
 
-## 4 · Least privilege as one table
+## 4. Access policy
 
-Authorization lives in one readable table, [policy.js](apps/jkauth/src/policy.js). A route names
-an action, such as `widgets:publish`, `staging:enter`, `events:read:all` or `account:manage`, and
-the table says which roles (guest, user, admin) hold it. "What can a guest do?" is answered by
-reading, not by searching. The shared guest account is deliberately excluded from account changes,
-so one visitor can't lock out the rest. [test/policy.mjs](test/policy.mjs) fails the build if any
-route compares roles on its own.
+All permissions live in one table in [policy.js](apps/jkauth/src/policy.js). It lists each action
+(such as `widgets:publish` or `events:read:all`) and the roles allowed to do it: guest, user, admin.
+Routes check an action, never a role directly. [test/policy.mjs](test/policy.mjs) fails if a route
+checks a role on its own.
 
-## 5 · A controls matrix the build checks
+## 5. Controls matrix
 
-[CONTROLS.md](Documentation/CONTROLS.md) lists every control. Each row gives the risk it addresses,
-the code that enforces it, the test that proves it and the audit event it leaves. A known-gaps
-section names what is not yet covered. The build parses it on every run. Every cited file must
-exist, every cited test must actually run, and every cited event must be one jkAuth writes. If a
-row stops being true, the build goes red. The same idea runs through the suite: 36 conformance
-checks re-derive invariants from source rather than trusting a document.
+[CONTROLS.md](Documentation/CONTROLS.md) lists 21 controls. Each row has the risk, the code that
+enforces it, the test that proves it and the audit event it leaves. The file ends with a list of
+known gaps.
 
----
+The test suite checks this file. Every file it cites must exist, every test it cites must run, and
+every event it cites must be one jkAuth actually writes. This is one of 36 conformance checks in the
+suite.
 
 ## Run it
 
-Needs Node ≥ 20 and pnpm.
+Requires Node 20 or later and pnpm.
 
 ```bash
 pnpm install
-pnpm test:contracts     # the whole gate (about two minutes)
+pnpm test:contracts     # full test suite, about two minutes
 ```
 
-Architecture: [Documentation/ARCHITECTURE.md](Documentation/ARCHITECTURE.md) ·
-Operations: [Documentation/OPERATIONS.md](Documentation/OPERATIONS.md) ·
-Open work: [Documentation/TODO.md](Documentation/TODO.md)
+More: [Architecture](Documentation/ARCHITECTURE.md) · [Operations](Documentation/OPERATIONS.md) ·
+[Open work](Documentation/TODO.md)
 
 MIT licensed. See [LICENSE](LICENSE).

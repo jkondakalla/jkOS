@@ -1,18 +1,15 @@
 # jkOS — Controls matrix
 
-Each of jkOS's access, session, audit and change controls, traced to three things: the code
-that enforces it, the test that proves it on every gate run, and the record it leaves behind.
-It is laid out the way an IT general controls (ITGC) evidence request reads.
+jkOS's security controls. Each row lists the code that enforces the control, the test that
+proves it, and the audit event it records.
 
-**This file is held to the code.** `pnpm check:docs` parses the matrix below. Every path in it
-must exist. Every test it cites must be one the gate actually runs, unless it is named as
-off-gate. Every event it names must be one jkAuth actually writes to `auth_events`. If a row stops
-being true, the gate turns red.
+`pnpm check:docs` checks this file. Every cited file must exist, every cited test must run in the
+test suite (except those marked off-gate), and every cited event must be one jkAuth writes.
 
-Prefixes: **AC** access · **SM** session management · **AU** audit logging ·
-**CM** change management · **CF** configuration and supply chain.
+Prefixes: **AC** access · **SM** sessions · **AU** audit log · **CM** change management ·
+**CF** configuration.
 
-## The matrix
+## Controls
 
 | ID | Control | Risk it addresses | Enforced in | Proved by | Evidence left |
 |----|---------|-------------------|-------------|-----------|---------------|
@@ -40,26 +37,20 @@ Prefixes: **AC** access · **SM** session management · **AU** audit logging ·
 
 ## Known gaps
 
-These are open, written down rather than left for a reviewer to find.
+- **No CI.** The test suite runs only when the author runs it. Nothing blocks pushing a failing
+  commit.
+- **No off-site backup yet.** The backup script has run once by hand. The scheduled job isn't
+  installed ([TODO.md](TODO.md) §1).
+- **Calendar tokens can be stored in plaintext.** BeigeBoard encrypts calendar OAuth tokens with
+  AES-256-GCM only when `CALENDAR_ENC_KEY` is set. Unlike AC-3, it still starts without the key.
+- **jkDeploy doesn't check the token audience.** It is only reachable through the CM-1 admin gate.
+- **The deploy test isn't in the suite.** `jkos-deploy/scripts/selftest.sh` needs Docker, so it is
+  run by hand. CM-2 and CM-3 are tested less often than the rest.
 
-- **Nothing outside the author runs the gate.** `pnpm test:contracts` must be green at every
-  commit, but there is no CI and no commit hook. A red commit can be pushed. The control is
-  real and tested; whether it ran is a matter of discipline.
-- **There is no off-box backup yet.** The script exists and ran once by hand; the timer that
-  makes it a control has not been installed ([TODO.md](TODO.md) §1).
-- **Calendar OAuth tokens are encrypted only when a key is set.** BeigeBoard seals them with
-  AES-256-GCM when `CALENDAR_ENC_KEY` is present and stores them in plaintext otherwise.
-  Unlike AC-3's TOTP secret, nothing refuses to run without the key.
-- **jkDeploy does not check the token audience.** Its Python verifier supports the check but is
-  not configured to make it. It is reachable only through CM-1's admin gate.
-- **The deploy pipeline's proof is off-gate.** `jkos-deploy/scripts/selftest.sh` needs a Docker
-  daemon, so it is run by hand, not on every commit. CM-2 and CM-3 are proved less often than
-  the rest.
-
-## Checking it yourself
+## Run the tests
 
 ```bash
 pnpm install
-pnpm test:contracts              # the whole gate: every "Proved by" above except the off-gate one
-node apps/jkauth/test/security.mjs   # SM-1 to SM-3, AC-3, AC-5: boots the real server, attacks it over HTTP
+pnpm test:contracts                  # full suite: every test above except the off-gate one
+node apps/jkauth/test/security.mjs   # SM-1 to SM-3, AC-3, AC-5 against a running server
 ```

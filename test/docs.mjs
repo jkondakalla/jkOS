@@ -260,9 +260,9 @@ const OFF_GATE = new Map([
   const eventCount = new Set(walk('apps/jkauth/src')
     .flatMap(f => [...read(f).matchAll(/logEvent\('([a-z0-9_]+)'/g)].map(m => m[1]))).size;
   ok(`the root README's control count matches CONTROLS.md's ${controlRows} rows`,
-    new RegExp(`full list of ${controlRows} is in`).test(front), `— expected "full list of ${controlRows}"`);
+    new RegExp(`\\b${controlRows} controls\\b`).test(front), `— expected "${controlRows} controls"`);
   ok(`the root README's event count matches the ${eventCount} events jkAuth writes`,
-    new RegExp(`That covers ${eventCount} kinds of\\s+event`).test(front), `— expected "${eventCount} kinds of event"`);
+    new RegExp(`\\b${eventCount} event\\s+types\\b`).test(front), `— expected "${eventCount} event types"`);
   ok(`the root README's check count matches the ${checks.length} check:* scripts`,
     new RegExp(`\\b${checks.length} conformance\\s+checks`).test(front), `— expected "${checks.length} conformance checks"`);
 }
