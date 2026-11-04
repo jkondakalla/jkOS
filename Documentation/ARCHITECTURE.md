@@ -204,12 +204,16 @@ never leaves the process; other backends verify via the published JWKS and
 numeric `sub`), `scope` (role-derived, checked by resource apps), `azp` (which app minted
 the session, best-effort provenance), and `aud` — computed at mint time from
 `app_registry.allowed_roles` into the set of app ids the user's role may reach. **`aud` is
-minted but verified nowhere, including by jkAuth's own `resolveUser`** (`tokens.js`'s two
-`jwt.verify` calls pass no `audience`). Verification is real code — `@jkos/auth-middleware`
-only adds `opts.audience` when an `appId` is supplied — but it is gated on `JKOS_APP_ID`,
-which **no compose file sets**. With one cookie shared across every `*.jkos.net` subdomain,
-this is the containment that is currently off; turning it on (per service, both compose
-files, plus a boot assertion) is planned, not done. The refresh token (`jkos_refresh`,
+verified**, and it is the containment that matters here: one cookie reaches every
+`*.jkos.net` subdomain, so without it a token minted for one app is spendable at all of
+them. jkAuth checks its own audience in both `jwt.verify` calls (`tokens.js`, `SELF_AUD`).
+Every Node backend passes an `appId` to `weaveAuth` — BeigeBoard and KourOS through
+`JKOS_APP_ID` in both compose files, LazurOS in code (`appId: 'lazuros'`) — and `weaveAuth`
+**refuses to start in production without one** (`packages/weave/src/server/auth.js`), so the
+check cannot quietly go back to being decorative after a config edit. `apps/jkauth/test/security.mjs`
+forges a token valid in every way except its audience and asserts it is refused. The one
+holdout is jkDeploy: `jkos_auth.py` checks `aud` only when `JKOS_APP_ID` is set, and it is
+not; the nginx staging admin gate is what fronts it. The refresh token (`jkos_refresh`,
 30-day, rotating) burns its whole session family on reuse outside a short grace window.
 User preferences (theme, HUD layout, widget placement) are a JSON blob in `users.preferences`,
 read/written by `GET`/`PATCH /auth/profile` — every frontend calls this endpoint for the
