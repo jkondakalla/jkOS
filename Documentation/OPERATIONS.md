@@ -85,6 +85,13 @@ Both run through `infra/scripts/lib-deploy.sh`. The shared routine:
    **Prod deploy always skips nginx** (`MANAGE_NGINX=0`) — standalone-nginx mounts its config
    from the staging checkout; a prod deploy must not restart it with unvalidated config.
 
+- **Redeploy Portfolio** — runs `jkos-deploy/deploy-portfolio.sh`: clones `main` of
+  `github.com/jkondakalla/jaaggruthkondakalla.com` to a temp folder (the dataset's ACL mode refuses
+  the chmod that git, tar and cp all do, so the script writes with mkdir and cat), copies `site/` into `/webhost/Portfolio/site` (nginx's
+  read-only mount, so in place, never a folder swap), then fails unless nginx serves those exact
+  pages. On success it records the commit for the console's card. Nothing rebuilds or restarts.
+  The script ships in the controller's image, so changing it means rebuilding the controller.
+
 **Branch model:** `staging` is the deployable branch. `PROD_BRANCH=staging` in
 `jkos-deploy/docker-compose.yml` means "Promote to Production" ships exactly what staging ran.
 Flip to `main` to restore a merge-gated flow. The controller cannot redeploy itself — it runs

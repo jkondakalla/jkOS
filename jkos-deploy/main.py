@@ -27,6 +27,8 @@ PROD_BRANCH = os.getenv("PROD_BRANCH") or STAGING_BRANCH
 # Paths as THIS container sees them (the host checkouts are bind-mounted here).
 PROD_DIR = "/webhost/jkOS"
 STAGING_DIR = "/webhost/jkOS-staging"
+# Written by deploy-portfolio.sh after a publish: the commit the site is running.
+PORTFOLIO_RECORD = Path("/webhost/Portfolio/published-commit")
 # The same checkouts as the HOST docker daemon sees them. The deploy scripts run
 # `docker run -v ...` for nginx config validation, and bind-mount sources are
 # resolved by the host daemon (not this container's fs) — so they need host
@@ -115,6 +117,14 @@ async def _git_info(directory: str) -> dict:
         return {"branch": branch, "commit_hash": commit_hash, "commit_msg": commit_msg, "commit_date": commit_date}
     except Exception:
         return {"branch": "unknown", "commit_hash": "unknown", "commit_msg": "unknown", "commit_date": "unknown"}
+
+
+def _portfolio_info() -> dict:
+    try:
+        commit_hash, commit_date, commit_msg = PORTFOLIO_RECORD.read_text().strip().split("|||", 2)
+    except (OSError, ValueError):  # nothing published through the button yet
+        commit_hash = commit_date = commit_msg = "unknown"
+    return {"branch": "main", "commit_hash": commit_hash, "commit_msg": commit_msg, "commit_date": commit_date}
 
 
 async def _run_script(operation: str, script: str, env: dict[str, str]) -> None:
@@ -259,6 +269,7 @@ async def info(_=Depends(get_admin)):
     return {
         "staging": staging_info,
         "prod": prod_info,
+        "portfolio": _portfolio_info(),
         "status": status,
         "operation": current_operation,
         "branches": {"staging": STAGING_BRANCH, "prod": PROD_BRANCH},
@@ -335,3 +346,8 @@ async def prod_deploy(_=Depends(get_admin)):
             "SSL_PATH": SSL_PATH,
         },
     )
+
+
+@app.post("/portfolio/deploy")
+async def portfolio_deploy(_=Depends(get_admin)):
+    return _start("Redeploying portfolio from GitHub...", "/app/deploy-portfolio.sh", {})
