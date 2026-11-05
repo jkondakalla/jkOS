@@ -32,6 +32,9 @@ services:
       # adding a NEW include file does — recreate nginx (`docker compose up -d`) to add it.
       - ./apps-generated.conf:/etc/nginx/apps-generated.conf:ro
       - ./apps-generated-staging.conf:/etc/nginx/apps-generated-staging.conf:ro
+      # The portfolio's static files (the jaaggruthkondakalla.com block in standalone.conf).
+      # A new mount: `docker compose up -d`, not `docker restart`.
+      - ${PORTFOLIO_PATH:-/mnt/Luna/Webhost/Portfolio/site}:/srv/portfolio:ro
       - ${SSL_PATH:-/mnt/Luna/Backends/ssl}:/etc/nginx/ssl:ro
       - ${NGINX_LOGS_PATH:-/mnt/Luna/Backends/Production/nginx-logs}:/var/log/nginx
     networks:

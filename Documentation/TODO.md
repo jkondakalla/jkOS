@@ -44,9 +44,7 @@ follows.
   running one won't see a dataset mounted over its directory.
 - **Deploy staging** ("Sync Staging"), then **restart nginx** (never reload). Staging was last
   deployed 2026-09-25; §3 lists what it will pick up.
-  ⚠️ This deploy makes nginx refuse hostnames it doesn't host, so `jaaggruthkondakalla.com` (which
-  points here and currently shows KourOS by accident) will show a Cloudflare error until the
-  portfolio is hosted elsewhere or that DNS record is removed. `sylibos.jkos.net` is refused too.
+  ⚠️ This deploy makes nginx refuse hostnames it doesn't host, so `sylibos.jkos.net` is refused.
 - **Retire the folded apps on the NAS** (after the deploy). The audiobook data exists on staging
   only. An agent can do steps 1–4 once docker works; step 5 is yours.
   1. **Snapshot the audiobook DB**, never the live file (its data is still all in the `-wal`):
