@@ -4,7 +4,7 @@
 # controller's image, and not in scripts/, which .dockerignore keeps out of the image.
 set -euo pipefail
 
-REPO_URL="${PORTFOLIO_REPO:-https://github.com/jkondakalla/jaaggruthkondakalla.com.git}"
+REPO_URL="${PORTFOLIO_REPO:-https://github.com/jkondakalla/portsite.git}"
 BRANCH="${PORTFOLIO_BRANCH:-main}"
 ROOT="${PORTFOLIO_ROOT:-/webhost/Portfolio}"
 DOMAIN=jaaggruthkondakalla.com

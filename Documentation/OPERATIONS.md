@@ -86,7 +86,7 @@ Both run through `infra/scripts/lib-deploy.sh`. The shared routine:
    from the staging checkout; a prod deploy must not restart it with unvalidated config.
 
 - **Redeploy Portfolio** — runs `jkos-deploy/deploy-portfolio.sh`: clones `main` of
-  `github.com/jkondakalla/jaaggruthkondakalla.com` to a temp folder (the dataset's ACL mode refuses
+  `github.com/jkondakalla/portsite` to a temp folder (the dataset's ACL mode refuses
   the chmod that git, tar and cp all do, so the script writes with mkdir and cat), copies `site/` into `/webhost/Portfolio/site` (nginx's
   read-only mount, so in place, never a folder swap), then fails unless nginx serves those exact
   pages. On success it records the commit for the console's card. Nothing rebuilds or restarts.
