@@ -120,6 +120,11 @@ class Server {
   }
 }
 
+/** An invite code minted by whoever is signed in on `s` (an admin). */
+async function inviteFrom(s) {
+  return (await (await s.req('POST', '/auth/invites', { json: {} })).json().catch(() => ({}))).code;
+}
+
 const servers = [];
 function start(env) { const s = new Server(env); servers.push(s); return s; }
 function shutdown(code) { for (const s of servers) s.stop(); process.exit(code); }
@@ -154,7 +159,7 @@ async function run() {
     // (python-jose >= 3.4 / PyJWT >= 2.10) and looped staging.jkos.net/deploy.
     ok('access JWT sub is a string (RFC 7519, strict-verifier safe)', typeof pl.sub === 'string', JSON.stringify(pl.sub));
     const longPw = 'x'.repeat(200);
-    ok('register >128-char password 400', (await A.req('POST', '/auth/register', { json: { email: 'long@jkos.net', password: longPw }, noJar: true })).status === 400);
+    ok('register >128-char password 400', (await A.req('POST', '/auth/register', { json: { email: 'long@jkos.net', password: longPw, invite: await inviteFrom(A) }, noJar: true })).status === 400);
   }
 
   console.log('A · remember-me cookie persistence (the suite-wide auto-login fix)');
@@ -230,17 +235,21 @@ async function run() {
   ok('right password 200', r.status === 200 && j.user?.email === 'a@jkos.net' && A.jar.has('jkos_token'));
 
   console.log('A · register validation + role assignment');
+  // Registration is by invitation (test/security.mjs § O): Alice, the admin, mints two.
+  // The second is presented three times, because a refused registration doesn't spend it.
+  const bobInvite = await inviteFrom(A), spareInvite = await inviteFrom(A);
   A.jar.clear();
-  r = await A.req('POST', '/auth/register', { json: { email: 'b@jkos.net', name: 'Bob', password: 'password123' } });
+  ok('a second registration without an invite 403', (await A.req('POST', '/auth/register', { json: { email: 'b@jkos.net', password: 'password123' }, noJar: true })).status === 403);
+  r = await A.req('POST', '/auth/register', { json: { email: 'b@jkos.net', name: 'Bob', password: 'password123', invite: bobInvite } });
   j = await r.json().catch(() => ({}));
   ok('second user role=user', j.user?.role === 'user', JSON.stringify(j.user));
-  ok('duplicate email 409', (await A.req('POST', '/auth/register', { json: { email: 'b@jkos.net', password: 'password123' }, noJar: true })).status === 409);
-  ok('short password 400', (await A.req('POST', '/auth/register', { json: { email: 'c@jkos.net', password: 'short' }, noJar: true })).status === 400);
+  ok('duplicate email 409', (await A.req('POST', '/auth/register', { json: { email: 'b@jkos.net', password: 'password123', invite: spareInvite }, noJar: true })).status === 409);
+  ok('short password 400', (await A.req('POST', '/auth/register', { json: { email: 'c@jkos.net', password: 'short', invite: spareInvite }, noJar: true })).status === 400);
 
   console.log('A · password prehash closes bcrypt 72-byte truncation (U1)');
   {
     const base = 'A'.repeat(72);   // bcrypt would truncate everything past here
-    await A.req('POST', '/auth/register', { json: { email: 'trunc@jkos.net', password: base + 'REAL-suffix' }, noJar: true });
+    await A.req('POST', '/auth/register', { json: { email: 'trunc@jkos.net', password: base + 'REAL-suffix', invite: spareInvite }, noJar: true });
     const wrong = await A.req('POST', '/auth/login', { json: { email: 'trunc@jkos.net', password: base + 'FAKE-suffix' }, noJar: true });
     ok('login fails when only the first 72 bytes match', wrong.status === 401, `got ${wrong.status}`);
     const right = await A.req('POST', '/auth/login', { json: { email: 'trunc@jkos.net', password: base + 'REAL-suffix' }, noJar: true });

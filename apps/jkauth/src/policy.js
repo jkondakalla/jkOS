@@ -32,6 +32,8 @@ const ACTIONS = Object.freeze({
   'staging:enter':      ['admin'],
   // Read the whole suite's audit trail rather than only your own rows.
   'events:read:all':    ['admin'],
+  // Mint, list and revoke registration invites: deciding who gets an account at all.
+  'invites:manage':     ['admin'],
   // Self-service on your own account. Guests are excluded deliberately: the
   // guest row is a SHARED credential, so "change the password" or "sign out my
   // other devices" would be one visitor acting on every other visitor.

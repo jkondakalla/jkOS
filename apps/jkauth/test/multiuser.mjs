@@ -96,7 +96,9 @@ try {
   const regA = await api(A, 'POST', '/auth/register', { json: { email: 'a@jkos.net', name: 'Alice', password: 'password123' } });
   ok('A registers → 201 admin (first non-guest)', regA.status === 201 && regA.json?.user?.role === 'admin', `${regA.status} ${JSON.stringify(regA.json?.user)}`);
   const aId = String(regA.json.user.id);
-  const regB = await api(B, 'POST', '/auth/register', { json: { email: 'b@jkos.net', name: 'Bob', password: 'password123' } });
+  // Registration is by invitation: the admin mints B's invite.
+  const inviteB = (await api(A, 'POST', '/auth/invites', { json: {} })).json?.code;
+  const regB = await api(B, 'POST', '/auth/register', { json: { email: 'b@jkos.net', name: 'Bob', password: 'password123', invite: inviteB } });
   ok('B registers → 201 user (second is not admin)', regB.status === 201 && regB.json?.user?.role === 'user', `${regB.status} ${JSON.stringify(regB.json?.user)}`);
   const bId = String(regB.json.user.id);
   const guest = await api(G, 'POST', '/auth/guest', { json: { password: 'guestpass123' } });

@@ -419,6 +419,61 @@ const MIGRATIONS = [
          BEGIN SELECT RAISE(ABORT, 'native_auth_codes.used_at is set once: a code is redeemed at most once'); END`)
     run('CREATE INDEX IF NOT EXISTS idx_native_codes_expiry ON native_auth_codes(expires_at)')
   }],
+
+  /* 025 — REGISTRATION BY INVITATION (src/invites.js). POST /auth/register used to create a
+   * `user` account for anyone who could reach it, and a `user` token's `aud` covers
+   * BeigeBoard and KourOS. An account is now created by spending an invite an admin minted.
+   * The rule is held here, so no other writer (a later sign-up route, an import, a hand
+   * fix) can create an account around it:
+   *
+   *   registration_invites — one row per invite. The code is stored only as a sha256 (like
+   *   every refresh token and native code), so the table can't be read back into a working
+   *   link. `used_at` and `used_email` are set once, together, and only while the invite is
+   *   live (unexpired, unrevoked); `used_by` is set once, to the account it made.
+   *
+   *   users — a row that is neither `admin` nor `guest` can be inserted only while an invite
+   *   stands spent for exactly its email and not yet tied to an account. The route spends
+   *   the invite, inserts the row and ties them together in one transaction. The first-user
+   *   bootstrap and ADMIN_SEED_EMAIL insert `admin` rows and the guest seed a `guest` row;
+   *   neither is an invitation, and neither is reachable from a request once a real user
+   *   exists.
+   *
+   * Timestamps here are millisecond ISO on both sides (JS `toISOString` and SQL_NOW), so
+   * the trigger's string comparison is a comparison of instants (migration 020). */
+  ['025_registration_invites', () => {
+    run(`CREATE TABLE IF NOT EXISTS registration_invites (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      code_hash   TEXT NOT NULL UNIQUE,
+      created_by  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      note        TEXT,
+      expires_at  TEXT NOT NULL,
+      revoked_at  TEXT,
+      used_at     TEXT,
+      used_email  TEXT,
+      used_by     INTEGER,
+      created_at  TEXT NOT NULL DEFAULT (${SQL_NOW})
+    )`)
+    run('DROP TRIGGER IF EXISTS registration_invites_single_use')
+    run(`CREATE TRIGGER registration_invites_single_use BEFORE UPDATE OF used_at, used_email ON registration_invites FOR EACH ROW
+         WHEN OLD.used_at IS NOT NULL
+         BEGIN SELECT RAISE(ABORT, 'registration_invites: an invite is spent at most once'); END`)
+    run('DROP TRIGGER IF EXISTS registration_invites_live_only')
+    run(`CREATE TRIGGER registration_invites_live_only BEFORE UPDATE OF used_at ON registration_invites FOR EACH ROW
+         WHEN NEW.used_at IS NOT NULL
+              AND (OLD.revoked_at IS NOT NULL OR OLD.expires_at <= NEW.used_at OR NEW.used_email IS NULL)
+         BEGIN SELECT RAISE(ABORT, 'registration_invites: only a live invite can be spent, and for a named email'); END`)
+    run('DROP TRIGGER IF EXISTS registration_invites_used_by_once')
+    run(`CREATE TRIGGER registration_invites_used_by_once BEFORE UPDATE OF used_by ON registration_invites FOR EACH ROW
+         WHEN OLD.used_by IS NOT NULL OR OLD.used_at IS NULL
+         BEGIN SELECT RAISE(ABORT, 'registration_invites.used_by is set once, on a spent invite'); END`)
+    run('DROP TRIGGER IF EXISTS users_by_invitation')
+    run(`CREATE TRIGGER users_by_invitation BEFORE INSERT ON users FOR EACH ROW
+         WHEN NEW.role NOT IN ('admin', 'guest')
+              AND NOT EXISTS (SELECT 1 FROM registration_invites
+                               WHERE used_email = NEW.email AND used_at IS NOT NULL AND used_by IS NULL)
+         BEGIN SELECT RAISE(ABORT, 'users: an account is created only by spending an invite'); END`)
+    run('CREATE INDEX IF NOT EXISTS idx_invites_used_email ON registration_invites(used_email)')
+  }],
 ]
 
 function runMigrations() {

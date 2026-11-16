@@ -225,7 +225,9 @@ try {
 
   // Another account must not be able to revoke Ann's sessions by guessing an id.
   jars.b.clear();
-  await api('b', 'POST', '/auth/register', { json: { email: 'bob@x.net', password: 'password-b1' } });
+  // Ann was the first registration, so she is the admin and mints Bob's invite.
+  const bobInvite = (await api('a', 'POST', '/auth/invites', { json: {} })).json?.code;
+  await api('b', 'POST', '/auth/register', { json: { email: 'bob@x.net', password: 'password-b1', invite: bobInvite } });
   const mine = (await api('a', 'GET', '/auth/sessions')).json.sessions.find(s => s.current);
   r = await api('b', 'POST', '/auth/sessions/revoke', { json: { family_id: mine.family_id } });
   ok('another user cannot revoke your session → 404', r.status === 404, `got ${r.status}`);

@@ -166,7 +166,8 @@ try {
   // Two people: the first registration is the admin, the second an ordinary user.
   const admin = browser(), user = browser();
   ok('admin registers', (await admin.req('POST', '/auth/register', { json: { email: 'admin@native.test', password: 'native-admin-pw' } })).status === 201);
-  ok('user registers', (await user.req('POST', '/auth/register', { json: { email: 'user@native.test', password: 'native-user-pw' } })).status === 201);
+  const userInvite = (await admin.req('POST', '/auth/invites', { json: {} })).json?.code;
+  ok('user registers, on the admin\'s invite', (await user.req('POST', '/auth/register', { json: { email: 'user@native.test', password: 'native-user-pw', invite: userInvite } })).status === 201);
 
   // ── A · refusals are dead ends ──────────────────────────────────────────────
   section('A · refused requests never redirect');

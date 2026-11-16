@@ -98,7 +98,7 @@ Building, signing and installing them: [OPERATIONS.md § Native apps](OPERATIONS
 
 | Action | How |
 |--------|-----|
-| **Register** | `auth.jkos.net` → register. The first real account becomes admin. |
+| **Register** | By invitation. An admin makes an invite link at `auth.jkos.net/auth/invites`; it works once and expires in a week. On an empty database, the first account needs no invite and becomes the admin. |
 | **Log in** | Standard login. **Remember me** keeps you signed in for 30 days. |
 | **Guest access** | Read-only across the suite when guest sign-in is enabled. |
 | **Two-factor auth** | Account settings → enable **TOTP** and/or **email codes**, save **recovery codes**. |

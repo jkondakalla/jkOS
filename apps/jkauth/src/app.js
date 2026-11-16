@@ -144,6 +144,7 @@ app.use(require('./routes/account'))
 app.use(require('./routes/profile'))
 app.use(require('./routes/weave'))
 app.use(require('./routes/native'))
+app.use(require('./routes/invites'))
 
 app.get('/health', healthHandler('jkauth'))
 

@@ -20,6 +20,11 @@ export const PATHWAYS = [
   { system: 'jkauth', id: 'login-2fa', method: 'POST', path: '/auth/login/2fa', helper: null, kind: 'page-auth' },
   { system: 'jkauth', id: 'register', method: 'POST', path: '/auth/register', helper: null, kind: 'page-auth' },
   { system: 'jkauth', id: 'guest', method: 'POST', path: '/auth/guest', helper: null, kind: 'page-auth' },
+  // Registration invites (routes/invites.js): admin-only pages on jkAuth itself. No app
+  // frontend calls them, so no shared helper applies.
+  { system: 'jkauth', id: 'invites-list', method: 'GET', path: '/auth/invites', helper: null, kind: 'page-auth' },
+  { system: 'jkauth', id: 'invites-mint', method: 'POST', path: '/auth/invites', helper: null, kind: 'page-auth' },
+  { system: 'jkauth', id: 'invites-revoke', method: 'POST', path: '/auth/invites/revoke', helper: null, kind: 'page-auth' },
   { system: 'jkauth', id: 'refresh', method: 'POST', path: '/auth/refresh', helper: null, kind: 'token',
     note: 'rotating refresh + 10s grace window for concurrent tabs' },
   { system: 'jkauth', id: 'logout', method: 'POST', path: '/auth/logout', helper: null, kind: 'token' },

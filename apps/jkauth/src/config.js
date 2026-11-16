@@ -77,6 +77,11 @@ const SESSION_TOMBSTONE_MS = numEnv('SESSION_TOMBSTONE_MS', 30 * 24 * 60 * 60 * 
 // key lands and the boot sweep seals them).
 const TWOFA_ENC_KEY = process.env.JKOS_2FA_ENC_KEY || ''
 
+// How long a registration invite stays spendable (src/invites.js). A week: long enough to
+// reach someone by mail, short enough that a link forgotten in an inbox stops working. An
+// admin revokes one sooner from /auth/security.
+const INVITE_TTL_MS = numEnv('INVITE_TTL_MS', 7 * 24 * 60 * 60 * 1000)
+
 const RL_WINDOW_MS = numEnv('RL_WINDOW_MS', 15 * 60 * 1000)
 // 30 credential POSTs per IP per window, not 10: one address is one HOUSEHOLD
 // (NAT) or one carrier (CGNAT), not one person, and a 15-minute wall after ten
@@ -244,7 +249,7 @@ module.exports = {
   PRIVATE_KEY, PUBLIC_KEY, PUBLIC_KEY_NEXT,
   ADMIN_SEED_EMAIL, ADMIN_SEED_PASSWORD, GUEST_PASSWORD,
   ACCESS_TTL_MS, SERVICE_TTL_MS, PENDING_2FA_TTL_MS, REFRESH_TTL_MS, REMEMBER_TTL_MS, REFRESH_GRACE_MS,
-  SESSION_TTL_MS, SESSION_ABSOLUTE_TTL_MS, SESSION_TOMBSTONE_MS, TWOFA_ENC_KEY,
+  SESSION_TTL_MS, SESSION_ABSOLUTE_TTL_MS, SESSION_TOMBSTONE_MS, TWOFA_ENC_KEY, INVITE_TTL_MS,
   RL_WINDOW_MS, RL_CREDENTIALS, RL_REFRESH,
   PASSWORD_MIN, PASSWORD_MAX, BCRYPT_COST,
   LOCKOUT_FREE, LOCKOUT_BASE_MS, LOCKOUT_CAP_MS,

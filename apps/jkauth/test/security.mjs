@@ -19,6 +19,11 @@
 //   JK-A10 logout / reuse / absolute-cap revocations TOMBSTONE the rows
 //          (revoked_at + revoked_reason) instead of deleting the evidence.
 //
+// Section O (2026-11-16) holds registration by invitation: POST /auth/register created a
+// `user` account for anyone who could reach it. An account now costs an invite an admin
+// minted — hashed at rest, single-use, expiring, revocable — and migration 025's triggers
+// refuse any writer that tries to create one without it.
+//
 // Boots the REAL server on a throwaway port + temp DB (tight TTL/grace/lockout
 // knobs via env), drives it over real HTTP, and inspects the sessions table
 // directly to assert what the wire cannot show (tombstones, sealed secrets).
@@ -142,6 +147,29 @@ try {
   // ── B · register the working account (first real user → admin) ─────────────
   r = await api('POST', '/auth/register', { json: { email: 'alice@x.net', password: 'password-a1', name: 'Alice' } });
   ok('register → 201', r.status === 201, `got ${r.status}`);
+
+  // Invites for the accounts later sections register, minted now while alice's session is
+  // young (section C burns it, and SESSION_ABSOLUTE_TTL_MS here is 1.5 s). Minting hashes
+  // nothing, so this costs section C's clock a few milliseconds.
+  const mint = async (note) => (await api('POST', '/auth/invites', { json: note ? { note } : {} }));
+  const pool = [];
+  for (let i = 0; i < 4; i++) pool.push((await mint(`pool ${i}`)).json?.code);
+  const invite = () => pool.shift();
+  const minted = await mint('for section O');
+  const revokedInvite = await mint('revoked before use');
+  const revokeRes = await api('POST', '/auth/invites/revoke', { json: { id: revokedInvite.json?.invite?.id } });
+  const revokeAgain = await api('POST', '/auth/invites/revoke', { json: { id: revokedInvite.json?.invite?.id } });
+  const expiringInvite = await mint('backdated in section O');
+  const namedInvite = await mint('spent by hand in section O');
+  const racedInvite = await mint('raced in section O');
+  // A GET that asks for JSON by its Accept header, as a script would.
+  const getJson = async (path, cookie) => {
+    const res = await fetch(base + path, { headers: { Cookie: cookie, Accept: 'application/json' }, redirect: 'manual' });
+    return { status: res.status, json: await res.json().catch(() => null) };
+  };
+  const listed = await api('GET', '/auth/invites');
+  const listedJson = (await getJson('/auth/invites', cookieHeader())).json;
+  const adminId = db.prepare("SELECT id FROM users WHERE email='alice@x.net'").get().id;
 
   // ── C · JK-A2 + JK-A10: reuse is detected past the grace window, and burns
   //        the family as a TOMBSTONE ────────────────────────────────────────────
@@ -364,7 +392,7 @@ try {
     // must come back escaped, not live.
     jar.clear();
     const evil = '<img src=x onerror=alert(1)>';
-    await api('POST', '/auth/register', { json: { email: 'evil@x.net', password: 'password-e1', name: evil } });
+    await api('POST', '/auth/register', { json: { email: 'evil@x.net', password: 'password-e1', name: evil, invite: invite() } });
     const page = await api('GET', '/auth/dashboard');
     ok('a markup-laden display name renders escaped on the dashboard',
       page.text.includes('&lt;img src=x') && !page.text.includes('<img src=x onerror'),
@@ -389,7 +417,7 @@ try {
     // A fresh account: alice has TOTP on by now, so a password login there is a
     // challenge rather than a session.
     jar.clear();
-    await api('POST', '/auth/register', { json: { email: 'aud@x.net', password: 'password-u1' } });
+    await api('POST', '/auth/register', { json: { email: 'aud@x.net', password: 'password-u1', invite: invite() } });
     const good = jar.get([...jar.keys()].find(k => k.startsWith('jkos_token')));
     const claims = JSON.parse(Buffer.from(good.split('.')[1], 'base64url').toString());
     ok('the access token carries an aud including jkAuth itself',
@@ -450,7 +478,7 @@ try {
   // copy of the capability docs says each app declares.
   {
     jar.clear();
-    await api('POST', '/auth/register', { json: { email: 'grant@x.net', password: 'password-g1' } });
+    await api('POST', '/auth/register', { json: { email: 'grant@x.net', password: 'password-g1', invite: invite() } });
     const userScope = JSON.parse(Buffer.from(
       jar.get([...jar.keys()].find(k => k.startsWith('jkos_token'))).split('.')[1], 'base64url').toString()).scope || [];
     ok('a user still carries the full ladder for an app that DECLARES writes (beigeboard)',
@@ -507,6 +535,141 @@ try {
       leaky.code !== 0 && leaky.code !== 'timeout' && !leaky.log.includes('qq:rr') && /scope #1 names no suite app/.test(leaky.log), leaky.log.slice(-300));
     const fine = await bootWith('lazuros:0123456789abcdef:beigeboard:create', 4);
     ok('a declared-ladder scope (beigeboard:create) boots', fine.code === 'timeout', `exit ${fine.code}: ${fine.log.slice(-200)}`);
+  }
+
+  // ── O · registration is by invitation ─────────────────────────────────────
+  // POST /auth/register made a `user` account (aud: BeigeBoard, KourOS) for anyone who
+  // could reach the endpoint. Section B is the one exception that stays: with no real
+  // account in the database, alice registered without an invite and became the admin.
+  {
+    const users = () => db.prepare('SELECT COUNT(*) AS c FROM users').get().c;
+    const events = (type) => db.prepare('SELECT user_id, meta FROM auth_events WHERE type=? ORDER BY id').all(type)
+      .map((e) => ({ user_id: e.user_id, ...JSON.parse(e.meta || '{}') }));
+    const inviteRow = (id) => db.prepare('SELECT * FROM registration_invites WHERE id=?').get(id);
+    const reg = (body, opts = {}) => api('POST', '/auth/register', { json: body, ...opts });
+    const code = minted.json?.code;
+    const inviteId = minted.json?.invite?.id;
+
+    // The admin's side, recorded right after section B.
+    ok('an admin mints an invite: 201 with a 43-character code and a link carrying it',
+      minted.status === 201 && /^[A-Za-z0-9_-]{43}$/.test(code || '') && minted.json?.url === `${base}/auth/register?invite=${code}`,
+      JSON.stringify(minted.json));
+    ok('the invite expires, about a week out',
+      Math.abs(Date.parse(minted.json?.invite?.expires_at) - Date.now() - 7 * 86400000) < 60000, minted.json?.invite?.expires_at);
+    ok('the code is stored only as a sha256: no column of the row holds it',
+      !!inviteRow(inviteId) && !Object.values(inviteRow(inviteId)).includes(code) && /^[0-9a-f]{64}$/.test(inviteRow(inviteId).code_hash));
+    ok('minting is audited, naming the admin and the invite — and not the code',
+      events('invite_minted').some((e) => e.invite === inviteId && e.user_id === adminId)
+        && !db.prepare('SELECT 1 FROM auth_events WHERE meta LIKE ?').get(`%${code}%`));
+    ok('the list shows every invite and never a code or its hash',
+      Array.isArray(listedJson?.invites) && listedJson.invites.some((i) => i.id === inviteId && i.state === 'open')
+        && !JSON.stringify(listedJson).includes(code) && !JSON.stringify(listedJson).includes('code_hash'), JSON.stringify(listedJson).slice(0, 200));
+    ok('the admin page renders the list', listed.status === 200 && listed.text.includes('Every invite'), `got ${listed.status}`);
+    ok('an admin revokes an unspent invite, once (the second try is a 404), and it is audited',
+      revokeRes.status === 200 && revokeAgain.status === 404
+        && events('invite_revoked').some((e) => e.invite === revokedInvite.json?.invite?.id), `got ${revokeRes.status}, ${revokeAgain.status}`);
+
+    // Refusals. Each leaves no account, no session and an audit row saying why.
+    jar.clear();
+    const before = users();
+    r = await reg({ email: 'nobody@x.net', password: 'password-n1' });
+    ok('no invite → 403 INVITE_REQUIRED, no account, no session cookie',
+      r.status === 403 && r.json?.code === 'INVITE_REQUIRED' && users() === before && r.setCookie.length === 0, `got ${r.status} ${JSON.stringify(r.json)}`);
+    r = await reg({ email: 'nobody@x.net', password: 'password-n1', invite: 'A'.repeat(43) });
+    ok('an unknown code → 403 INVITE_INVALID', r.status === 403 && r.json?.code === 'INVITE_INVALID' && users() === before, `got ${r.status}`);
+    r = await reg({ email: 'alice@x.net', password: 'password-n1' });
+    ok('without an invite the answer does not depend on the email: a taken address is 403, not 409',
+      r.status === 403, `got ${r.status}`);
+    r = await reg({ email: 'nobody@x.net', password: 'password-n1', invite: revokedInvite.json?.code });
+    ok('a revoked invite → 403', r.status === 403 && users() === before, `got ${r.status}`);
+    db.prepare('UPDATE registration_invites SET expires_at=? WHERE id=?')
+      .run(new Date(Date.now() - 1000).toISOString(), expiringInvite.json?.invite?.id);
+    r = await reg({ email: 'nobody@x.net', password: 'password-n1', invite: expiringInvite.json?.code });
+    ok('an expired invite → 403', r.status === 403 && users() === before, `got ${r.status}`);
+    r = await api('POST', '/auth/register', { form: { email: 'nobody@x.net', password: 'password-n1', name: 'N' } });
+    ok('the form post is refused the same way (403 page, no account)', r.status === 403 && users() === before, `got ${r.status}`);
+    const whys = events('register_refused').map((e) => e.why);
+    ok('every refusal is audited with its reason',
+      ['missing', 'unknown', 'revoked', 'expired'].every((w) => whys.includes(w)), JSON.stringify(whys));
+
+    // The pages say the same thing the route enforces.
+    r = await api('GET', '/auth/register');
+    ok('GET /auth/register without an invite draws no registration form', r.status === 200 && !r.text.includes('action="/auth/register"'));
+    r = await api('GET', '/auth/register?invite=' + 'B'.repeat(43));
+    ok('GET /auth/register with a dead invite → 403, no form', r.status === 403 && !r.text.includes('action="/auth/register"'), `got ${r.status}`);
+    r = await api('GET', '/auth/register?invite=' + code);
+    ok('GET /auth/register with a live invite draws the form carrying it',
+      r.status === 200 && r.text.includes('action="/auth/register"') && r.text.includes(`name="invite" value="${code}"`));
+    ok('…and looking at the page spends nothing', inviteRow(inviteId).used_at === null);
+    r = await api('GET', '/auth/login');
+    ok('the sign-in page no longer links to registration', !r.text.includes('href="/auth/register'));
+
+    // A mistake costs the invitee nothing: the invite is spent only with the account.
+    r = await reg({ email: 'alice@x.net', password: 'password-n1', invite: code });
+    ok('a taken email with a live invite → 409, and the invite is still unspent', r.status === 409 && inviteRow(inviteId).used_at === null, `got ${r.status}`);
+    r = await reg({ email: 'olive@x.net', password: 'short', invite: code });
+    ok('a refused password → 400, and the invite is still unspent', r.status === 400 && inviteRow(inviteId).used_at === null, `got ${r.status}`);
+
+    // Spending it.
+    r = await reg({ email: 'olive@x.net', password: 'password-o1', invite: code });
+    const olive = db.prepare("SELECT * FROM users WHERE email='olive@x.net'").get();
+    ok('a live invite → 201 and a `user` account, signed in', r.status === 201 && r.json?.user?.role === 'user' && olive?.role === 'user' && jar.size > 0, `got ${r.status}`);
+    const spent = inviteRow(inviteId);
+    ok('the invite is spent: when, for which email, and which account it made',
+      !!spent.used_at && spent.used_email === 'olive@x.net' && spent.used_by === olive?.id, JSON.stringify(spent));
+    ok('spending is audited against the new account, and `register` names the invite',
+      events('invite_spent').some((e) => e.invite === inviteId && e.user_id === olive?.id)
+        && events('register').some((e) => e.invite === inviteId && e.user_id === olive?.id && e.role === 'user'));
+    const oliveCookie = cookieHeader();
+    jar.clear();
+    r = await reg({ email: 'second@x.net', password: 'password-s1', invite: code });
+    ok('the same invite a second time → 403, and no second account',
+      r.status === 403 && r.json?.code === 'INVITE_INVALID' && !db.prepare("SELECT 1 FROM users WHERE email='second@x.net'").get(), `got ${r.status}`);
+    ok('…audited as used', events('register_refused').some((e) => e.why === 'used' && e.invite === inviteId));
+
+    // Two people racing for one invite: one account.
+    const raced = racedInvite.json?.code;
+    const [r1, r2] = await Promise.all([
+      reg({ email: 'race1@x.net', password: 'password-r1', invite: raced }, { noStore: true }),
+      reg({ email: 'race2@x.net', password: 'password-r2', invite: raced }, { noStore: true }),
+    ]);
+    ok('two concurrent registrations on one invite make exactly one account',
+      [r1.status, r2.status].sort().join() === '201,403'
+        && db.prepare("SELECT COUNT(*) AS c FROM users WHERE email LIKE 'race%'").get().c === 1, `got ${r1.status}, ${r2.status}`);
+
+    // Who may mint.
+    r = await api('POST', '/auth/invites', { json: {}, cookie: oliveCookie, noStore: true });
+    ok('a `user` cannot mint an invite → 403', r.status === 403 && r.json?.action === 'invites:manage', `got ${r.status}`);
+    r = await getJson('/auth/invites', oliveCookie);
+    ok('…or list them → 403', r.status === 403, `got ${r.status}`);
+    r = await api('POST', '/auth/invites/revoke', { json: { id: 1 }, cookie: oliveCookie, noStore: true });
+    ok('…or revoke one → 403', r.status === 403, `got ${r.status}`);
+    r = await api('POST', '/auth/invites', { json: {}, cookie: '', noStore: true });
+    ok('nobody signed in → 401', r.status === 401, `got ${r.status}`);
+    const g = await api('POST', '/auth/guest', { json: { password: GUEST_PW }, noStore: true });
+    r = await api('POST', '/auth/invites', { json: {}, cookie: g.setCookie.map((c) => c.split(';')[0]).join('; '), noStore: true });
+    ok('a guest cannot mint → 403', g.status === 200 && r.status === 403, `got ${g.status}, ${r.status}`);
+
+    // The table holds the rule against any other writer (migration 025's triggers).
+    const refuses = (sql, ...params) => { try { db.prepare(sql).run(...params); return false; } catch (e) { return /registration_invites|users:/.test(e.message); } };
+    const nowIso = new Date().toISOString();
+    ok('trigger: a spent invite cannot be spent again, or re-pointed at another email',
+      refuses('UPDATE registration_invites SET used_at=? WHERE id=?', nowIso, inviteId)
+        && refuses("UPDATE registration_invites SET used_email='thief@x.net' WHERE id=?", inviteId));
+    ok('trigger: a spent invite cannot be tied to a second account',
+      refuses('UPDATE registration_invites SET used_by=1 WHERE id=?', inviteId));
+    ok('trigger: a revoked or expired invite cannot be spent, whoever writes',
+      refuses("UPDATE registration_invites SET used_at=?, used_email='x@x.net' WHERE id=?", nowIso, revokedInvite.json?.invite?.id)
+        && refuses("UPDATE registration_invites SET used_at=?, used_email='x@x.net' WHERE id=?", nowIso, expiringInvite.json?.invite?.id));
+    ok('trigger: a `user` row cannot be inserted without a spent invite for its email',
+      refuses("INSERT INTO users (email, password_hash, role) VALUES ('direct@x.net', 'x', 'user')")
+        && refuses("INSERT INTO users (email, password_hash) VALUES ('default-role@x.net', 'x')")
+        && !db.prepare("SELECT 1 FROM users WHERE email IN ('direct@x.net', 'default-role@x.net')").get());
+    ok('trigger: an invite spent for one email does not admit another',
+      (() => {
+        db.prepare("UPDATE registration_invites SET used_at=?, used_email='named@x.net' WHERE id=?").run(nowIso, namedInvite.json?.invite?.id);
+        return refuses("INSERT INTO users (email, password_hash, role) VALUES ('other@x.net', 'x', 'user')");
+      })());
   }
 
   db.close();

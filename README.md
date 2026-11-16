@@ -12,7 +12,7 @@ separate staging and production environments.
 | jkDeploy | Deploy console |
 
 Built by [Jag Kondakalla](https://jaaggruthkondakalla.com) as a portfolio project for IT audit roles.
-Each security control is enforced in code and covered by a test. All 22 controls are listed in
+Each security control is enforced in code and covered by a test. All 23 controls are listed in
 [CONTROLS.md](Documentation/CONTROLS.md), with the code and test for each.
 
 ## 1. Single sign-on and sessions
@@ -51,7 +51,7 @@ expired sessions, and a token issued for the wrong app. Code: [tokens.js](apps/j
 
 ## 2. Audit log
 
-jkAuth records 40 event types in an `auth_events` table, including sign-ins, failed sign-ins,
+jkAuth records 44 event types in an `auth_events` table, including sign-ins, failed sign-ins,
 lockouts, password changes, token reuse and denied service requests.
 
 - The client IP comes from nginx only, so a client can't fake it. jkAuth won't start if that setting
@@ -127,7 +127,7 @@ The model is pretrained. This project is the pipeline, the math and the checks a
 
 ## 5. Controls matrix
 
-[CONTROLS.md](Documentation/CONTROLS.md) lists 22 controls. Each row has the risk, the code that
+[CONTROLS.md](Documentation/CONTROLS.md) lists 23 controls. Each row has the risk, the code that
 enforces it, the test that proves it and the audit event it leaves. The file ends with a list of
 known gaps.
 

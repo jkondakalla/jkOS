@@ -4,6 +4,8 @@
 
 const { GUEST_PASSWORD } = require('./config')
 const { escHtml, jsonForScript } = require('./util')
+const { can } = require('./policy')
+const { bootstrapOpen } = require('./invites')
 
 function layout(title, body) {
   return `<!DOCTYPE html>
@@ -26,7 +28,7 @@ ${body}
 }
 
 function loginPage(opts = {}) {
-  const { error, notice, redirectTo, mode } = opts
+  const { error, notice, redirectTo, mode, invite } = opts
   const redirectInput = redirectTo ? `<input type="hidden" name="redirect_to" value="${escHtml(redirectTo)}">` : ''
   const errorHtml = (error ? `<p class="error">${escHtml(error)}</p>` : '')
     + (notice ? `<p class="ok-note">${escHtml(notice)}</p>` : '')
@@ -40,6 +42,7 @@ function loginPage(opts = {}) {
   ${errorHtml}
   <form method="POST" action="${isRegister ? '/auth/register' : '/auth/login'}">
     ${redirectInput}
+    ${isRegister && invite ? `<input type="hidden" name="invite" value="${escHtml(invite)}">` : ''}
     ${isRegister ? '<input class="jk-field" type="text" id="name" name="name" placeholder="Your name" required autocomplete="name">' : ''}
     <input class="jk-field" type="email" id="email" name="email" placeholder="Email" required autocomplete="username" autocapitalize="none" spellcheck="false">
     <input class="jk-field" type="password" id="password" name="password" placeholder="Password" required autocomplete="${isRegister ? 'new-password' : 'current-password'}">
@@ -51,7 +54,9 @@ function loginPage(opts = {}) {
     <button type="submit" class="btn-ghost">Continue as guest</button></form>` : ''}
   <p class="toggle">${isRegister
     ? `Already have an account? <a href="/auth/login${redirectTo ? '?redirect_to=' + encodeURIComponent(redirectTo) : ''}">Sign in</a>`
-    : `No account? <a href="/auth/register${redirectTo ? '?redirect_to=' + encodeURIComponent(redirectTo) : ''}">Register</a>`
+    : bootstrapOpen()
+      ? `No account yet? <a href="/auth/register${redirectTo ? '?redirect_to=' + encodeURIComponent(redirectTo) : ''}">Create the first one</a>`
+      : 'Accounts are by invitation.'
   }</p>
   ${!isRegister ? '<p class="toggle"><a href="/auth/forgot">Forgot your password?</a></p>' : ''}
 </div>`)
@@ -238,7 +243,66 @@ function securityPage(user, info = {}, opts = {}) {
     <p class="muted-note">Each sign-in is one entry, however many times it has refreshed.</p>
     ${devicesBlock}
   </div>
+  ${can(user, 'invites:manage') ? `<div class="sec-section">
+    <h2>Invitations</h2>
+    <p class="muted-note">Accounts are created by invitation only.</p>
+    <p class="toggle"><a href="/auth/invites">Invite someone</a></p>
+  </div>` : ''}
   <p class="toggle"><a href="/auth/dashboard">Back to portal</a></p>
+</div>`)
+}
+
+// The admin's invitations page (routes/invites.js): mint a link, see every invite, revoke
+// an open one. `minted` is the invite just made; its link is on this one response only,
+// because the server keeps a hash of the code and can never show it again.
+function invitesPage(user, invites = [], opts = {}) {
+  const { error, minted } = opts
+  const when = (s) => {
+    const ms = Date.parse(s)
+    return Number.isFinite(ms) ? new Date(ms).toISOString().replace('T', ' ').slice(0, 16) + ' UTC' : '—'
+  }
+  const rows = !invites.length
+    ? '<p class="muted-note">No invites yet.</p>'
+    : invites.map((i) => `
+      <div class="sec-device">
+        <p class="muted-note">
+          <strong>${escHtml(i.state)}</strong>${i.note ? ` · ${escHtml(i.note)}` : ''}
+          · made ${escHtml(when(i.created_at))}${i.created_by_email ? ` by ${escHtml(i.created_by_email)}` : ''}
+          · ${i.state === 'used'
+            ? `used ${escHtml(when(i.used_at))} by ${escHtml(i.used_email || '—')}`
+            : i.state === 'revoked'
+              ? `revoked ${escHtml(when(i.revoked_at))}`
+              : `expire${i.state === 'expired' ? 'd' : 's'} ${escHtml(when(i.expires_at))}`}
+        </p>
+        ${i.state === 'open' ? `<form method="POST" action="/auth/invites/revoke">
+          <input type="hidden" name="id" value="${escHtml(i.id)}">
+          <button class="btn-ghost">Revoke</button></form>` : ''}
+      </div>`).join('')
+
+  return layout('Invitations', `
+<div class="card jk-ink-in" style="max-width:460px">
+  <h1 class="wordmark">jk<span>OS</span></h1>
+  <p class="subtitle">Invitations · ${escHtml(user.email)}</p>
+  ${error ? `<p class="error">${escHtml(error)}</p>` : ''}
+  ${minted ? `<div class="sec-section">
+    <h2>New invite</h2>
+    <p class="ok-note">Send this link to the person you are inviting. It is shown once, works
+      once, and expires ${escHtml(when(minted.expires_at))}.</p>
+    <input class="jk-field" type="text" readonly value="${escHtml(minted.url)}" aria-label="Invite link">
+  </div>` : ''}
+  <div class="sec-section">
+    <h2>Invite someone</h2>
+    <p class="muted-note">An invite makes one <strong>user</strong> account: BeigeBoard and KourOS, no admin rights.</p>
+    <form method="POST" action="/auth/invites">
+      <input class="jk-field" type="text" name="note" maxlength="100" placeholder="Who is it for? (optional)" autocomplete="off">
+      <button type="submit" class="btn-primary">Create invite link</button>
+    </form>
+  </div>
+  <div class="sec-section">
+    <h2>Every invite</h2>
+    ${rows}
+  </div>
+  <p class="toggle"><a href="/auth/security">Back to account security</a></p>
 </div>`)
 }
 
@@ -520,5 +584,5 @@ module.exports = {
   nativeConsentPage, nativeErrorPage,
   layout, loginPage, dashboardPage,
   twoFactorPage, securityPage, totpSetupPage, recoveryCodesPage,
-  forgotPage, resetPage, verifyEmailPage,
+  forgotPage, resetPage, verifyEmailPage, invitesPage,
 }

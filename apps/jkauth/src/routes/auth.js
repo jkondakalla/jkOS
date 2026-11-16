@@ -15,6 +15,7 @@ const {
   signPending, verifyPending, signService,
 } = require('../tokens')
 const { HASH_ALGO, hashPassword, verifyPassword, needsRehash } = require('../password')
+const { bootstrapOpen, inviteProblem, createAccount } = require('../invites')
 const {
   twoFactorEnabled, enabledMethods, sendEmailOtp, verifySecondFactor,
 } = require('../twofactor')
@@ -47,53 +48,73 @@ router.get('/auth/login', (req, res) => {
   res.send(loginPage({ redirectTo: req.query.redirect_to }))
 })
 
-// GET /auth/register — register page (HTML)
+// GET /auth/register — the register page (HTML). Registration is by invitation: the form
+// is drawn only for a live invite (`?invite=<code>`, the link an admin hands out), or while
+// the database has no real account yet and the first registration becomes the admin.
 router.get('/auth/register', (req, res) => {
   const user = resolveOrRefresh(req, res)
   if (user) return res.redirect('/auth/dashboard')
-  res.send(loginPage({ redirectTo: req.query.redirect_to, mode: 'register' }))
+  if (bootstrapOpen()) return res.send(loginPage({ redirectTo: req.query.redirect_to, mode: 'register' }))
+  const invite = typeof req.query.invite === 'string' ? req.query.invite : ''
+  if (!invite) return res.send(loginPage({ notice: 'Accounts are by invitation. Ask an admin for an invite link.' }))
+  if (inviteProblem(invite)) {
+    return res.status(403).send(loginPage({ error: 'That invite link is no longer valid. Ask an admin for a new one.' }))
+  }
+  res.send(loginPage({ redirectTo: req.query.redirect_to, mode: 'register', invite }))
 })
 
-// POST /auth/register (form + JSON)
+// POST /auth/register (form + JSON) — create an account by spending an invite.
+//
+// The invite is looked at BEFORE anything else, so a caller without one learns nothing:
+// not whether an email has an account (the 409 below was an enumeration oracle open to
+// everyone), not what the password policy is. It is spent only in the transaction that
+// inserts the account (invites.js), so a taken email or a weak password costs the invitee
+// nothing. Migration 025 holds the same rule at the table.
 router.post('/auth/register', async (req, res) => {
   const isJson = isJsonReq(req)
   const { email, name, password, redirect_to } = req.body
+  const invite = typeof req.body.invite === 'string' ? req.body.invite : ''
   const normalEmail = (email || '').toLowerCase()
-  if (!normalEmail || !password) {
-    if (isJson) return res.status(400).json({ error: 'Email and password required' })
-    return res.send(loginPage({ error: 'Email and password required', redirectTo: redirect_to, mode: 'register' }))
+  const refuse = (why, id) => {
+    logEvent('register_refused', null, req, { why, ...(id ? { invite: id } : {}) })
+    const msg = why === 'missing'
+      ? 'Accounts are by invitation. Ask an admin for an invite link.'
+      : 'That invite is no longer valid. Ask an admin for a new one.'
+    if (isJson) return res.status(403).json({ error: msg, code: why === 'missing' ? 'INVITE_REQUIRED' : 'INVITE_INVALID' })
+    return res.status(403).send(loginPage({ error: msg }))
   }
+  if (!bootstrapOpen()) {
+    const problem = inviteProblem(invite)
+    if (problem) return refuse(problem.why, problem.id)
+  }
+  const again = (error, status) => {
+    if (isJson) return res.status(status).json({ error })
+    return res.send(loginPage({ error, redirectTo: redirect_to, mode: 'register', invite }))
+  }
+  if (!normalEmail || !password) return again('Email and password required', 400)
   const pwErr = passwordError(password)
-  if (pwErr) {
-    if (isJson) return res.status(400).json({ error: pwErr })
-    return res.send(loginPage({ error: pwErr, redirectTo: redirect_to, mode: 'register' }))
-  }
-  if (get('SELECT 1 FROM users WHERE email=?', [normalEmail])) {
-    if (isJson) return res.status(409).json({ error: 'Email already registered' })
-    return res.send(loginPage({ error: 'Email already registered', redirectTo: redirect_to, mode: 'register' }))
-  }
+  if (pwErr) return again(pwErr, 400)
+  if (get('SELECT 1 FROM users WHERE email=?', [normalEmail])) return again('Email already registered', 409)
   try {
     const { hash, algo } = await hashPassword(password)
-    // First *real* (non-guest) user becomes admin. Counting only non-guest rows
-    // stops a seeded guest from silently consuming the admin bootstrap. (S12)
-    const realUsers = get("SELECT COUNT(*) AS c FROM users WHERE role != 'guest'").c
-    const role = realUsers === 0 ? 'admin' : 'user'
-    const result = run('INSERT INTO users (email, name, password_hash, hash_algo, role) VALUES (?,?,?,?,?)',
-      [normalEmail, (name || normalEmail.split('@')[0]).slice(0, 64), hash, algo, role])
-    const user = get('SELECT * FROM users WHERE id=?', [result.lastInsertRowid])
+    // The role is decided inside the transaction: the first *real* (non-guest) account is
+    // the admin, so a seeded guest can't consume the bootstrap (S12); every later one is a
+    // `user` and needs the invite.
+    const made = createAccount({
+      email: normalEmail, name: (name || normalEmail.split('@')[0]).slice(0, 64), hash, algo, code: invite,
+    })
+    if (made.refused) return refuse(made.refused)
+    const { user } = made
     issueTokens(req, res, user)
-    logEvent('register', user.id, req, { role })
+    logEvent('register', user.id, req, { role: user.role, ...(made.invite ? { invite: made.invite } : {}) })
+    if (made.invite) logEvent('invite_spent', user.id, req, { invite: made.invite })
     if (isJson) return res.status(201).json({ user: publicUser(user) })
     const dest = validateRedirectTo(redirect_to) || '/auth/dashboard'
     res.redirect(dest)
   } catch (e) {
-    if (e.code === 'SQLITE_CONSTRAINT_UNIQUE' || /UNIQUE/i.test(e.message)) {
-      if (isJson) return res.status(409).json({ error: 'Email already registered' })
-      return res.send(loginPage({ error: 'Email already registered', redirectTo: redirect_to, mode: 'register' }))
-    }
+    if (e.code === 'SQLITE_CONSTRAINT_UNIQUE' || /UNIQUE/i.test(e.message)) return again('Email already registered', 409)
     console.error('[register]', e)
-    if (isJson) return res.status(500).json({ error: 'Registration failed' })
-    res.send(loginPage({ error: 'Registration failed', redirectTo: redirect_to, mode: 'register' }))
+    again('Registration failed', 500)
   }
 })
 
