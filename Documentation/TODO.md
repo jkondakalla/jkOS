@@ -168,9 +168,9 @@ Each one blocks work an agent could otherwise do alone. Answer in place.
   - **(a) The local toolchain** (`toolchain.mjs install ~/Android/jkos`): no sudo, one directory,
     includes `adb`. ⭐ *Recommended.*
   - (b) Add `jag` to `docker`. That path is written but has never run.
-- **Scope for the next agent run:** Is LazurOS in scope (L2 is plain code; L1 needs the GPU and a
-  live Ollama)? May an agent change machine state (systemd units and the like)? Until you say
-  otherwise, agents stop at "here is the installer, run it".
+- **May an agent change machine state** (systemd units and the like)? Until you say otherwise,
+  agents stop at "here is the installer, run it". A kickoff prompt can grant a one-off exception,
+  such as §10's Android toolchain. (LazurOS is out of scope until the alpha: §10.)
 
 ---
 
@@ -221,6 +221,8 @@ That includes **migrations across jkAuth (through 024, all additive), BeigeBoard
 
 ## 5 · LazurOS — the ladder
 
+**Frozen 2026-11-16** until the alpha is in your hands (§10).
+
 Code-complete, **never run live.** [LAZUROS_STARTUP.md](LAZUROS_STARTUP.md) is the runbook;
 reasoning is in [ALGORITHMS.md §5–§8](agents/ALGORITHMS.md).
 
@@ -240,6 +242,8 @@ reasoning is in [ALGORITHMS.md §5–§8](agents/ALGORITHMS.md).
 ---
 
 ## 6 · The widget rescope — every screen is widgets
+
+**Frozen 2026-11-16** until the alpha is in your hands (§10).
 
 Widgets become what the whole suite is built from, so any piece of UI can be lifted out and reused.
 Phases 1–5 are done: the tokens, the language, the harness and ratchets, and KourOS's Home, Now
@@ -382,6 +386,9 @@ failing against the old code before it is trusted.
 
 ## 8 · jkDeploy — rebuild the console around what's running
 
+**Frozen 2026-11-16** until the alpha is in your hands (§10). P1–P4 come back first, before
+§10 K's promote.
+
 The deploy scripts (`infra/scripts/lib-deploy.sh`) are sound. The controller
 ([main.py](../jkos-deploy/main.py)) and page (`jkos-deploy/static/index.html`) are from June and
 answer the wrong questions. The goal is a page that truthfully answers three audit questions: what's
@@ -462,3 +469,270 @@ P2–P4 need one controller rebuild by you on the host; P1 ships with a normal s
 - **Session routing works like Spotify Connect.** Anything played from any device plays on the
   current output, and moving it is an explicit pick. Volume and crossfade are per device; queue,
   shuffle and repeat belong to the session. Long-term resume is for audiobooks only.
+
+---
+
+## 10 · The alpha — one native jkOS app
+
+Decided 2026-11-16: the next milestone is **one native Android app for the whole suite**, grown
+from KourOS Alpha. You test it on staging first; invited testers get it on production last. An
+agent works this section top to bottom and deletes each step as it lands. From phase C on, each
+phase that changes the app ends in a staging APK you can install.
+
+**Decided 2026-11-16. Don't re-propose:**
+
+- **One app, hand-built.** KourOS Alpha becomes jkOS Alpha: Kotlin and Compose screens written
+  against each app's declared datasets and capabilities. No WebView, no TWA inside it, and no
+  native widget renderer until after the alpha.
+- **The shells merge into it.** KourOS Alpha's row in `native/shells.js` becomes jkOS Alpha's:
+  one package, one jkAuth client. The jkOS and KourOS TWAs, jkOS Home and the desktop `.deb` are
+  frozen. The TWAs retire once the app covers them (phase J). A phone app covers neither the
+  kiosk launcher nor the Linux desktop, so those two stay.
+- **Backends stay separate apps.** The merge is in the client. Weave, each app's database and
+  its migration ladder are unchanged.
+- **Day-one scope:**
+  - KourOS: what the app plays today, plus search, queue, playlists, audiobooks (chapters, speed,
+    sleep, bookmarks, resume) and the listening session.
+  - BeigeBoard: today and quick actions, then everything the web app edits. Connecting a
+    calendar account stays on the web: it is an OAuth redirect bound to a browser session.
+  - The HUD as the home screen.
+  - Account and devices.
+- **Testers:** you first, as an admin, on staging. Production sign-in for invited testers is the
+  last phase (K), and it is switched on only when you decide.
+- **Frozen until the alpha is in your hands:** §5, §6 and §8. §4's web-only features (M5, the
+  vapor pulsarmap) aren't alpha work either.
+
+**Rules for every phase:**
+
+- The gate stays green at every commit. A native change also runs
+  `pnpm android:build -- :<module>:testDebugUnitTest`, which isn't on the node gate.
+- **The app calls only declared routes.** Every `/api/…` path in its Kotlin source is a dataset
+  or capability in that app's `discovery.js`
+  ([KourOS](../apps/kouros/backend/discovery.js), [BeigeBoard](../apps/beigeboard/backend/discovery.js)),
+  or is on a short, named list of routes that app's own web client also uses undeclared (the
+  media streams, the session's event stream). A route the app needs that isn't declared gets
+  declared first, in its own commit. Phase D adds the check that holds this.
+- **The Bearer token goes only to derived bases:** today one `api_base`, from phase D one base per
+  reached app. Both are derived from `native/shells.js`, generated into the app's `shell.xml`, and
+  pinned by `check:native`.
+- **One case file for both sides.** Where the app encodes something a server validates, a shared
+  vector file holds both, the way [`native/play-context-cases.json`](../native/play-context-cases.json)
+  does: the JVM test and `check:native` both run it.
+- **Server changes ship in batches.** Each batch ends in "You: deploy staging". Native work
+  continues against what's deployed in the meantime.
+- A control that moves updates its [CONTROLS.md](CONTROLS.md) row in the same commit.
+- Each phase's device checks join
+  [OPERATIONS.md § Native apps](OPERATIONS.md#native-apps-android--desktop) as a list you can run.
+
+### A · Close registration, then trim
+
+1. **Registration by invitation only.** `POST /auth/register`
+   ([auth.js](../apps/jkauth/src/routes/auth.js)) creates a `user` account and signs it in, and
+   nothing gates it. A `user` token's `aud` covers BeigeBoard and KourOS.
+   - An admin mints a single-use, expiring invite. It is stored only as a hash and spent by a
+     trigger, the way `native_auth_codes` are.
+   - Registration without a valid invite is refused. The first-user bootstrap on an empty
+     database still works.
+   - Minting, spending and refusing each write an `auth_events` row.
+   - Prove it in `apps/jkauth/test/security.mjs`, failing first, and add a CONTROLS.md row.
+   - Production gets the code only at the promote (phase K). Until then, refuse `/auth/register`
+     on the production auth origin at the edge. nginx's config goes live with phase B's staging
+     deploy.
+   - **You:** read production's `auth_events` for `register` rows you don't recognise.
+2. **Trim.**
+   - OPERATIONS § Staging says the admin gate asks production jkAuth. `standalone.conf` asks
+     `staging-jkos-auth`. Fix the doc.
+   - OPERATIONS § Android: first release names `net.jkos.alpha`, the retired selector. Fix it.
+   - ARCHITECTURE § 4 names KourOS's `rateApplies`; the code's is `rateAppliesTo`.
+   - Delete code with no consumers, and list what went in the report.
+
+### B · Deploy the backlog
+
+1. **Pre-flight.** The gate is green and `pnpm prove` shows no drift. List every migration the
+   deploy runs (jkAuth through 024, BeigeBoard, KourOS 8–15) and confirm each is additive. Once
+   docker works, compare each app's `.env.example` keys with its `.env` on the NAS, read-only, and
+   report what's missing. Push `staging`.
+2. **You:** §1 in order through "Deploy staging": the backup, docker access, the service-client
+   secrets, the jkos-deploy rebuild, music-analysis delivery, then the deploy. The Qobuz rotation
+   can happen any time.
+3. **Verify.**
+   - `pnpm prove --live https://staging.jkos.net` with an admin token you paste (the
+     `jkos_token_staging` cookie, valid 15 minutes), then the live round trip.
+   - KourOS reports more than zero analysed tracks.
+   - `/auth/native/authorize` with no parameters answers jkAuth's 400 page, not "Native sign-in
+     is not enabled".
+4. **Retire the folded apps:** §1's steps 1–4 (read the dry run before `--apply`), your step 5,
+   then step 6, which deletes the importer.
+5. **You:** §1's listening-session checks on real devices.
+
+### C · First light: KourOS Alpha as it is
+
+The smallest native build that can fail, built before anything is added to it.
+
+1. **The toolchain:** `node native/android/toolchain.mjs install ~/Android/jkos --adb`, no sudo.
+   You run it, or allow it in the kickoff prompt.
+2. **Checksums.** Regenerate `native/android/gradle/verification-metadata.xml` (the command is in
+   NATIVE.md § 6). List every new group and artifact in the report. Bring anything outside
+   AndroidX, Google, Kotlin/JetBrains, JUnit and org.json to you before committing it.
+3. **Build:** `pnpm android:build -- :kouros:testDebugUnitTest :kouros:assembleDebug`. If it
+   fails, look at the Media3 signatures first. `aapt2 dump badging` shows versionName
+   `0.1.0-alpha-staging` and exactly four permissions.
+4. **You:** install it and run OPERATIONS § KourOS Alpha's checks: sign-in, screen-off playback,
+   lock-screen controls with covers, headphones out, Start radio, listens in recently played, and
+   sign-out shown as revoked on `/auth/security`. Whatever breaks is fixed here.
+5. **You:** sign out of it, then uninstall it. Phase D removes its jkAuth client.
+
+### D · One app: KourOS Alpha becomes jkOS Alpha
+
+Ships with phase E in one staging deploy.
+
+1. **The row.** In `native/shells.js`, `kouros-alpha` becomes
+   `{ id: 'jkos-alpha', name: 'jkOS Alpha', package: 'net.jkos.app.alpha', start: 'ordeck', reach: 'suite', android: 'native', channel: 'alpha' }`.
+   The package follows KourOS Alpha's pattern (the TWA's package plus `.alpha`). Once it is
+   release-signed it can't change, so settle it here.
+2. **The derivation.** `nativeConfig()` returns one API base per reached app that has an `api`
+   (BeigeBoard and KourOS today), plus jkAuth's origin:
+   - staging: `https://staging.jkos.net/<id>`, the paths the web apps already use;
+   - production: each app's own origin.
+
+   `native/gen-native.mjs` writes them into `shell.xml`, and writes the client into
+   [`native-clients.json`](../apps/jkauth/src/native-clients.json) with `app: 'ordeck'`. The
+   consent check becomes "ORDECK is in this person's `aud`": user and admin, not guest.
+3. **A tab exists only for an app in the token's `aud`.** That is least privilege in the UI, read
+   from a claim the token already carries.
+4. **The module.** `git mv native/android/kouros native/android/ordeck`: a native module is named
+   after its start app. One Kotlin package per app. Pure cores stay free of Android imports, so
+   the JVM tests can hold them. The shell: a bottom bar (Home, one tab per app, Account), one back
+   stack per tab, and the mini player above the bar. The icon still derives from ORDECK's web
+   manifest.
+5. **`check:native`.** Rewrite § 7–8 of `test/native.mjs` for the new module:
+   - the same four permissions and three exported components;
+   - the Bearer token only under a derived base;
+   - and the new rule: every `/api/…` literal in an app's Kotlin client is declared in that app's
+     `discovery.js`, or is on the named list.
+
+   Show each new assertion failing on a mutated copy.
+6. **jkAuth's native suite** (`apps/jkauth/test/native.mjs`) runs against the new client id.
+
+### E · jkAuth: the account routes take a Bearer token
+
+1. `GET /auth/me`, `GET`/`PATCH /auth/profile`, `GET /auth/sessions` and
+   `POST /auth/sessions/revoke` read only the cookie today (`resolveUser` in
+   [tokens.js](../apps/jkauth/src/tokens.js)). Make each accept a Bearer **user** token too,
+   through `resolveBearerUser`, which already refuses service and pending-2FA tokens, as
+   `/auth/require-admin` does in [profile.js](../apps/jkauth/src/routes/profile.js). Cookie
+   behaviour doesn't change.
+2. The app needs to know which session is its own, to mark "this device". Add that as an
+   additive field, not a token-format change.
+3. Prove it in `apps/jkauth/test/native.mjs`, each assertion failing first:
+   - a Bearer token reaches each route;
+   - a service token is refused;
+   - revoke touches only the caller's own sessions.
+
+   Update the CONTROLS.md rows that cite these routes.
+4. **You:** deploy staging with D, E and anything from A not yet deployed.
+
+### F · Account and devices
+
+- Who you are, the environment and the build.
+- Your devices, from `/auth/sessions`, with revoke.
+- Display name and theme, through `/auth/profile`.
+- Sign out.
+- Password and 2FA stay jkAuth's own pages, opened in a Custom Tab.
+
+### G · KourOS
+
+Each step ends in an APK and a device checklist.
+
+1. **Search, queue and playlists,** at parity with the web's
+   [Search.tsx](../apps/kouros/src/views/Search.tsx), [Queue.tsx](../apps/kouros/src/views/Queue.tsx)
+   and `apps/kouros/src/views/playlists/`.
+2. **Audiobooks.**
+   - The book library, a book's detail with its chapters, and playback with speed, sleep,
+     bookmarks and resume, over `/api/books`, `/api/book/:bookId` and the `progress`,
+     `bookmarks` and `book_history` collections.
+   - Speed applies to books only (`rateAppliesTo`, [sources.ts](../apps/kouros/src/player/sources.ts))
+     and is kept per device. Long-term resume is for books only (§9).
+   - A book's listening ledger follows the music one, with context `book/<id>`.
+   - Check what `/api/books/stream` serves ExoPlayer before building any compat path. The remux
+     ladder exists for Firefox.
+3. **The listening session.** The phone joins as an output or a remote.
+   [routes.js](../apps/kouros/backend/src/session/routes.js) is the protocol.
+   - One device per install.
+   - The event stream goes through the KourOS base, the path the web client's stream already
+     uses.
+   - As the output, it applies commands through Media3 and reports state at least every 15 s
+     while playing (`HEARTBEAT_MS`, [usePlayerSession.ts](../apps/kouros/src/session/usePlayerSession.ts)).
+   - As a remote, it draws the session on the server's clock and sends commands with
+     idempotency keys.
+   - On `reauth` it reconnects with a fresh token.
+   - Volume is per device. Queue, shuffle and repeat belong to the session (§9).
+   - The role decision ([route.ts](../apps/kouros/src/session/route.ts)) and the state body
+     (`apps/kouros/backend/src/session/validate.js`) get shared case files that the TypeScript
+     and the Kotlin both pass.
+   - If remotes need presence, §4's "silent remote" ping comes in here, in the next server batch.
+
+### H · BeigeBoard
+
+Each step ends in an APK and a device checklist. Everything goes through a capability declared in
+[discovery.js](../apps/beigeboard/backend/discovery.js).
+
+1. **Today and quick actions:** today's tasks and events, quick add (`createItem`), complete
+   (`completeItem`), pin and focus. ORDECK's [slices.ts](../apps/ordeck/src/hud/slices.ts) shows
+   where pin and focus come from.
+2. **Goals and milestones:** the tree, editing (`updateItem`, `deleteItem`), dependencies
+   (`addDependency`, `removeDependency`) and deload.
+3. **The calendar:** week and month views, `syncCalendar` and `disconnectCalendar`. Connecting an
+   account stays on the web.
+4. **Routines and the library:**
+   - routines with their preview, series, metric and revisions;
+   - occurrences are ordinary tasks;
+   - creating or changing a routine goes through the same document import the web uses
+     (`importRoutineBundle`, `importRoutine`);
+   - the library is browsed, edited and imported. Only `importLibrary` is declared today, so
+     declare the edit routes first.
+
+### I · The HUD as home
+
+ORDECK's cards (`apps/ordeck/widgets/`), hand-built, in one column in your saved order
+(`preferences.ordeck.hud`, read through phase E).
+
+- Clock, today, calendar, week, focus, pinned, systems and notifications.
+- Arranging stays on the web.
+- **Weather isn't built.** Its AccuWeather key lives in the browser's `localStorage` (§7), and an
+  APK must not carry one.
+- The systems card reads each app's health the way the web card does (`/health/<id>`), which adds
+  those paths to phase D's derived list.
+
+### J · The alpha
+
+1. Bump `VERSION` in `native/shells.js`, and `native/desktop/package.json` to match
+   (`check:native` holds the two equal).
+2. **You:** the full device pass from OPERATIONS § Native apps. Fixes land here.
+3. Rewrite from the code: NATIVE.md § 5, OPERATIONS § Native apps, ARCHITECTURE's native lines,
+   and CONTROLS.md CF-3 and SM-4. No KourOS Alpha reference is left.
+4. **You:** does jkOS Alpha cover the jkOS and KourOS TWAs? If yes, retire them in one commit:
+   their `shells.js` rows, the `:twa` flavors and their `assetlinks.json` entries.
+5. The freeze on §5, §6 and §8 lifts. §8 P1–P4 come first: phase K's promote needs a preview and a
+   ledger.
+
+### K · Invited testers on production
+
+Each step is your decision. In order:
+
+1. §8 P1–P4 land: the first big promote gets a preview and a ledger.
+2. §2's LazurOS question is answered. Its recommendation is to take LazurOS out of the prod
+   compose until L1; otherwise the promote fails.
+3. Backups are proven: an off-box backup has succeeded and been restored, before production runs
+   the migrations.
+4. KourOS gets its production DNS record (orange-cloud: OPERATIONS § the TWA handshake, trap 3).
+5. Production jkAuth gets `JKOS_NATIVE_ENV=production`. Until then a release build can't sign in.
+6. **The release key.** `pnpm android:signing` is yours alone. Back the key up off this machine.
+7. The release build: `pnpm android:build -- assembleRelease`, then
+   `apksigner verify --print-certs`.
+8. **Distribution.** Recommended: a jkAuth-gated download at the edge, with the APK's SHA-256
+   beside it. The alternatives are Play Console internal testing, or handing the file over.
+9. Invite the testers as `user`s; they reach BeigeBoard and KourOS. Check that
+   `apps/jkauth/test/multiuser.mjs` covers what testers will do near each other's data.
+10. Settle §2's pre-release question, then promote and tag (§1).
+11. Remove A1's edge refusal once production runs invite-only registration.
