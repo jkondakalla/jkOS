@@ -177,11 +177,13 @@ staging ORDECK. Bespoke paths: `/auth/`, `/beigeboard/`, `/deploy/`; the
 generated `apps-generated-staging.conf` adds `/kouros/`.
 
 The shell is built with `VITE_JKOS_AUTH_URL=https://staging.jkos.net` (same-origin auth).
-Admin gate: every location runs `auth_request` → prod `jkos-auth /auth/require-admin`. Prod
-must be healthy before staging's gated routes work.
+Admin gate: every gated location runs `auth_request` → **staging** jkAuth
+(`staging-jkos-auth:3100/auth/require-admin`, the `/_auth_admin_check` location in
+`standalone.conf`). Staging jkAuth must be healthy before staging's gated routes work; a
+production jkAuth outage doesn't affect them.
 
 Because of that gate, an **unauthenticated** `pnpm prove --live https://staging.jkos.net`
-reports `drift` on every app's health/capabilities checks (302 → prod login) — this is
+reports `drift` on every app's health/capabilities checks (302 → the staging sign-in page) — this is
 expected staging behaviour, not a regression. Re-run with `--token <admin jwt>` (or
 `PROBE_TOKEN=`) for a clean signal.
 
@@ -246,7 +248,8 @@ node native/android/toolchain.mjs install ~/Android/jkos --adb
 eval "$(node native/android/toolchain.mjs env ~/Android/jkos)"
 
 # 1. The release key (asks for a password: yours, recorded in your password manager).
-#    Writes net.jkos.app, net.jkos.kouros and net.jkos.alpha with its fingerprint into assetlinks.json.
+#    Writes every TWA package (net.jkos.app and net.jkos.kouros) with its fingerprint into
+#    assetlinks.json. A native app needs no asset links: it has no page to verify.
 pnpm android:signing
 
 # 2. Put the asset links on every origin, then deploy staging (it owns the nginx config)

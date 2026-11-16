@@ -247,7 +247,7 @@ enrichment calls the iTunes Search API (`defineConnector`, keyless) — the only
 network call the app makes. ONE `@jkos/player` engine plays both kinds; the item's kind
 picks the controls (chapters, rate, sleep and bookmarks for a book; queue, shuffle, repeat
 and crossfade for music — `src/player/sources.ts`), and the persisted rate never reaches a
-track (`rateApplies`). The library bind-mounts are environment knobs; the compose file
+track (`rateAppliesTo`). The library bind-mounts are environment knobs; the compose file
 documents at length why the obvious host path (`/mnt/Luna/Plex/Music`) is wrong on the
 TrueNAS host itself (the real data is under `/mnt/Luna/Luna/Plex/Music` — a CIFS-share vs.
 host-dataset spelling mismatch that mounts cleanly empty rather than failing). The player
@@ -335,7 +335,7 @@ hand-typed lists that can disagree.
 ⚠️ **`localStorage` is not dead** despite the theme/preferences model in §4: **KourOS and
 ORDECK each persist real per-app state client-side that never touches jkAuth.** KourOS
 persists volume/mute through `@jkos/player`'s `persistVolume` and the audiobook playback
-rate under `kouros.player.rate` (applied to books only — `rateApplies`) — per DEVICE on
+rate under `kouros.player.rate` (applied to books only — `rateAppliesTo`) — per DEVICE on
 purpose (Jag, 2026-09-23), as is crossfade under `kouros.player.queue`. Shuffle and repeat are
 kept there too but only SEED a fresh tab: the queue and its policy now follow the listener
 through the listening session (§ KourOS above), and `kouros.device.id` names the device to it;
