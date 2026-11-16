@@ -17,10 +17,12 @@ follows.
   failure alerts. ⚠️ **No backup has ever succeeded.** Do this before deploying anything, because
   `staging` holds migrations for jkAuth, BeigeBoard and KourOS. (The hourly on-box ZFS snapshot of
   `Luna/Backends` does exist, as `pool.snapshottask` id 1.)
-- **Give `truenas_admin` docker access, durably.** Run `sudo usermod -aG docker truenas_admin`. The
-  Post-Init script (`initshutdownscript` id 1) does the same but doesn't stick after a reboot: it
-  races the middleware's `/etc/group` rewrite, so it probably needs to wait for the docker service.
-  Until this is done, no agent can reach a container.
+- **Give `truenas_admin` docker access, durably.** It works today (checked 2026-11-16: the NAS
+  has been up since 2026-09-23 and `truenas_admin` is in the `docker` group), so agents can reach
+  containers. What's unproven is a reboot: the Post-Init script (`initshutdownscript` id 1) runs
+  `usermod -aG docker truenas_admin` but races the middleware's `/etc/group` rewrite, so it
+  probably needs to wait for the docker service. After the next reboot, check
+  `getent group docker`; if `truenas_admin` is gone, run `sudo usermod -aG docker truenas_admin`.
 - **Generate the service-client secrets.** `JKOS_SERVICE_CLIENTS` and `JKOS_DELEGATION_CLIENTS` in
   [`apps/jkauth/.env.example`](../apps/jkauth/.env.example), and `JKOS_SERVICE_CLIENT_ID`/`_SECRET`
   in LazurOS's. Use `openssl rand -hex 32`, and grant `beigeboard:create`, not `beigeboard:write`.
@@ -169,8 +171,17 @@ Everything since 2026-07-30, when `main` was last merged. The staging *deploy* l
 - registration by invitation (jkAuth migration 025), and the edge's 403 on production's
   `/auth/register` until production runs it (§10 K11 removes that).
 
-That includes **migrations across jkAuth (through 025, all additive), BeigeBoard and KourOS
-(8–15)**, which is why the backup comes first.
+**What each deploy migrates** (read from the live databases on 2026-11-16, read-only):
+
+- **The staging deploy runs three migrations, all jkAuth's:** 023 (triggers on
+  `widget_registry`), 024 (a `sessions.client_id` column, the `native_auth_codes` table and two
+  triggers) and 025 (the `registration_invites` table and its triggers). Each only adds. Staging's
+  BeigeBoard and KourOS are already at 15, their latest.
+- **The production promote runs far more:** jkAuth 015–025, BeigeBoard 8–15, and KourOS 1–15 on a
+  database that doesn't exist yet. Production's code is `main` from 2026-07-30. No migration drops
+  a table or a column. Four rewrite stored values in place: jkAuth 020 and BeigeBoard 8 convert
+  timestamps to millisecond ISO, BeigeBoard 11 backfills `spec_version`, and jkAuth 021/022 delete
+  the two retired apps' `app_registry` rows. That is why the backup comes first (§10 K3).
 
 ---
 
@@ -510,22 +521,33 @@ phase that changes the app ends in a staging APK you can install.
 
 ### B · Deploy the backlog
 
-1. **Pre-flight.** The gate is green and `pnpm prove` shows no drift. List every migration the
-   deploy runs (jkAuth through 025, BeigeBoard, KourOS 8–15) and confirm each is additive. Once
-   docker works, compare each app's `.env.example` keys with its `.env` on the NAS, read-only, and
-   report what's missing. Push `staging`.
-2. **You:** §1 in order through "Deploy staging": the backup, docker access, the service-client
-   secrets, the jkos-deploy rebuild, music-analysis delivery, then the deploy. The Qobuz rotation
-   can happen any time.
-3. **Verify.**
+1. **You:** §1 in order through "Deploy staging": the backup, the service-client secrets, the
+   jkos-deploy rebuild, music-analysis delivery, then the deploy and the nginx restart. The Qobuz
+   rotation can happen any time. `origin/staging` holds everything (pushed 2026-11-16).
+
+   The NAS's `.env` files were compared with each `.env.example` (key names only, 2026-11-16).
+   **Nothing the staging deploy needs to boot is missing.** What isn't set, on staging and
+   production alike:
+   - jkAuth: `JKOS_2FA_ENC_KEY` (until it is set, enrolling an authenticator answers 503),
+     `GUEST_PASSWORD` (guest sign-in stays off) and `JKOS_SERVICE_CLIENTS` /
+     `JKOS_DELEGATION_CLIENTS` (§1's service-client item). Its `GOOGLE_*` keys are leftovers:
+     nothing reads them.
+   - BeigeBoard: `CALENDAR_ENC_KEY` (calendar tokens would be stored in plaintext: CONTROLS.md's
+     known gap) and the Google and Microsoft OAuth keys (no calendar account can be connected).
+   - jkos-deploy: `BREAK_GLASS_TOKEN` is not set, so break-glass is off and there is nothing to
+     rotate. Production has no `jkos-deploy/.env` or `apps/kouros/.env`; the promote needs both.
+   - LazurOS (production only): everything but the public key, so it would refuse to boot (§10 K2).
+2. **Verify.**
    - `pnpm prove --live https://staging.jkos.net` with an admin token you paste (the
      `jkos_token_staging` cookie, valid 15 minutes), then the live round trip.
    - KourOS reports more than zero analysed tracks.
    - `/auth/native/authorize` with no parameters answers jkAuth's 400 page, not "Native sign-in
      is not enabled".
-4. **Retire the folded apps:** §1's steps 1–4 (read the dry run before `--apply`), your step 5,
+   - `/auth/register` on staging draws no form, and `https://auth.jkos.net/auth/register`
+     answers 403 "Registration is closed."
+3. **Retire the folded apps:** §1's steps 1–4 (read the dry run before `--apply`), your step 5,
    then step 6, which deletes the importer.
-5. **You:** §1's listening-session checks on real devices.
+4. **You:** §1's listening-session checks on real devices.
 
 ### C · First light: KourOS Alpha as it is, on your phone
 
