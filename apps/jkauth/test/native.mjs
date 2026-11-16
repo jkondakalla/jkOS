@@ -25,7 +25,7 @@
 //   H  revoke signs the app out (always 200); the trail is in auth_events
 //   I  with JKOS_NATIVE_ENV unset, every /auth/native route is 404; an unknown value refuses
 //      to boot
-//   J  a role the app does not admit (a guest, for KourOS) gets access_denied, never a consent
+//   J  a role the app does not admit (a guest: ORDECK admits users and admins) gets access_denied, never a consent
 //      page — the same answer its token's `aud` would give
 //
 // Boots the REAL server on a throwaway port + temp DB and drives it over real HTTP, like
@@ -162,6 +162,11 @@ try {
   }
   ok('native-clients.json lists a staging and a production client', !!STAGING && !!PRODUCTION
     && STAGING.redirect_uri === `${STAGING.client_id}:/oauth2redirect`);
+  // One app for the suite: jkOS Alpha, whose consent rests on ORDECK being in the person's
+  // `aud`. The list is generated from native/shells.js, so this pins what the generator wrote.
+  ok('the client is jkOS Alpha: the package is the client id, and the app it enters is ORDECK',
+    CLIENTS.length === 2 && STAGING.client_id === 'net.jkos.app.alpha.staging' && PRODUCTION.client_id === 'net.jkos.app.alpha'
+      && STAGING.app === 'ordeck' && PRODUCTION.app === 'ordeck', JSON.stringify(CLIENTS));
 
   // Two people: the first registration is the admin, the second an ordinary user.
   const admin = browser(), user = browser();
@@ -247,8 +252,9 @@ try {
   ok('the right code + verifier → 200 with a token pair', t4.status === 200 && t4.json?.token_type === 'Bearer'
     && t4.json.expires_in === 900 && /^[0-9a-f]{128}$/.test(t4.json.refresh_token || '') && t4.json.user?.email === 'admin@native.test', JSON.stringify(t4.json));
   const c4 = claims(t4.json.access_token);
-  ok("the access token is the suite's user token, minted for KourOS", c4.sub === String(t4.json.user.id)
-    && c4.azp === STAGING.app && [].concat(c4.aud).includes('kouros') && c4.typ === undefined, JSON.stringify(c4));
+  ok("the access token is the suite's user token, minted through ORDECK, with every app the role reaches in its aud",
+    c4.sub === String(t4.json.user.id) && c4.azp === 'ordeck' && c4.typ === undefined
+      && ['ordeck', 'kouros', 'beigeboard'].every((a) => [].concat(c4.aud).includes(a)), JSON.stringify(c4));
   const row4 = db().prepare('SELECT * FROM sessions WHERE token_hash=?').get(createHash('sha256').update(t4.json.refresh_token).digest('hex'));
   ok('the session row is bound to the client (client_id) and remembered', row4?.client_id === STAGING.client_id && row4.remember_me === 1);
   const replay = await exchange(s4.code, p4.verifier);

@@ -15,7 +15,8 @@ import java.io.IOException
 
 /** The facts this build was generated with (src/<debug|release>/res/values/shell.xml). */
 class ShellConfig(
-    val apiBase: String,
+    /** App id → its API base (`${base}/api/…`), for every app this build reaches. */
+    val apiBases: Map<String, String>,
     val authOrigin: String,
     val clientId: String,
     val redirectUri: String,
@@ -28,7 +29,8 @@ class ShellConfig(
             @Suppress("DEPRECATION")
             val version = context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: ""
             return ShellConfig(
-                apiBase = context.getString(R.string.api_base),
+                apiBases = context.resources.getStringArray(R.array.api_apps)
+                    .zip(context.resources.getStringArray(R.array.api_bases)).toMap(),
                 authOrigin = context.getString(R.string.auth_origin),
                 clientId = context.getString(R.string.client_id),
                 redirectUri = context.getString(R.string.redirect_uri),

@@ -112,8 +112,8 @@ if (status !== 0) die(`gradle ${gradleArgs.join(' ')} failed (exit ${status})`)
 // AGP names outputs <module>-[<flavor>-]<buildType>[-unsigned].apk. out/ MIRRORS every APK
 // Gradle currently holds — not only the ones this run wrote. An up-to-date task writes
 // nothing, so a "newer than this run" filter left out/ holding an APK from an older tree.
-// A native app's module is named after its start app (:kouros), its shell id differs
-// (kouros-alpha) — shells.json's `native` list maps one to the other.
+// A native app's module is named after its start app (:ordeck), its shell id differs
+// (jkos-alpha) — shells.json's `native` list maps one to the other.
 const NATIVE = new Map((SHELLS.native || []).map((n) => [n.module, n.id]))
 const shellOf = (module, flavor) => module === 'home' ? SHELLS.home.id : NATIVE.get(module) ?? flavor
 const found = []

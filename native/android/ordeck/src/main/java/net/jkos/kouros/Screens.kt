@@ -550,7 +550,9 @@ private fun AccountScreen(user: User, onBack: () -> Unit) {
             Text("Role: ${user.role}", color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(8.dp))
             Text("Environment: ${Auth.config.environment}")
-            Text("KourOS: ${Auth.config.apiBase}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            for ((app, base) in Auth.config.apiBases) {
+                Text("$app: $base", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
             Text("Signed in by: ${Auth.config.authOrigin}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(4.dp))
             BuildBadge()

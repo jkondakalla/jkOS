@@ -31,7 +31,7 @@ export const PATHWAYS = [
   { system: 'jkauth', id: 'service-token', method: 'POST', path: '/auth/token', helper: null, kind: 'token',
     gap: 'disabled unless JKOS_SERVICE_CLIENTS is set; no contract test asserts the env is present for a new service client' },
   // Native sign-in (routes/native.js): an installed app's PKCE code flow. No shared helper —
-  // the caller is Kotlin (native/android/kouros), not a frontend that could import one.
+  // the caller is Kotlin (native/android/ordeck), not a frontend that could import one.
   { system: 'jkauth', id: 'native-authorize', method: 'GET', path: '/auth/native/authorize', helper: null, kind: 'page-auth' },
   { system: 'jkauth', id: 'native-consent', method: 'POST', path: '/auth/native/authorize', helper: null, kind: 'page-auth' },
   { system: 'jkauth', id: 'native-token', method: 'POST', path: '/auth/native/token', helper: null, kind: 'token' },

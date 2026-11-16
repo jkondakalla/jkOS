@@ -935,7 +935,7 @@ Every trap here was hit building `native/` on 2026-09-24; see [NATIVE.md](NATIVE
 
 - **Chrome enforces CSP `form-action` on the REDIRECT a form submission answers with.** jkAuth's
   global CSP says `form-action 'self'`, so a consent page's Allow button whose POST answers
-  `302 net.jkos.kouros.alpha:/oauth2redirect?code=…` is blocked in Chrome (and so in a Custom
+  `302 net.jkos.app.alpha:/oauth2redirect?code=…` is blocked in Chrome (and so in a Custom
   Tab). The code is minted, never delivered, and the app waits forever. The native consent page
   adds the app's scheme to its own `form-action` (`routes/native.js`, held by
   `apps/jkauth/test/native.mjs`).

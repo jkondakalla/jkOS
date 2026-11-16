@@ -202,7 +202,7 @@ a Bearer token. How they're built and why they're shaped this way is in
 | **jkOS** | `net.jkos.app` | The suite on your phone (Android) or desktop (Linux). Long-press the Android icon for KourOS / BeigeBoard shortcuts. |
 | **KourOS** | `net.jkos.kouros` | Music and audiobooks as their own app (Plexamp to jkOS's Plex). |
 | **jkOS Home** | `net.jkos.home` | ORDECK as the home screen of a dedicated tablet or phone. |
-| **KourOS Alpha** | `net.jkos.kouros.alpha` | KourOS as a truly native app (Compose UI, Media3 playback), for testing. Installs beside the KourOS TWA. |
+| **KourOS Alpha** | `net.jkos.app.alpha` | KourOS as a truly native app (Compose UI, Media3 playback), for testing. Installs beside the KourOS TWA. |
 
 A **staging build** (`pnpm android:build`) is named "… (staging)", opens `staging.jkos.net`,
 and installs beside the real app. A **release build** opens production.
@@ -290,8 +290,8 @@ needed: it's debug-signed):
 
 ```bash
 eval "$(node native/android/toolchain.mjs env ~/Android/jkos)"
-pnpm android:build -- :kouros:testDebugUnitTest :kouros:assembleDebug
-adb install native/android/out/kouros-alpha-0.1.0-staging.apk
+pnpm android:build -- :ordeck:testDebugUnitTest :ordeck:assembleDebug
+adb install native/android/out/jkos-alpha-0.1.0-staging.apk
 ```
 
 **After bumping an Android dependency**, regenerate the checksums and **read the diff**: every new
@@ -299,7 +299,7 @@ sha256 is something you're trusting.
 
 ```bash
 cd native/android && ./gradlew --write-verification-metadata sha256 \
-  assembleDebug assembleRelease :home:testDebugUnitTest :kouros:testDebugUnitTest
+  assembleDebug assembleRelease :home:testDebugUnitTest :ordeck:testDebugUnitTest
 git diff --stat gradle/verification-metadata.xml
 ```
 
@@ -314,10 +314,10 @@ app's session as signed out. Each listen should appear in KourOS's recently play
 audit trail.
 
 `aapt2 dump badging` and `apksigner verify --print-certs` on the APK should show package
-`net.jkos.kouros.alpha.staging`, versionName `0.1.0-alpha-staging`, and the permissions
+`net.jkos.app.alpha.staging`, versionName `0.1.0-alpha-staging`, and the permissions
 INTERNET, FOREGROUND_SERVICE, FOREGROUND_SERVICE_MEDIA_PLAYBACK and WAKE_LOCK, plus androidx.core's
-signature-level `net.jkos.kouros.alpha.staging.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`. A library
-that merges in anything else fails the build (`:kouros:checkDebugPermissions`) before an APK
+signature-level `net.jkos.app.alpha.staging.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`. A library
+that merges in anything else fails the build (`:ordeck:checkDebugPermissions`) before an APK
 exists.
 
 ### Android: jkOS Home on a panel device

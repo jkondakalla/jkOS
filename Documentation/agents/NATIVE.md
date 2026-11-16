@@ -19,7 +19,7 @@ For the operator's runbook (build, sign, install, verify), see
 | **jkOS** | `net.jkos.app` | Android, Linux | TWA / Electron | ORDECK | every suite app with its own origin |
 | **KourOS** | `net.jkos.kouros` | Android, Linux | TWA / Electron | KourOS | KourOS + jkAuth |
 | **jkOS Home** | `net.jkos.home` | Android | home-screen launcher | ORDECK | every suite app with its own origin |
-| **KourOS Alpha** | `net.jkos.kouros.alpha` | Android | native (Compose + Media3) | KourOS | its API + jkAuth, by Bearer token |
+| **KourOS Alpha** | `net.jkos.app.alpha` | Android | native (Compose + Media3) | KourOS | its API + jkAuth, by Bearer token |
 
 KourOS is part of jkOS **and** its own app (Plex and Plexamp): its own icon, its own entry in
 recents, and `kouros.jkos.net` links open in it. jkOS Home is ORDECK as a home panel on a
@@ -173,7 +173,7 @@ origin-scoped listeners gets no bridge at all (the page still works).
 ## 5 · KourOS Alpha — the native app
 
 KourOS as a real Android app: Compose UI, Media3 playback, no WebView, no bundled frontend.
-Package `net.jkos.kouros.alpha` (a debug build is `….staging`, against `staging.jkos.net`), so
+Package `net.jkos.app.alpha` (a debug build is `….staging`, against `staging.jkos.net`), so
 it installs beside the KourOS TWA. Its versionName carries the channel: `0.1.0-alpha` (release),
 `0.1.0-alpha-staging` (debug). That string is on screen as "ALPHA · staging · …".
 
@@ -287,8 +287,8 @@ pnpm native:gen                         # after editing shells.js or a start app
 pnpm android:build                      # staging APKs → native/android/out/*-staging.apk
 pnpm android:build -- assembleRelease   # production (signed if the keystore env is set)
 pnpm android:build -- :home:testDebugUnitTest   # OriginPolicy vs origin-cases.json
-pnpm android:build -- :kouros:testDebugUnitTest # KourOS Alpha's pure core vs play-context-cases.json
-pnpm android:build -- :kouros:assembleDebug     # → out/kouros-alpha-0.1.0-staging.apk
+pnpm android:build -- :ordeck:testDebugUnitTest # KourOS Alpha's pure core vs play-context-cases.json
+pnpm android:build -- :ordeck:assembleDebug     # → out/jkos-alpha-0.1.0-staging.apk
 ```
 
 `build.mjs` uses the **local SDK** when `JAVA_HOME` and `ANDROID_HOME` are set, otherwise
@@ -306,7 +306,7 @@ checksums, or the build refuses the new artifact, which is the point:
 
 ```bash
 cd native/android && ./gradlew --write-verification-metadata sha256 \
-  assembleDebug assembleRelease :home:testDebugUnitTest :kouros:testDebugUnitTest
+  assembleDebug assembleRelease :home:testDebugUnitTest :ordeck:testDebugUnitTest
 # review the diff: every new sha256 is a new thing you are trusting
 ```
 
@@ -332,12 +332,12 @@ or give the dev binary a profile as root. Don't add `--no-sandbox`.
 |---|---|---|
 | `pnpm check:native` | `native/gen-native.mjs --check` + `test/native.mjs` | generated files in sync (and no stale variant dirs, and jkAuth's `native-clients.json`); desktop policy vs origin-cases; webPreferences, permissions, external schemes; main.js applies the policy; fuses; .deb-only; manifests least-privilege; no `addJavascriptInterface`/`proceed()`/file access/mixed content; signing from env; wrapper, dependencies, toolchain and image pinned; staging URLs routed; **KourOS Alpha (§ 7 of the test):** exactly four permissions, Media3's `ACCESS_NETWORK_STATE` removed, the build's merged-manifest allow-list equal to the four, exactly three exported components, the redirect filter's scheme = `${applicationId}`, no WebView, tokens written only Keystore-sealed into `noBackupFilesDir`, every refresh under the Mutex, store-before-use, the state check, no redirect following, Bearer only to `api_base`, play-context vectors vs the server's parser; **native sign-in (§ 8):** staging jkAuth alone sets `JKOS_NATIVE_ENV`, the edge gate forwards `Authorization`, every native app's staging API base is routed |
 | `apps/jkauth/test/native.mjs` | `npm test` in jkAuth (gate step 2) | the native sign-in, over real HTTP: dead-end refusals, the login round trip, consent bound to person and request, the scheme in `form-action`, codes single-use / verifier-bound / short-lived / replay-burns, refresh rotation + 409 race + reuse burn, the transport binding both ways (and its triggers), an S256-shaped challenge held by a CHECK, a role the app doesn't admit refused before consent, the Bearer gate, revoke, the audit trail, off when `JKOS_NATIVE_ENV` is unset and no boot on an unknown value |
-| Gradle unit test | `:kouros:testDebugUnitTest` | PKCE (RFC 7636 vector), redirect parsing, `ListenLedger`, JSON shapes, `PlayContext` vs play-context-cases |
+| Gradle unit test | `:ordeck:testDebugUnitTest` | PKCE (RFC 7636 vector), redirect parsing, `ListenLedger`, JSON shapes, `PlayContext` vs play-context-cases |
 | `pnpm check:nginx` | `infra/nginx/gen-nginx-weave.mjs --check` | every origin a TWA trusts serves `/.well-known/assetlinks.json` |
 | `pnpm check:audit` | `test/supply-chain.mjs` | **every tracked** `pnpm-lock.yaml`, so the desktop's too, at the `high` floor |
 | Gradle unit test | `:home:testDebugUnitTest` | `OriginPolicy` vs origin-cases (not on the node gate: it needs the JDK) |
 | Gradle verification | `gradle/verification-metadata.xml` | a tampered or unexpected artifact fails the build |
-| Gradle permission check | `:kouros:check<Variant>Permissions`, which `assemble` depends on | the **merged** manifest, the one the APK carries, asks for exactly `ALLOWED_PERMISSIONS` plus androidx.core's signature-level self permission; `check:native` holds that list equal to the source manifest's |
+| Gradle permission check | `:ordeck:check<Variant>Permissions`, which `assemble` depends on | the **merged** manifest, the one the APK carries, asks for exactly `ALLOWED_PERMISSIONS` plus androidx.core's signature-level self permission; `check:native` holds that list equal to the source manifest's |
 
 Each `check:native` assertion was seen to fail on a mutated copy before it was trusted.
 

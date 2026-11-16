@@ -15,10 +15,11 @@
 // changes — which is the whole reason Capacitor was rejected for KourOS (OPERATIONS.md).
 //
 // A NATIVE shell (android: 'native') is the other answer to the same problem: no web page at
-// all. Its UI is its own code, it talks to its start app's API directly, and it signs in with
-// a Bearer token from jkAuth's native sign-in (apps/jkauth/src/routes/native.js — PKCE in a
-// Custom Tab, never a cookie). Its trust list is two origins, both derived below: the API it
-// calls and the jkAuth that signs it in. `nativeConfig()` is everything such an app needs.
+// all. Its UI is its own code, it calls the API of each app it reaches directly, and it signs
+// in with a Bearer token from jkAuth's native sign-in (apps/jkauth/src/routes/native.js — PKCE
+// in a Custom Tab, never a cookie). Its trust list is derived below: one API base per reached
+// app that has an API, and the jkAuth that signs it in. `nativeConfig()` is everything such an
+// app needs.
 //
 // THE TRUST BOUNDARY IS THE ORIGIN LIST. A shell keeps a navigation inside itself only if it
 // lands on one of its `origins`; anything else goes to the system browser (the Android TWAs,
@@ -84,11 +85,12 @@ const SHELLS = [
     android: 'home',
   },
   {
-    // KourOS as a truly native app — Compose UI, Media3 playback, the API over a Bearer token.
-    // Its own package, so it installs beside the KourOS TWA rather than replacing it while it
-    // is an alpha.
-    id: 'kouros-alpha', name: 'KourOS Alpha', package: 'net.jkos.kouros.alpha',
-    start: 'kouros', reach: [],
+    // The suite as one truly native app — Compose UI, Media3 playback, each app's API over a
+    // Bearer token. Grown from KourOS Alpha (TODO §10). Its own package (the jkOS TWA's plus
+    // `.alpha`), so it installs beside the TWAs while it is an alpha. ⚠️ Once a build of it is
+    // release-signed the package can never change.
+    id: 'jkos-alpha', name: 'jkOS Alpha', package: 'net.jkos.app.alpha',
+    start: 'ordeck', reach: 'suite',
     android: 'native', channel: 'alpha',
   },
 ]
@@ -170,7 +172,11 @@ const REDIRECT_PATH = ':/oauth2redirect'
 /**
  * Everything a NATIVE shell needs in one environment. The same derivation as shellConfig:
  * a debug build is the staging app, against staging.jkos.net.
- *   apiBase      the start app's API root — `${apiBase}/api/...`
+ *   apiBases     one { app, base } per reached app that HAS an API (suite-manifest `api`),
+ *                in suite-manifest order — `${base}/api/...`. On staging that is
+ *                `https://staging.jkos.net/<id>`, the path the web app's own client uses; in
+ *                production it is the app's own origin. These are the only hosts and paths
+ *                the app's Bearer token is ever sent to.
  *   authOrigin   the jkAuth that signs it in — `${authOrigin}/auth/native/...`
  *   clientId     its jkAuth client id = its applicationId (one fact, not two)
  *   redirectUri  `<applicationId>:/oauth2redirect`
@@ -185,7 +191,8 @@ function nativeConfig(shell, env) {
     name: cfg.name,
     channel: shell.channel,
     environment: staging ? 'staging' : 'production',
-    apiBase: cfg.startUrl.replace(/\/$/, ''),
+    apiBases: reachIds(shell).map((id) => byId.get(id)).filter((a) => a.api)
+      .map((a) => ({ app: a.id, base: (staging ? STAGING_ORIGIN + stagingPathOf(a.id) : app(a.id).origin).replace(/\/$/, '') })),
     authOrigin: staging ? STAGING_ORIGIN : originOf(app('auth').origin),
     clientId: cfg.applicationId,
     redirectUri: cfg.applicationId + REDIRECT_PATH,

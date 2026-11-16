@@ -127,9 +127,15 @@ function nativeValues(cfg, face) {
     <color name="shell_bar">${face.themeColor}</color>
     <string name="channel">${androidString(cfg.channel)}</string>
     <string name="environment">${androidString(cfg.environment)}</string>
-    <!-- The API this app calls (\${api_base}/api/…) and the jkAuth that signs it in. With the
-         redirect URI below, these are the app's whole trust list. -->
-    <string name="api_base">${androidString(cfg.apiBase)}</string>
+    <!-- The APIs this app calls, one base per app it reaches (\${base}/api/…), and the jkAuth
+         that signs it in. With the redirect URI below, these are the app's whole trust list.
+         The two arrays are parallel: api_apps[i] is served at api_bases[i]. -->
+    <string-array name="api_apps">
+${cfg.apiBases.map((b) => `        <item>${androidString(b.app)}</item>`).join('\n')}
+    </string-array>
+    <string-array name="api_bases">
+${cfg.apiBases.map((b) => `        <item>${androidString(b.base)}</item>`).join('\n')}
+    </string-array>
     <string name="auth_origin">${androidString(cfg.authOrigin)}</string>
     <!-- The client id IS the applicationId, and the redirect scheme is it too: a scheme only
          this package can register. apps/jkauth/src/native-clients.json holds the same pair. -->

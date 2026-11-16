@@ -1,11 +1,12 @@
-// :kouros — KourOS Alpha, the NATIVE KourOS app (native/shells.js: android: 'native').
+// :ordeck — jkOS Alpha, the NATIVE app for the suite (native/shells.js: android: 'native').
+// A native module is named after its start app.
 //
-// No WebView, no page: Compose draws it, Media3 plays it, and it reaches KourOS's API with a
+// No WebView, no page: Compose draws it, Media3 plays it, and it reaches each app's API with a
 // Bearer token from jkAuth's native sign-in. Its package, channel and every URL it trusts are
 // generated (shells.json + src/<debug|release>/res/values/shell.xml) — none is typed here.
 //
 // The pure parts (PKCE, the play-context encoder, the listen ledger, the API's JSON shapes)
-// carry no Android import on purpose, so `:kouros:testDebugUnitTest` holds them on the JVM.
+// carry no Android import on purpose, so `:ordeck:testDebugUnitTest` holds them on the JVM.
 
 import com.android.build.api.artifact.SingleArtifact
 import groovy.json.JsonSlurper
@@ -48,7 +49,7 @@ abstract class CheckMergedPermissions : DefaultTask() {
                 "  extra:   ${asked - want}\n  missing: ${want - asked}\n" +
                 "A library merged one in, or the source manifest changed. Remove it with " +
                 "tools:node=\"remove\" in src/main/AndroidManifest.xml, or allow it in " +
-                "ALLOWED_PERMISSIONS (kouros/build.gradle.kts) and check:native together.")
+                "ALLOWED_PERMISSIONS (ordeck/build.gradle.kts) and check:native together.")
         }
         report.get().asFile.writeText(asked.joinToString("\n", postfix = "\n"))
     }

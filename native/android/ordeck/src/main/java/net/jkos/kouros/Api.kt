@@ -17,10 +17,12 @@ class ApiException(val code: Int) : IOException("KourOS answered $code")
  */
 object Api {
     private fun enc(v: String) = URLEncoder.encode(v, "UTF-8")
-    private fun url(path: String) = Auth.config.apiBase + path
+    /** KourOS's base in this build (shell.xml, derived from native/shells.js). */
+    private val base: String get() = Auth.config.apiBases.getValue("kouros")
+    private fun url(path: String) = base + path
 
     /** True when [url] is one of ours — the only URLs a Bearer token is ever sent to. */
-    fun authorized(url: String): Boolean = url.startsWith(Auth.config.apiBase + "/api/")
+    fun authorized(url: String): Boolean = url.startsWith("$base/api/")
 
     private fun refused(r: HttpResult) = r.code == 401 || r.code in 300..399
 

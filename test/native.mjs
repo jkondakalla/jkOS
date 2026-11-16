@@ -28,7 +28,7 @@
 //   5. Supply chain + signing: release signing only from the environment, no key tracked,
 //      Gradle's wrapper and every dependency pinned by checksum, the build image by digest.
 //   6. Every staging URL a debug build opens is actually routed by the staging server.
-//   7. The NATIVE app (KourOS Alpha, native/android/kouros): exactly four permissions; only the
+//   7. The NATIVE app (jkOS Alpha, native/android/ordeck): exactly four permissions; only the
 //      launcher, the sign-in redirect and the media service exported; the redirect filter's
 //      scheme is the applicationId placeholder; no WebView at all; tokens reach storage only
 //      sealed by the Keystore helper, a Bearer token only reaches apiBase, redirects are not
@@ -179,7 +179,7 @@ const policy = require(resolve(root, 'native/desktop/src/policy.js'));
   const MANIFESTS = {
     twa: 'native/android/twa/src/main/AndroidManifest.xml',
     home: 'native/android/home/src/main/AndroidManifest.xml',
-    kouros: 'native/android/kouros/src/main/AndroidManifest.xml',
+    ordeck: 'native/android/ordeck/src/main/AndroidManifest.xml',
   };
   const m = Object.fromEntries(Object.entries(MANIFESTS).map(([k, p]) => [k, stripXml(read(p))]));
   const all = walk('native/android', /^AndroidManifest\.xml$/).map((p) => [p, stripXml(read(p))]);
@@ -215,7 +215,7 @@ const policy = require(resolve(root, 'native/desktop/src/policy.js'));
       && [...queries.matchAll(/<(intent|package|provider)\b/g)].length === 1,
     'jkOS Home sees only launcher apps (<queries> is exactly MAIN/LAUNCHER)',
     'jkOS Home <queries> is not exactly one MAIN/LAUNCHER intent — its package visibility widened');
-  for (const k of ['home', 'kouros']) {
+  for (const k of ['home', 'ordeck']) {
     check(/android:networkSecurityConfig="@xml\/network_security_config"/.test(m[k]),
       `${k}: carries a network security config`, `${k} lost its networkSecurityConfig`);
     const nsc = stripXml(read(`native/android/${k}/src/main/res/xml/network_security_config.xml`));
@@ -236,9 +236,9 @@ const policy = require(resolve(root, 'native/desktop/src/policy.js'));
 {
   const src = walk('native/android', /\.(kt|java)$/).filter((p) => !/\/src\/test\//.test(p)).map((p) => [p, stripCode(read(p))]);
   const inModule = (mod) => src.filter(([p]) => p.startsWith(`native/android/${mod}/`)).length;
-  check(src.length >= 15 && inModule('home') >= 5 && inModule('kouros') >= 10,
-    `scanned ${src.length} Android source files (home ${inModule('home')}, kouros ${inModule('kouros')})`,
-    `found only ${src.length} Android source files (home ${inModule('home')}, kouros ${inModule('kouros')}) — the walk is not seeing the code`);
+  check(src.length >= 15 && inModule('home') >= 5 && inModule('ordeck') >= 10,
+    `scanned ${src.length} Android source files (home ${inModule('home')}, ordeck ${inModule('ordeck')})`,
+    `found only ${src.length} Android source files (home ${inModule('home')}, ordeck ${inModule('ordeck')}) — the walk is not seeing the code`);
   const banned = [
     ['addJavascriptInterface (the bridge must be origin-scoped)', /addJavascriptInterface\s*\(/],
     ['SslErrorHandler.proceed()', /\.proceed\s*\(/],
@@ -312,9 +312,9 @@ const policy = require(resolve(root, 'native/desktop/src/policy.js'));
     `a debug build would open a path staging does not route: ${unrouted.join(', ')}`);
 }
 
-// ── 7. The native app: KourOS Alpha ──────────────────────────────────────────
+// ── 7. The native app: jkOS Alpha ────────────────────────────────────────────
 {
-  const MOD = 'native/android/kouros';
+  const MOD = 'native/android/ordeck';
   const man = stripXml(read(`${MOD}/src/main/AndroidManifest.xml`));
   // A `tools:node="remove"` entry is a removal of what a library merges in, not a request.
   const permEntries = [...man.matchAll(/<uses-permission\b([^>]*)\/>/g)].map((x) => ({
@@ -324,14 +324,14 @@ const policy = require(resolve(root, 'native/desktop/src/policy.js'));
   const want = ['android.permission.FOREGROUND_SERVICE', 'android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK',
     'android.permission.INTERNET', 'android.permission.WAKE_LOCK'];
   check(JSON.stringify(perms) === JSON.stringify(want),
-    'KourOS Alpha asks for exactly INTERNET, FOREGROUND_SERVICE(+_MEDIA_PLAYBACK) and WAKE_LOCK',
-    `KourOS Alpha permissions are ${JSON.stringify(perms)} — expected exactly ${JSON.stringify(want)}`);
+    'jkOS Alpha asks for exactly INTERNET, FOREGROUND_SERVICE(+_MEDIA_PLAYBACK) and WAKE_LOCK',
+    `jkOS Alpha permissions are ${JSON.stringify(perms)} — expected exactly ${JSON.stringify(want)}`);
   // The APK carries the MERGED manifest. Media3 merges in ACCESS_NETWORK_STATE, and the removal
   // that keeps it out is pinned, so it can't quietly go away in a manifest tidy.
   const removed = permEntries.filter((p) => p.removed).map((p) => p.name).sort();
   check(JSON.stringify(removed) === JSON.stringify(['android.permission.ACCESS_NETWORK_STATE']),
-    "KourOS Alpha removes Media3's merged-in ACCESS_NETWORK_STATE (tools:node=\"remove\")",
-    `KourOS Alpha's permission removals are ${JSON.stringify(removed)} — expected exactly ACCESS_NETWORK_STATE`);
+    "jkOS Alpha removes Media3's merged-in ACCESS_NETWORK_STATE (tools:node=\"remove\")",
+    `jkOS Alpha's permission removals are ${JSON.stringify(removed)} — expected exactly ACCESS_NETWORK_STATE`);
   // The build holds the merged manifest to ALLOWED_PERMISSIONS, and assemble depends on that
   // check. Its list must be this manifest's, so the source and the artifact can't drift apart.
   const gradle = read(`${MOD}/build.gradle.kts`);
@@ -351,8 +351,8 @@ const policy = require(resolve(root, 'native/desktop/src/policy.js'));
   }));
   const exported = comps.filter((c) => c.exported).map((c) => c.name).sort();
   check(JSON.stringify(exported) === JSON.stringify(['.MainActivity', '.PlaybackService', '.RedirectActivity']),
-    'KourOS Alpha exports only the launcher, the sign-in redirect and the media service',
-    `KourOS Alpha exports ${JSON.stringify(exported)} — expected exactly .MainActivity, .PlaybackService, .RedirectActivity`);
+    'jkOS Alpha exports only the launcher, the sign-in redirect and the media service',
+    `jkOS Alpha exports ${JSON.stringify(exported)} — expected exactly .MainActivity, .PlaybackService, .RedirectActivity`);
   const block = (name) => (new RegExp(`<(?:activity|service)\\s+android:name="\\${name}"[\\s\\S]*?</(?:activity|service)>`).exec(man) || [''])[0];
   const redirect = block('.RedirectActivity');
   const datas = [...redirect.matchAll(/<data\b[^>]*>/g)].map((x) => x[0]);
@@ -378,7 +378,7 @@ const policy = require(resolve(root, 'native/desktop/src/policy.js'));
   const all = Object.entries(kt);
   const hits = (re) => all.filter(([, s]) => re.test(s)).map(([f]) => f);
   check(hits(/\bWebView\b|android\.webkit|addJavascriptInterface|evaluateJavascript/).length === 0,
-    'KourOS Alpha contains no WebView (no page, no bridge)',
+    'jkOS Alpha contains no WebView (no page, no bridge)',
     `WebView / android.webkit in ${hits(/\bWebView\b|android\.webkit|addJavascriptInterface|evaluateJavascript/).join(', ')}`);
   const prefs = hits(/SharedPreferences|getSharedPreferences|PreferenceManager|DataStore|openFileOutput|getExternal/);
   check(prefs.length === 0,
@@ -416,7 +416,8 @@ const policy = require(resolve(root, 'native/desktop/src/policy.js'));
     'HTTP never follows a redirect and refuses http:', 'Http.kt follows redirects or accepts non-https URLs');
   const api = kt['Api.kt'] || '';
   const svc = kt['PlaybackService.kt'] || '';
-  check(/fun authorized\(url: String\): Boolean = url\.startsWith\(Auth\.config\.apiBase \+ "\/api\/"\)/.test(api)
+  check(/fun authorized\(url: String\): Boolean = url\.startsWith\("\$base\/api\/"\)/.test(api)
+      && /private val base: String get\(\) = Auth\.config\.apiBases\.getValue\("kouros"\)/.test(api)
       && /check\(authorized\(target\)\)/.test(api)
       && /if \(!Api\.authorized\(spec\.uri\.toString\(\)\)\) return spec/.test(svc),
     'a Bearer token is attached only to URLs under apiBase — by the API client and the player alike',
@@ -465,11 +466,13 @@ const policy = require(resolve(root, 'native/desktop/src/policy.js'));
     'the staging edge gate forwards Authorization (a native app\'s Bearer token) to jkAuth',
     '/_auth_admin_check no longer forwards Authorization — every staging native app request would 401 at the edge');
   const native = shells.SHELLS.filter((s) => s.android === 'native');
-  const unrouted = native.map((s) => shells.nativeConfig(s, 'debug').apiBase)
-    .filter((b) => !new RegExp(`location\\s+${new URL(b + '/').pathname.replace(/\//g, '\\/')}\\s*\\{`).test(read('infra/nginx/apps-generated-staging.conf')));
-  check(native.length > 0 && unrouted.length === 0,
-    `every native app's staging API base is routed (${native.map((s) => shells.nativeConfig(s, 'debug').apiBase).join(', ')})`,
-    native.length ? `a native app's staging API base is not routed: ${unrouted.join(', ')}` : 'no native shell declared');
+  const stagingRoutes = read('infra/nginx/standalone.conf') + read('infra/nginx/apps-generated-staging.conf');
+  const bases = native.flatMap((s) => shells.nativeConfig(s, 'debug').apiBases.map((b) => b.base));
+  const unrouted = bases
+    .filter((b) => !new RegExp(`location\\s+${new URL(b + '/').pathname.replace(/\//g, '\\/')}\\s*\\{`).test(stagingRoutes));
+  check(native.length > 0 && bases.length > 0 && unrouted.length === 0,
+    `every native app's staging API base is routed (${bases.join(', ')})`,
+    native.length ? `a native app's staging API base is not routed: ${unrouted.join(', ') || 'it has none'}` : 'no native shell declared');
 }
 
 if (failed) {

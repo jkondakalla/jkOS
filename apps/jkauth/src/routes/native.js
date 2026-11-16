@@ -113,7 +113,7 @@ function verifyConsent(token) {
  * The consent page's own CSP: the global one plus the app's scheme in `form-action`.
  * ⚠️ Chrome (and so a Custom Tab) enforces form-action on the REDIRECT a form submission
  * answers with, not only on the form's action. Under the global `form-action 'self'` the
- * Allow button's 302 to `net.jkos.kouros.alpha:/oauth2redirect?code=…` is blocked, and the
+ * Allow button's 302 to `net.jkos.app.alpha:/oauth2redirect?code=…` is blocked, and the
  * app waits forever for a code that was minted and never delivered.
  */
 function allowSchemeInFormAction(res, client) {

@@ -554,7 +554,8 @@ phase that changes the app ends in a staging APK you can install.
 KourOS Alpha builds unchanged and its JVM tests pass. What's left needs the phone, and sign-in
 needs phase B's deploy.
 
-1. **You:** install `native/android/out/kouros-alpha-0.1.0-staging.apk` and run OPERATIONS § KourOS
+1. **You:** install `~/Android/jkos-apks/kouros-alpha-0.1.0-staging.apk` (KourOS Alpha as it
+   was before phase D, built 2026-11-16 from `a85c59c`) and run OPERATIONS § KourOS
    Alpha's checks: sign-in, screen-off playback, lock-screen controls with covers, headphones
    out, Start radio, listens in recently played, and sign-out shown as revoked on
    `/auth/security`. Whatever breaks is fixed here. The app no longer has Media3's
@@ -565,34 +566,20 @@ needs phase B's deploy.
 
 Ships with phase E in one staging deploy.
 
-1. **The row.** In `native/shells.js`, `kouros-alpha` becomes
-   `{ id: 'jkos-alpha', name: 'jkOS Alpha', package: 'net.jkos.app.alpha', start: 'ordeck', reach: 'suite', android: 'native', channel: 'alpha' }`.
-   The package follows KourOS Alpha's pattern (the TWA's package plus `.alpha`). Once it is
-   release-signed it can't change, so settle it here.
-2. **The derivation.** `nativeConfig()` returns one API base per reached app that has an `api`
-   (BeigeBoard and KourOS today), plus jkAuth's origin:
-   - staging: `https://staging.jkos.net/<id>`, the paths the web apps already use;
-   - production: each app's own origin.
-
-   `native/gen-native.mjs` writes them into `shell.xml`, and writes the client into
-   [`native-clients.json`](../apps/jkauth/src/native-clients.json) with `app: 'ordeck'`. The
-   consent check becomes "ORDECK is in this person's `aud`": user and admin, not guest.
-3. **A tab exists only for an app in the token's `aud`.** That is least privilege in the UI, read
+1. **A tab exists only for an app in the token's `aud`.** That is least privilege in the UI, read
    from a claim the token already carries.
-4. **The module.** `git mv native/android/kouros native/android/ordeck`: a native module is named
-   after its start app. One Kotlin package per app. Pure cores stay free of Android imports, so
-   the JVM tests can hold them. The shell: a bottom bar (Home, one tab per app, Account), one back
-   stack per tab, and the mini player above the bar. The icon still derives from ORDECK's web
-   manifest.
-5. **`check:native`.** Rewrite § 7–8 of `test/native.mjs` for the new module:
-   - the same four permissions (the merged-manifest check and its allow-list move with the
-     module) and three exported components;
-   - the Bearer token only under a derived base;
+2. **The module's packages and shell.** The module is `native/android/ordeck` now, still one
+   Kotlin package. Split it: one Kotlin package per app. Pure cores stay free of Android
+   imports, so the JVM tests can hold them. The shell: a bottom bar (Home, one tab per app,
+   Account), one back stack per tab, and the mini player above the bar. The icon derives from
+   ORDECK's web manifest.
+3. **`check:native`.** § 7–8 of `test/native.mjs` already read the moved module (the four
+   permissions, the three exported components, the merged-manifest allow-list). Still to add:
+   - the Bearer token only under a derived base, for every app's client;
    - and the new rule: every `/api/…` literal in an app's Kotlin client is declared in that app's
      `discovery.js`, or is on the named list.
 
    Show each new assertion failing on a mutated copy.
-6. **jkAuth's native suite** (`apps/jkauth/test/native.mjs`) runs against the new client id.
 
 ### E · jkAuth: the account routes take a Bearer token
 

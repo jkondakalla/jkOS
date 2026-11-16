@@ -39,7 +39,7 @@ python3 apps/lazuros/worker/test/worker.smoke.py   # worker unit half (mocked St
 bash jkos-deploy/scripts/selftest.sh           # deploy-pipeline dry-run (read-only)
 cd music && ./.venv/bin/python -m unittest discover   # music/ — NOT on the node gate
 pnpm android:build -- :home:testDebugUnitTest      # jkOS Home's OriginPolicy vs origin-cases.json — needs the JDK, NOT on the node gate
-pnpm android:build -- :kouros:testDebugUnitTest    # KourOS Alpha's pure core (PKCE, ledger, JSON, play contexts) — same: JDK, not on the gate
+pnpm android:build -- :ordeck:testDebugUnitTest    # KourOS Alpha's pure core (PKCE, ledger, JSON, play contexts) — same: JDK, not on the gate
 ```
 
 Prober, beyond the gate:
