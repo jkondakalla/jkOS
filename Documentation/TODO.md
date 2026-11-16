@@ -166,8 +166,10 @@ Everything since 2026-07-30, when `main` was last merged. The staging *deploy* l
 - KourOS Alpha and jkAuth's native sign-in;
 - the 2026-11-02 dependency fixes;
 - the 2026-11-04 controls work: CONTROLS.md, the root README, and jkDeploy's `PROD_BRANCH` default.
+- registration by invitation (jkAuth migration 025), and the edge's 403 on production's
+  `/auth/register` until production runs it (§10 K11 removes that).
 
-That includes **migrations across jkAuth (through 024, all additive), BeigeBoard and KourOS
+That includes **migrations across jkAuth (through 025, all additive), BeigeBoard and KourOS
 (8–15)**, which is why the backup comes first.
 
 ---
@@ -506,32 +508,10 @@ phase that changes the app ends in a staging APK you can install.
 - Each phase's device checks join
   [OPERATIONS.md § Native apps](OPERATIONS.md#native-apps-android--desktop) as a list you can run.
 
-### A · Close registration, then trim
-
-1. **Registration by invitation only.** `POST /auth/register`
-   ([auth.js](../apps/jkauth/src/routes/auth.js)) creates a `user` account and signs it in, and
-   nothing gates it. A `user` token's `aud` covers BeigeBoard and KourOS.
-   - An admin mints a single-use, expiring invite. It is stored only as a hash and spent by a
-     trigger, the way `native_auth_codes` are.
-   - Registration without a valid invite is refused. The first-user bootstrap on an empty
-     database still works.
-   - Minting, spending and refusing each write an `auth_events` row.
-   - Prove it in `apps/jkauth/test/security.mjs`, failing first, and add a CONTROLS.md row.
-   - Production gets the code only at the promote (phase K). Until then, refuse `/auth/register`
-     on the production auth origin at the edge. nginx's config goes live with phase B's staging
-     deploy.
-   - **You:** read production's `auth_events` for `register` rows you don't recognise.
-2. **Trim.**
-   - OPERATIONS § Staging says the admin gate asks production jkAuth. `standalone.conf` asks
-     `staging-jkos-auth`. Fix the doc.
-   - OPERATIONS § Android: first release names `net.jkos.alpha`, the retired selector. Fix it.
-   - ARCHITECTURE § 4 names KourOS's `rateApplies`; the code's is `rateAppliesTo`.
-   - Delete code with no consumers, and list what went in the report.
-
 ### B · Deploy the backlog
 
 1. **Pre-flight.** The gate is green and `pnpm prove` shows no drift. List every migration the
-   deploy runs (jkAuth through 024, BeigeBoard, KourOS 8–15) and confirm each is additive. Once
+   deploy runs (jkAuth through 025, BeigeBoard, KourOS 8–15) and confirm each is additive. Once
    docker works, compare each app's `.env.example` keys with its `.env` on the NAS, read-only, and
    report what's missing. Push `staging`.
 2. **You:** §1 in order through "Deploy staging": the backup, docker access, the service-client
@@ -608,7 +588,7 @@ Ships with phase E in one staging deploy.
    - revoke touches only the caller's own sessions.
 
    Update the CONTROLS.md rows that cite these routes.
-4. **You:** deploy staging with D, E and anything from A not yet deployed.
+4. **You:** deploy staging with D and E.
 
 ### F · Account and devices
 
@@ -713,4 +693,7 @@ Each step is your decision. In order:
 9. Invite the testers as `user`s; they reach BeigeBoard and KourOS. Check that
    `apps/jkauth/test/multiuser.mjs` covers what testers will do near each other's data.
 10. Settle §2's pre-release question, then promote and tag (§1).
-11. Remove A1's edge refusal once production runs invite-only registration.
+11. Remove the edge's refusal of production's `/auth/register` once production runs
+    invite-only registration: the `location ~* ^/auth/register/?$` block in
+    `infra/nginx/standalone.conf`, `checkRegistrationClosed` in
+    `infra/nginx/gen-nginx-weave.mjs`, and the last sentence of CONTROLS.md AC-11.
