@@ -316,12 +316,32 @@ const policy = require(resolve(root, 'native/desktop/src/policy.js'));
 {
   const MOD = 'native/android/kouros';
   const man = stripXml(read(`${MOD}/src/main/AndroidManifest.xml`));
-  const perms = [...man.matchAll(/<uses-permission\s+android:name="([^"]+)"/g)].map((x) => x[1]).sort();
+  // A `tools:node="remove"` entry is a removal of what a library merges in, not a request.
+  const permEntries = [...man.matchAll(/<uses-permission\b([^>]*)\/>/g)].map((x) => ({
+    name: (/android:name="([^"]+)"/.exec(x[1]) || [])[1], removed: /tools:node="remove"/.test(x[1]),
+  }));
+  const perms = permEntries.filter((p) => !p.removed).map((p) => p.name).sort();
   const want = ['android.permission.FOREGROUND_SERVICE', 'android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK',
     'android.permission.INTERNET', 'android.permission.WAKE_LOCK'];
   check(JSON.stringify(perms) === JSON.stringify(want),
     'KourOS Alpha asks for exactly INTERNET, FOREGROUND_SERVICE(+_MEDIA_PLAYBACK) and WAKE_LOCK',
     `KourOS Alpha permissions are ${JSON.stringify(perms)} — expected exactly ${JSON.stringify(want)}`);
+  // The APK carries the MERGED manifest. Media3 merges in ACCESS_NETWORK_STATE, and the removal
+  // that keeps it out is pinned, so it can't quietly go away in a manifest tidy.
+  const removed = permEntries.filter((p) => p.removed).map((p) => p.name).sort();
+  check(JSON.stringify(removed) === JSON.stringify(['android.permission.ACCESS_NETWORK_STATE']),
+    "KourOS Alpha removes Media3's merged-in ACCESS_NETWORK_STATE (tools:node=\"remove\")",
+    `KourOS Alpha's permission removals are ${JSON.stringify(removed)} — expected exactly ACCESS_NETWORK_STATE`);
+  // The build holds the merged manifest to ALLOWED_PERMISSIONS, and assemble depends on that
+  // check. Its list must be this manifest's, so the source and the artifact can't drift apart.
+  const gradle = read(`${MOD}/build.gradle.kts`);
+  const allowed = [...((/val ALLOWED_PERMISSIONS = listOf\(([\s\S]*?)\)/.exec(gradle) || [])[1] || '')
+    .matchAll(/"([^"]+)"/g)].map((x) => x[1]).sort();
+  check(JSON.stringify(allowed) === JSON.stringify(want)
+      && /SingleArtifact\.MERGED_MANIFEST/.test(gradle)
+      && /tasks\.matching \{ it\.name == "assemble\$cap" \}\.configureEach \{ dependsOn\(check\) \}/.test(gradle),
+    "the build refuses an APK whose merged manifest asks for more than the source manifest's four",
+    `${MOD}/build.gradle.kts: ALLOWED_PERMISSIONS is ${JSON.stringify(allowed)}, or assemble no longer depends on the merged-manifest check`);
 
   // Every component, and which are exported. A component with an intent filter and no explicit
   // android:exported is refused by the build for targetSdk ≥ 31 — but an explicit "true" on the
@@ -349,7 +369,6 @@ const policy = require(resolve(root, 'native/desktop/src/policy.js'));
   check(/<activity\s+android:name="\.MainActivity"[\s\S]*?android\.intent\.category\.LAUNCHER[\s\S]*?<\/activity>/.test(man)
       && !/android\.intent\.category\.LAUNCHER/.test(redirect),
     'MainActivity is the launcher (and the redirect is not)', 'the launcher intent moved off MainActivity');
-  const gradle = read(`${MOD}/build.gradle.kts`);
   check(/applicationId = shell\["package"\] as String/.test(gradle) && /versionNameSuffix = shell\["versionSuffix"\] as String/.test(gradle),
     'the applicationId (= the redirect scheme = the jkAuth client id) comes from shells.json, not a literal',
     `${MOD}/build.gradle.kts no longer reads applicationId / versionNameSuffix from shells.json`);

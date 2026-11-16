@@ -7,11 +7,63 @@
 // The pure parts (PKCE, the play-context encoder, the listen ledger, the API's JSON shapes)
 // carry no Android import on purpose, so `:kouros:testDebugUnitTest` holds them on the JVM.
 
+import com.android.build.api.artifact.SingleArtifact
 import groovy.json.JsonSlurper
 
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+}
+
+// ── What the APK may ask for ──────────────────────────────────────────────────
+// The manifest in src/main declares four permissions, but the APK carries the MERGED manifest,
+// where every library's own <uses-permission> lands too: on the first Gradle build, Media3 had
+// quietly added ACCESS_NETWORK_STATE. This list is held against the merged manifest of every
+// variant, and `assemble` can't run without the check, so a dependency bump that brings in a
+// permission fails the build instead of shipping it. check:native pins this list to the source
+// manifest, so neither can change alone.
+val ALLOWED_PERMISSIONS = listOf(
+    "android.permission.FOREGROUND_SERVICE",
+    "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+    "android.permission.INTERNET",
+    "android.permission.WAKE_LOCK",
+)
+// androidx.core's own, per package: a signature-level permission that keeps the app's receivers
+// private on API < 33. Granted to no other app.
+val SELF_PERMISSION = ".DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+
+abstract class CheckMergedPermissions : DefaultTask() {
+    @get:InputFile @get:PathSensitive(PathSensitivity.NONE) abstract val mergedManifest: RegularFileProperty
+    @get:Input abstract val allowed: ListProperty<String>
+    @get:OutputFile abstract val report: RegularFileProperty
+
+    @TaskAction fun check() {
+        val xml = mergedManifest.get().asFile.readText()
+        val asked = Regex("""<uses-permission(?:-sdk-23)?\s[^>]*?android:name="([^"]+)"""")
+            .findAll(xml).map { it.groupValues[1] }.toSortedSet()
+        val want = allowed.get().toSortedSet()
+        if (asked != want) {
+            throw GradleException(
+                "The merged manifest asks for permissions that aren't allowed.\n" +
+                "  extra:   ${asked - want}\n  missing: ${want - asked}\n" +
+                "A library merged one in, or the source manifest changed. Remove it with " +
+                "tools:node=\"remove\" in src/main/AndroidManifest.xml, or allow it in " +
+                "ALLOWED_PERMISSIONS (kouros/build.gradle.kts) and check:native together.")
+        }
+        report.get().asFile.writeText(asked.joinToString("\n", postfix = "\n"))
+    }
+}
+
+androidComponents {
+    onVariants { variant ->
+        val cap = variant.name.replaceFirstChar { it.uppercase() }
+        val check = tasks.register<CheckMergedPermissions>("check${cap}Permissions") {
+            mergedManifest.set(variant.artifacts.get(SingleArtifact.MERGED_MANIFEST))
+            allowed.set(variant.applicationId.map { id -> ALLOWED_PERMISSIONS + (id + SELF_PERMISSION) })
+            report.set(layout.buildDirectory.file("permissions/${variant.name}.txt"))
+        }
+        tasks.matching { it.name == "assemble$cap" }.configureEach { dependsOn(check) }
+    }
 }
 
 @Suppress("UNCHECKED_CAST")

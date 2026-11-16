@@ -7,6 +7,13 @@
      (playback keeps going with the screen off — Android 14 requires the typed one), WAKE_LOCK
      (ExoPlayer's network wake mode holds the CPU and Wi-Fi while it streams). No
      POST_NOTIFICATIONS: a media session's notification is exempt from it.
+   • What the libraries merge in is held too, because the APK carries the MERGED manifest, not
+     this file. Media3 adds ACCESS_NETWORK_STATE, only to guess a bandwidth estimate from the
+     network type; it catches the SecurityException when the permission is absent, so it is
+     removed below. androidx.core adds ${applicationId}.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION,
+     a signature-level permission the app defines for itself, so only this app can send to its
+     own receivers on Android 8–12. It stays. The build fails if the merged manifest asks for
+     anything else (checkPermissions, in this module's build.gradle.kts).
    • Three components are exported, each because something outside the app must reach it:
        MainActivity      the launcher icon
        RedirectActivity  the browser hands the sign-in code back to it (see below)
@@ -18,12 +25,14 @@
      Bearer token off the wire.
   check:native asserts each of these against this file.
 -->
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" tools:node="remove" />
 
     <application
         android:name=".KourosApp"

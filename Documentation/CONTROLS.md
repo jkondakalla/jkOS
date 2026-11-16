@@ -34,7 +34,7 @@ Prefixes: **AC** access · **SM** sessions · **AU** audit log · **CM** change 
 | CM-3 | Promotion ships exactly the commit staging ran. There is no merge step, and the server holds no push credential. A deploy fails if any container is not running or reports itself unhealthy, and nginx config is validated before restart. | Untested code reaching production, or a half-started deploy reported as done. | `infra/scripts/lib-deploy.sh` `infra/scripts/deploy-prod.sh` `jkos-deploy/main.py` | `jkos-deploy/scripts/selftest.sh` | deploy log |
 | CF-1 | No secret material is tracked in git, and `.gitignore` keeps excluding env files and keys. | A credential published with the source. | `test/secrets.mjs` | `test/secrets.mjs` | — |
 | CF-2 | Any HIGH or CRITICAL dependency advisory fails the gate. | Shipping a known-vulnerable dependency. | `test/supply-chain.mjs` | `test/supply-chain.mjs` | — |
-| CF-3 | The installable Android and desktop apps keep their lockdown settings: no app backup, no Node in the page, a sandbox, and only the suite's own origins. | One configuration token silently reopening the shell. | `native/gen-native.mjs` | `test/native.mjs` | — |
+| CF-3 | The installable Android and desktop apps keep their lockdown settings: no app backup, no Node in the page, a sandbox, and only the suite's own origins. The native app's build refuses an APK whose merged manifest asks for a permission beyond its declared four. | One configuration token silently reopening the shell, or a library adding a permission the source manifest never asked for. | `native/gen-native.mjs` `native/android/kouros/build.gradle.kts` | `test/native.mjs` | — |
 
 ## Known gaps
 
