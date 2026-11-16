@@ -72,35 +72,21 @@ follows.
   4. Reload the output tab mid-song: the other devices should keep showing the song and its position.
 - **The native apps.** Steps in
   [OPERATIONS.md § Native apps](OPERATIONS.md#native-apps-android--desktop).
-  1. **An Android toolchain:** `node native/android/toolchain.mjs install ~/Android/jkos --adb` (no
-     sudo; it isn't installed yet), or Docker (§2).
-  2. **`pnpm android:signing`** creates the one release key for every jkOS Android app, with a
+  The Android toolchain is in `~/Android/jkos` (`eval "$(node native/android/toolchain.mjs env ~/Android/jkos)"`).
+  1. **`pnpm android:signing`** creates the one release key for every jkOS Android app, with a
      password you choose. ⚠️ **Back up `~/.jkos/android-release.keystore` off this machine**: lose
      it and no app can be upgraded in place.
-  3. **Asset links to the edge:** `node infra/nginx/gen-nginx-weave.mjs`, commit, deploy, restart
+  2. **Asset links to the edge:** `node infra/nginx/gen-nginx-weave.mjs`, commit, deploy, restart
      nginx. Until then the TWAs open under a URL bar.
-  4. **Install.** Staging APKs (`pnpm android:build`) work today, with a URL bar. KourOS's release
+  3. **Install.** Staging APKs (`pnpm android:build`) work today, with a URL bar. KourOS's release
      app also needs the production DNS record below.
-  5. **Desktop:** `sudo apt install ./native/desktop/out/jkos/jkos-jkos_0.1.0_amd64.deb` (and the
+  4. **Desktop:** `sudo apt install ./native/desktop/out/jkos/jkos-jkos_0.1.0_amd64.deb` (and the
      KourOS one) after `pnpm dist` (Node ≥ 22.12, see OPERATIONS). The sudo is for the AppArmor
      profile the `.deb` installs.
-  6. **KourOS Alpha** ([OPERATIONS.md § KourOS Alpha](OPERATIONS.md#android-kouros-alpha-the-native-app))
-     has **never been built by Gradle or run on a device**. Its sources were only type-checked
-     against stand-ins. In order:
-     a. Deploy staging jkAuth, which carries native sign-in, `JKOS_NATIVE_ENV=staging` and
-        migration 024 (additive), and restart nginx with it.
-     b. Regenerate `gradle/verification-metadata.xml` (OPERATIONS has the command) and read the new
-        checksums.
-     c. Build `pnpm android:build -- :kouros:testDebugUnitTest :kouros:assembleDebug` and
-        `:kouros:assembleRelease`. `aapt2 dump badging` should show versionName
-        `0.1.0-alpha-staging` and exactly four permissions. If it fails, look at the Media3
-        signatures first.
-     d. Install `native/android/out/kouros-alpha-0.1.0-staging.apk` and test with an admin account:
-        sign-in, screen-off playback, lock-screen covers and controls, headphones out, Start radio,
-        sign out (then `/auth/security` shows it revoked), and listens appearing in recently played.
-     e. Production stays off (`JKOS_NATIVE_ENV` unset in the prod compose). Turning it on is a
-        separate decision.
-  7. **Try them on real hardware.** None has run on a phone, a tablet or an installed `.deb`: the
+  5. **KourOS Alpha** ([OPERATIONS.md § KourOS Alpha](OPERATIONS.md#android-kouros-alpha-the-native-app))
+     builds, and its JVM tests pass, but it has **never run on a device**. §10 C is the device
+     pass. Production sign-in stays off (`JKOS_NATIVE_ENV` unset in the prod compose) until §10 K.
+  6. **Try them on real hardware.** None has run on a phone, a tablet or an installed `.deb`: the
      TWAs' URL bar, KourOS's lock-screen controls through Chrome, jkOS Home as the default home (the
      corner hold, the offline screen, rotation), and the desktop app's media keys.
 - **The S21 Ultra hub has no video out.** An agent can't reach the phone until there's a picture:
@@ -164,13 +150,9 @@ Each one blocks work an agent could otherwise do alone. Answer in place.
   unpaginated dataset, and ⚠️ that's load-bearing: it's why ORDECK's `bbDelta` merge is safe. A limit
   with `ORDER BY id ASC` silently drops rows, so **page it by the cursor column or not at all.**
   Only worth it if the production item count is growing, which you can read and an agent can't.
-- **Docker for the Android build, or not?** `jag` isn't in the root-equivalent `docker` group.
-  - **(a) The local toolchain** (`toolchain.mjs install ~/Android/jkos`): no sudo, one directory,
-    includes `adb`. ⭐ *Recommended.*
-  - (b) Add `jag` to `docker`. That path is written but has never run.
 - **May an agent change machine state** (systemd units and the like)? Until you say otherwise,
-  agents stop at "here is the installer, run it". A kickoff prompt can grant a one-off exception,
-  such as §10's Android toolchain. (LazurOS is out of scope until the alpha: §10.)
+  agents stop at "here is the installer, run it". A kickoff prompt can grant a one-off exception.
+  (LazurOS is out of scope until the alpha: §10.)
 
 ---
 
@@ -565,22 +547,17 @@ phase that changes the app ends in a staging APK you can install.
    then step 6, which deletes the importer.
 5. **You:** §1's listening-session checks on real devices.
 
-### C · First light: KourOS Alpha as it is
+### C · First light: KourOS Alpha as it is, on your phone
 
-The smallest native build that can fail, built before anything is added to it.
+KourOS Alpha builds unchanged and its JVM tests pass. What's left needs the phone, and sign-in
+needs phase B's deploy.
 
-1. **The toolchain:** `node native/android/toolchain.mjs install ~/Android/jkos --adb`, no sudo.
-   You run it, or allow it in the kickoff prompt.
-2. **Checksums.** Regenerate `native/android/gradle/verification-metadata.xml` (the command is in
-   NATIVE.md § 6). List every new group and artifact in the report. Bring anything outside
-   AndroidX, Google, Kotlin/JetBrains, JUnit and org.json to you before committing it.
-3. **Build:** `pnpm android:build -- :kouros:testDebugUnitTest :kouros:assembleDebug`. If it
-   fails, look at the Media3 signatures first. `aapt2 dump badging` shows versionName
-   `0.1.0-alpha-staging` and exactly four permissions.
-4. **You:** install it and run OPERATIONS § KourOS Alpha's checks: sign-in, screen-off playback,
-   lock-screen controls with covers, headphones out, Start radio, listens in recently played, and
-   sign-out shown as revoked on `/auth/security`. Whatever breaks is fixed here.
-5. **You:** sign out of it, then uninstall it. Phase D removes its jkAuth client.
+1. **You:** install `native/android/out/kouros-alpha-0.1.0-staging.apk` and run OPERATIONS § KourOS
+   Alpha's checks: sign-in, screen-off playback, lock-screen controls with covers, headphones
+   out, Start radio, listens in recently played, and sign-out shown as revoked on
+   `/auth/security`. Whatever breaks is fixed here. The app no longer has Media3's
+   `ACCESS_NETWORK_STATE`, so watch that playback starts and recovers after a network change.
+2. **You:** sign out of it, then uninstall it. Phase D removes its jkAuth client.
 
 ### D · One app: KourOS Alpha becomes jkOS Alpha
 
@@ -606,7 +583,8 @@ Ships with phase E in one staging deploy.
    stack per tab, and the mini player above the bar. The icon still derives from ORDECK's web
    manifest.
 5. **`check:native`.** Rewrite § 7–8 of `test/native.mjs` for the new module:
-   - the same four permissions and three exported components;
+   - the same four permissions (the merged-manifest check and its allow-list move with the
+     module) and three exported components;
    - the Bearer token only under a derived base;
    - and the new rule: every `/api/…` literal in an app's Kotlin client is declared in that app's
      `discovery.js`, or is on the named list.

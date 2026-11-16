@@ -268,7 +268,7 @@ asset links), and that's expected.
 
 ### Android: KourOS Alpha (the native app)
 
-It needs three things in place before it can sign in. Do them in order:
+It needs two things in place before it can sign in. Do them in order:
 
 1. **Staging jkAuth deployed with native sign-in.** `apps/jkauth/docker-compose.staging.yml`
    sets `JKOS_NATIVE_ENV=staging`, and jkAuth's migration 024 (a new `sessions.client_id`
@@ -280,21 +280,24 @@ It needs three things in place before it can sign in. Do them in order:
    explicitly. `auth_request` already passes it by default, so nothing breaks before the
    restart, but the file and the running server should agree. The staging gate's acceptance of
    a Bearer user token is staging jkAuth's own code. **Restart, never reload.**
-3. **The build's checksums.** The app adds Compose, Media3, activity-compose, browser and
-   coroutines, which `gradle/verification-metadata.xml` doesn't pin yet, so Gradle refuses
-   them. Regenerate and **read the diff**: every new sha256 is something you're trusting.
-   ```bash
-   eval "$(node native/android/toolchain.mjs env ~/Android/jkos)"
-   cd native/android && ./gradlew --write-verification-metadata sha256 \
-     assembleDebug assembleRelease :home:testDebugUnitTest :kouros:testDebugUnitTest
-   git diff --stat gradle/verification-metadata.xml
-   ```
 
-Then build, test and install the staging alpha (no key needed: it's debug-signed):
+The toolchain is in `~/Android/jkos`, and `gradle/verification-metadata.xml` pins every artifact
+the build uses (first built 2026-11-16). Build, test and install the staging alpha (no key
+needed: it's debug-signed):
 
 ```bash
+eval "$(node native/android/toolchain.mjs env ~/Android/jkos)"
 pnpm android:build -- :kouros:testDebugUnitTest :kouros:assembleDebug
 adb install native/android/out/kouros-alpha-0.1.0-staging.apk
+```
+
+**After bumping an Android dependency**, regenerate the checksums and **read the diff**: every new
+sha256 is something you're trusting.
+
+```bash
+cd native/android && ./gradlew --write-verification-metadata sha256 \
+  assembleDebug assembleRelease :home:testDebugUnitTest :kouros:testDebugUnitTest
+git diff --stat gradle/verification-metadata.xml
 ```
 
 On the phone: **Sign in with jkOS** opens a Custom Tab on `staging.jkos.net`. Sign in (an
@@ -308,9 +311,11 @@ app's session as signed out. Each listen should appear in KourOS's recently play
 audit trail.
 
 `aapt2 dump badging` and `apksigner verify --print-certs` on the APK should show package
-`net.jkos.kouros.alpha.staging`, versionName `0.1.0-alpha-staging`, and exactly the permissions
-INTERNET, FOREGROUND_SERVICE, FOREGROUND_SERVICE_MEDIA_PLAYBACK and WAKE_LOCK. A library that
-merges in another permission shows up here first.
+`net.jkos.kouros.alpha.staging`, versionName `0.1.0-alpha-staging`, and the permissions
+INTERNET, FOREGROUND_SERVICE, FOREGROUND_SERVICE_MEDIA_PLAYBACK and WAKE_LOCK, plus androidx.core's
+signature-level `net.jkos.kouros.alpha.staging.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`. A library
+that merges in anything else fails the build (`:kouros:checkDebugPermissions`) before an APK
+exists.
 
 ### Android: jkOS Home on a panel device
 

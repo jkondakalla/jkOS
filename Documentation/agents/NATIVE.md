@@ -39,7 +39,7 @@ native/
 ├── shells.js              THE list of shells — one row each. Everything below derives from it.
 ├── gen-native.mjs         projects shells.js into the generated files (--check in the gate)
 ├── origin-cases.json      the navigation rule, as test vectors both implementations pass
-├── android/               one Gradle project (AGP 9.4, Gradle 9.8, JDK 21, SDK 36)
+├── android/               one Gradle project (AGP 9.4, Gradle 9.8, JDK 21, compileSdk 37, targetSdk 36)
 │   ├── toolchain.json     the pinned JDK + command-line tools + SDK levels (sha256)
 │   ├── toolchain.mjs      installs exactly that, into Docker or a local dir
 │   ├── build.mjs          `pnpm android:build` — Docker or local SDK, same caches + debug key
@@ -80,7 +80,10 @@ name, package, which app it opens on, what it reaches, and its Android kind. Fro
   It writes every TWA package with the one release fingerprint into `infra/nginx/assetlinks.json`,
   and `gen-nginx-weave.mjs --check` fails if any origin a TWA trusts doesn't serve them.
 - **SDK levels** (`compileSdk`, build-tools) come from `toolchain.json`, which both the installer
-  and Gradle read. **The version** (`VERSION` in `shells.js`) sets Android's `versionName` and
+  and Gradle read. From API 37 the SDK names a platform with a minor version (`android-37.0`),
+  so `platform` names the package the installer lays down, and the installer refuses one that
+  isn't a platform of `compileSdk`. AGP maps `compileSdk = 37` to that directory. compileSdk is
+  37 because Compose 1.12 requires it; targetSdk, the runtime behaviour, stays 36. **The version** (`VERSION` in `shells.js`) sets Android's `versionName` and
   `versionCode` (`1.2.3` → `10203`), and the desktop `package.json` must equal it.
 
 - **A native app's identity** comes from `nativeConfig()`: its package is its jkAuth client id,
@@ -260,13 +263,22 @@ and covers are `HttpURLConnection` + `BitmapFactory` + an `LruCache`, with no im
 
 ### What hasn't been seen yet
 
-**It has never been built by Gradle or run on a device.** The session that wrote it couldn't reach
-Google's Maven repository. Before the first build, `gradle/verification-metadata.xml` must be
-regenerated (§ 6 below) and its new checksums reviewed. What *was* checked: the 17 JVM tests
-(PKCE against RFC 7636's own vector, redirect parsing, the ledger, the JSON shapes, the play
-context vectors), and all 15 sources compiled by kotlinc 2.2.10 with the Compose compiler
-plugin against the API 36 framework, Compose 1.7 and Guava, with stubs for Media3, activity
-and browser. A wrong Media3 signature would therefore only show up in the first real build.
+**It has never run on a device.** Gradle first built it on 2026-11-16, against the real Media3
+1.11.1, Compose 1.12.1 and activity 1.13.0, and its 17 JVM tests pass (PKCE against RFC 7636's own
+vector, redirect parsing, the ledger, the JSON shapes, the play context vectors). No Media3
+signature was wrong.
+
+That first build found two things the source alone couldn't show:
+
+- **Compose 1.12 needs compileSdk 37.** compileSdk moved to 37 (§ 2); targetSdk stays 36.
+- **The APK asked for six permissions, not four.** Media3 merges in `ACCESS_NETWORK_STATE`,
+  only to guess a bandwidth estimate from the network type, and it catches the
+  `SecurityException` when the permission is missing, so the app's manifest removes it.
+  androidx.core adds `<package>.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`, a signature-level
+  permission the app defines for itself. It stays: it keeps the app's receivers private on
+  Android 8–12, and no other app can hold it. The build now refuses an APK whose merged
+  manifest asks for anything else (`checkDebugPermissions` / `checkReleasePermissions`, which
+  `assemble` depends on).
 
 ## 6 · Building
 
@@ -318,13 +330,14 @@ or give the dev binary a profile as root. Don't add `--no-sandbox`.
 
 | Check | Where | What |
 |---|---|---|
-| `pnpm check:native` | `native/gen-native.mjs --check` + `test/native.mjs` | generated files in sync (and no stale variant dirs, and jkAuth's `native-clients.json`); desktop policy vs origin-cases; webPreferences, permissions, external schemes; main.js applies the policy; fuses; .deb-only; manifests least-privilege; no `addJavascriptInterface`/`proceed()`/file access/mixed content; signing from env; wrapper, dependencies, toolchain and image pinned; staging URLs routed; **KourOS Alpha (§ 7 of the test):** exactly four permissions, exactly three exported components, the redirect filter's scheme = `${applicationId}`, no WebView, tokens written only Keystore-sealed into `noBackupFilesDir`, every refresh under the Mutex, store-before-use, the state check, no redirect following, Bearer only to `api_base`, play-context vectors vs the server's parser; **native sign-in (§ 8):** staging jkAuth alone sets `JKOS_NATIVE_ENV`, the edge gate forwards `Authorization`, every native app's staging API base is routed |
+| `pnpm check:native` | `native/gen-native.mjs --check` + `test/native.mjs` | generated files in sync (and no stale variant dirs, and jkAuth's `native-clients.json`); desktop policy vs origin-cases; webPreferences, permissions, external schemes; main.js applies the policy; fuses; .deb-only; manifests least-privilege; no `addJavascriptInterface`/`proceed()`/file access/mixed content; signing from env; wrapper, dependencies, toolchain and image pinned; staging URLs routed; **KourOS Alpha (§ 7 of the test):** exactly four permissions, Media3's `ACCESS_NETWORK_STATE` removed, the build's merged-manifest allow-list equal to the four, exactly three exported components, the redirect filter's scheme = `${applicationId}`, no WebView, tokens written only Keystore-sealed into `noBackupFilesDir`, every refresh under the Mutex, store-before-use, the state check, no redirect following, Bearer only to `api_base`, play-context vectors vs the server's parser; **native sign-in (§ 8):** staging jkAuth alone sets `JKOS_NATIVE_ENV`, the edge gate forwards `Authorization`, every native app's staging API base is routed |
 | `apps/jkauth/test/native.mjs` | `npm test` in jkAuth (gate step 2) | the native sign-in, over real HTTP: dead-end refusals, the login round trip, consent bound to person and request, the scheme in `form-action`, codes single-use / verifier-bound / short-lived / replay-burns, refresh rotation + 409 race + reuse burn, the transport binding both ways (and its triggers), an S256-shaped challenge held by a CHECK, a role the app doesn't admit refused before consent, the Bearer gate, revoke, the audit trail, off when `JKOS_NATIVE_ENV` is unset and no boot on an unknown value |
 | Gradle unit test | `:kouros:testDebugUnitTest` | PKCE (RFC 7636 vector), redirect parsing, `ListenLedger`, JSON shapes, `PlayContext` vs play-context-cases |
 | `pnpm check:nginx` | `infra/nginx/gen-nginx-weave.mjs --check` | every origin a TWA trusts serves `/.well-known/assetlinks.json` |
 | `pnpm check:audit` | `test/supply-chain.mjs` | **every tracked** `pnpm-lock.yaml`, so the desktop's too, at the `high` floor |
 | Gradle unit test | `:home:testDebugUnitTest` | `OriginPolicy` vs origin-cases (not on the node gate: it needs the JDK) |
 | Gradle verification | `gradle/verification-metadata.xml` | a tampered or unexpected artifact fails the build |
+| Gradle permission check | `:kouros:check<Variant>Permissions`, which `assemble` depends on | the **merged** manifest, the one the APK carries, asks for exactly `ALLOWED_PERMISSIONS` plus androidx.core's signature-level self permission; `check:native` holds that list equal to the source manifest's |
 
 Each `check:native` assertion was seen to fail on a mutated copy before it was trusted.
 
