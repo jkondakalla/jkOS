@@ -26,6 +26,7 @@
     "url": "https://dl.google.com/android/repository/commandlinetools-linux-15859902_latest.zip",
     "sha256": "4e4c464f145a7512b57d088ac6c278c03c9eea610886b35a5e0804e74eedf583"
   },
-  "compileSdk": 36,
+  "compileSdk": 37,
+  "platform": "android-37.0",
   "buildTools": "36.0.0"
 }

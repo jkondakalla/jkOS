@@ -123,7 +123,14 @@ if (flags.has('--accept-licenses')) {
   if (r.status !== 0) die('sdkmanager --licenses failed (licences must be accepted to install the SDK)')
 }
 
-const packages = [`platforms;android-${TC.compileSdk}`, `build-tools;${TC.buildTools}`]
+// From API 37 the SDK names its platforms with a minor version (`android-37.0`), and AGP maps
+// `compileSdk = 37` to that directory, so the package can't be spelled from the number alone.
+// `platform` names it, and it must be a platform OF compileSdk: the SDK the installer lays
+// down and the SDK Gradle asks for cannot disagree.
+if (!new RegExp(`^android-${TC.compileSdk}(\\.\\d+)?$`).test(String(TC.platform))) {
+  die(`toolchain.json: platform '${TC.platform}' is not a platform of compileSdk ${TC.compileSdk}`)
+}
+const packages = [`platforms;${TC.platform}`, `build-tools;${TC.buildTools}`]
 if (flags.has('--adb')) packages.push('platform-tools')
 console.log(`… sdkmanager ${packages.join(' ')}`)
 const r = sdk(packages, { stdio: ['ignore', 'inherit', 'inherit'] })
