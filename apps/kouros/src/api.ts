@@ -377,14 +377,6 @@ export function radioFrom(seedIds: number[], k = 60): Promise<SimilarResult> {
   return apiJson<SimilarResult>(`/api/discover/radio?seed=${seedIds.join(',')}&k=${k}`);
 }
 
-export function buildRun(seedId: number, arc = 'rise', length = 14): Promise<RunResult> {
-  return apiJson<RunResult>(`/api/discover/run?seed=${seedId}&arc=${arc}&length=${length}`);
-}
-
-export function fetchVibeMap(): Promise<VibeMap> {
-  return apiJson<VibeMap>('/api/discover/map');
-}
-
 /** What sits near a point in the vibe space: x, y, z in [-1, 1], w an energy
  *  percentile in [0, 1]. All four are required — a point with no energy is a line. */
 export function tracksNear(p: VibePoint, k = 40): Promise<{ results: DiscoveredTrack[] }> {

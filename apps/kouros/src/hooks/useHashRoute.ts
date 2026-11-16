@@ -24,7 +24,7 @@ import { useEffect, useState } from 'react';
 //
 // Anything else falls back to Home. `artist`/`album` come from free-text tag
 // values (not database ids, unlike `/book/<id>`), so they travel
-// %-encoded — always build a link via artistHref/albumHref/searchHref below,
+// %-encoded — always build a link via artistHref/albumHref below,
 // never hand-format the hash string (the encoding is load-bearing: a name
 // containing '/' would otherwise split across the ALBUM_RE/ARTIST_RE segments).
 // `playlist/<id>` and `book/<id>` are real database ids, so they stay plain \d+
@@ -129,10 +129,6 @@ export function albumHref(artist: string, album: string): string {
   return `#/album/${encodeURIComponent(artist)}/${encodeURIComponent(album)}`;
 }
 
-export function searchHref(query?: string): string {
-  return query ? `#/search?q=${encodeURIComponent(query)}` : '#/search';
-}
-
 export function playlistsHref(): string {
   return '#/playlists';
 }
@@ -149,20 +145,8 @@ export function bookHref(id: number): string {
   return `#/book/${id}`;
 }
 
-export function browseHref(): string {
-  return '#/browse';
-}
-
-export function mapHref(): string {
-  return '#/map';
-}
-
 export function nowHref(): string {
   return '#/now';
-}
-
-export function queueHref(): string {
-  return '#/queue';
 }
 
 /** Leave an overlay route (Now Playing / Queue) the way the system back gesture

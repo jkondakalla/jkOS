@@ -110,7 +110,6 @@
     "apps/kouros/src/components/TrackRow.tsx": 13,
     "apps/kouros/src/components/vibespace/VibeSpace.tsx": 19,
     "apps/kouros/src/main.tsx": 2,
-    "apps/kouros/src/player/controls.tsx": 25,
     "apps/kouros/src/player/icons.tsx": 22,
     "apps/kouros/src/player/MiniPlayer.tsx": 22,
     "apps/kouros/src/player/PlayerProvider.tsx": 3,

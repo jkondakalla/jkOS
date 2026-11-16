@@ -182,12 +182,6 @@ export function streamUrlFor(ref: Id, fileIndex = 0): string {
   return src === 'kouros' ? kourosStream(id, fileIndex) : bookStream(id, fileIndex);
 }
 
-/** Cover URL for an item, dispatched the same way. */
-export function coverUrlFor(ref: Id): string {
-  const { src, id } = decodeRef(ref);
-  return src === 'kouros' ? kourosCover(id) : bookCover(id);
-}
-
 /** The player composition for whatever is loaded — `nav: 'track'` for music,
  *  `nav: 'segment'` for a book. Everything that behaves differently between the
  *  two reads THIS, rather than testing the kind itself. */

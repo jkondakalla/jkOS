@@ -43,44 +43,6 @@ export function trackAlbum(t: { album?: string | null }): string {
   return (t.album || 'Unknown album').trim();
 }
 
-export interface AlbumGroup<T> {
-  album: string;
-  artist: string;
-  year: number | null;
-  tracks: T[];
-}
-
-/** Group a flat track list into albums, in disc/track order. For views that
- *  ALREADY hold a track list (an artist page, a playlist) — never for browsing
- *  the catalog, which goes through /api/albums so SQLite does the grouping. */
-export function groupByAlbum<T extends {
-  album?: string | null; artist?: string | null; albumartist?: string | null;
-  year?: number | null; disc_no?: number | null; track_no?: number | null; title?: string;
-}>(tracks: T[]): AlbumGroup<T>[] {
-  const byKey = new Map<string, AlbumGroup<T>>();
-  for (const t of tracks) {
-    const artist = trackArtist(t);
-    const album = trackAlbum(t);
-    const key = `${artist}\u0000${album}`;
-    let g = byKey.get(key);
-    if (!g) {
-      g = { album, artist, year: t.year ?? null, tracks: [] };
-      byKey.set(key, g);
-    }
-    g.tracks.push(t);
-    if (t.year && (!g.year || t.year < g.year)) g.year = t.year;
-  }
-  const groups = [...byKey.values()];
-  for (const g of groups) {
-    g.tracks.sort((a, b) =>
-      (a.disc_no ?? 0) - (b.disc_no ?? 0)
-      || (a.track_no ?? 0) - (b.track_no ?? 0)
-      || String(a.title ?? '').localeCompare(String(b.title ?? '')));
-  }
-  groups.sort((a, b) => (b.year ?? 0) - (a.year ?? 0) || a.album.localeCompare(b.album));
-  return groups;
-}
-
 export interface ArtistGroup<T> {
   artist: string;
   tracks: T[];

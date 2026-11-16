@@ -14,8 +14,6 @@
 // `pnpm test:contracts` runs a scan (test/policy.mjs) asserting no route file
 // re-types a role comparison, so the speed bump cannot be walked around.
 
-const ROLES = Object.freeze(['guest', 'user', 'admin'])
-
 // Every action the service gates, with the roles that hold it. One table, so
 // "what can a guest do?" is a question you answer by reading rather than by
 // grepping — which is the whole point of extracting this.
@@ -72,11 +70,4 @@ function requires(action, resolveUser) {
   }
 }
 
-/** Every action a role holds — the shape a UI uses to decide what to render, so
- *  the screen and the server agree about what is possible instead of each
- *  hard-coding its own idea. */
-function actionsFor(role) {
-  return Object.keys(ACTIONS).filter(a => roleCan(role, a))
-}
-
-module.exports = { ROLES, ACTIONS, can, roleCan, requires, actionsFor }
+module.exports = { ACTIONS, can, roleCan, requires }

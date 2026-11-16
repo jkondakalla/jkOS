@@ -16,7 +16,7 @@
  * Kept free of React and of the DOM so it can be unit-tested directly
  * (test/cards-logic.mjs transpiles it and calls these functions for real).
  */
-import { addDays, isoDate, localDate, weekStart } from '@jkos/cards'
+import { addDays, isoDate, weekStart } from '@jkos/cards'
 
 export const ROUTINE_KIND = 'routine'
 
@@ -54,9 +54,6 @@ export function weeklyTarget(routine: any): number {
 export function floatCount(routine: any): number {
   return Math.max(0, weeklyTarget(routine) - cadenceDays(routine).length)
 }
-
-export const hasDay = (routine: any, offset: number): boolean =>
-  cadenceDays(routine).includes(offset)
 
 /** The cadence string with `offset` flipped — the ONE place the frontend writes
  *  this encoding. Returns the new value for a PATCH; does not mutate. */
@@ -128,9 +125,6 @@ export function skipRefOf(occurrenceOrIso: any): string {
   const ref = String(occurrenceOrIso?.ext_ref || '')
   return ref.startsWith('routine:') ? ref.split(':').slice(2).join(':') : ''
 }
-
-/** Is this date struck out of the routine's pattern? */
-export const isSkipped = (routine: any, iso: string): boolean => skipsOf(routine).has(iso)
 
 /** The skip string with `suffix` flipped — the ONE place the frontend writes this
  *  encoding. Returns the new value for a PATCH; does not mutate. Sorted, to match
@@ -255,13 +249,6 @@ export function streakOf(routine: any, items: any[], today: string): number {
     break
   }
   return n
-}
-
-/* ── Small formatting shared by the board ─────────────────────────────────── */
-
-/** "Mon 11" for a column head. */
-export function cellLabel(iso: string): string {
-  return String(localDate(iso).getDate())
 }
 
 /** The Monday of the week containing `iso` — re-exported so callers need one
