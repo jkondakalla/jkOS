@@ -443,9 +443,39 @@ function checkDefaultServer() {
   return true
 }
 
+/* Registration is closed at the edge on production (TODO §10 A1). Production jkAuth still
+   runs the code whose POST /auth/register makes a `user` account for anyone; the invite
+   requirement reaches it only at the promote. Until then every server block that proxies
+   requests to PRODUCTION jkAuth must refuse the route, in any case and with or without a
+   trailing slash (Express matches all of those). `location = /health/…` blocks are set
+   aside: an exact-match location can't carry another path. Remove this check together
+   with the nginx block, at K11, once production runs invite-only registration. */
+function checkRegistrationClosed() {
+  const strip = (t) => t.replace(/#[^\n]*/g, '')
+  const PROD_AUTH = /\bhttp:\/\/jkos-auth:3100\b/
+  const REFUSAL = /\blocation\s+~\*\s+\^\/auth\/register\/\?\$\s*\{[^}]*\breturn\s+403\b[^}]*\}/
+  const open = []
+  for (const f of ['standalone.conf', 'apps-generated.conf']) {
+    for (const b of serverBlocks(strip(readFileSync(join(DIR, f), 'utf8')))) {
+      const routed = b.body.replace(/\blocation\s+=\s+\S+\s*\{[^}]*\}/g, '')
+      if (PROD_AUTH.test(routed) && !REFUSAL.test(routed)) open.push(`${f}: ${b.names.join(' ')}`)
+    }
+  }
+  const peers = strip(readFileSync(join(DIR, 'weave-proxy.conf'), 'utf8')).replace(/\blocation\s+=\s+\S+\s*\{[^}]*\}/g, '')
+  if (PROD_AUTH.test(peers)) open.push('weave-proxy.conf: a prefix location reaches production jkAuth on every origin')
+  if (open.length) {
+    console.error(`✗ production jkAuth is reachable without the /auth/register refusal (${open.join('; ')}). ` +
+      'Add `location ~* ^/auth/register/?$ { return 403 …; }` to that server block (TODO §10 A1).')
+    return false
+  }
+  console.log('✓ production registration is refused at the edge (every block that reaches production jkAuth carries the 403)')
+  return true
+}
+
 if (process.argv.includes('--check')) {
   let drift = !checkStandaloneAssetlinks()
   if (!checkDefaultServer()) drift = true
+  if (!checkRegistrationClosed()) drift = true
   for (const t of targets) {
     let current = ''
     try { current = readFileSync(t.path, 'utf8') } catch { /* missing → drift */ }
