@@ -96,7 +96,12 @@ class PlaybackService : MediaSessionService() {
         recorder = rec
         current = rec
 
-        val artwork = DataSourceBitmapLoader(MoreExecutors.listeningDecorator(Executors.newSingleThreadExecutor()), authed)
+        // Artwork goes through `authed` too, so a cover is fetched with the token only when its
+        // URL is under api_base, exactly like the stream.
+        val artwork = DataSourceBitmapLoader.Builder(this)
+            .setExecutorService(MoreExecutors.listeningDecorator(Executors.newSingleThreadExecutor()))
+            .setDataSourceFactory(authed)
+            .build()
         session = MediaSession.Builder(this, player)
             .setCallback(QueueCallback())
             .setBitmapLoader(artwork)
