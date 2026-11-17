@@ -69,6 +69,53 @@ object BeigeBoardApi {
         api.call("DELETE", "/api/auth/$provider")
     }
 
+    // ── routines ──
+
+    suspend fun routines(): List<Routine> = Routines.routines(api.get("/api/routines"))
+
+    /** One routine with its document: what is edited and imported back to change it. */
+    suspend fun routine(id: Long): RoutineDoc = Routines.routine(api.get("/api/routines/$id"))
+
+    suspend fun preview(id: Long, cycles: Int = 6): List<Session> = Routines.preview(api.get("/api/routines/$id/preview?cycles=$cycles"))
+
+    /** [measure] is load, target, sets or volume (routineSeries declares the four). */
+    suspend fun series(id: Long, measure: String): List<StepSeries> = Routines.series(api.get("/api/routines/$id/series?measure=$measure"))
+
+    suspend fun metric(id: Long): Metric? = Routines.metric(api.get("/api/routines/$id/metric"))
+
+    suspend fun revisions(id: Long): List<Revision> = Routines.revisions(api.get("/api/routines/$id/revisions"))
+
+    /** importRoutine, or its dry run (?dryRun=1: validated and rendered, nothing written). */
+    suspend fun importRoutine(body: JSONObject, dryRun: Boolean): ImportReport =
+        Routines.routineReport(api.call("POST", "/api/routines/import" + if (dryRun) "?dryRun=1" else "", body.toString()).text)
+
+    suspend fun importBundle(body: JSONObject, dryRun: Boolean): ImportReport =
+        Routines.bundleReport(api.call("POST", "/api/routines/bundle" + if (dryRun) "?dryRun=1" else "", body.toString()).text)
+
+    // ── the library ──
+
+    suspend fun library(): List<LibraryEntry> = Library.entries(api.get("/api/library"))
+
+    /** saveLibraryEntry: makes one, or replaces the one with the same collection and slug. */
+    suspend fun saveEntry(changes: Map<String, Any?>) {
+        api.call("POST", "/api/library", Library.body(changes, edit = false).toString())
+    }
+
+    suspend fun editEntry(id: Long, changes: Map<String, Any?>) {
+        api.call("PATCH", "/api/library/$id", Library.body(changes, edit = true).toString())
+    }
+
+    suspend fun deleteEntry(id: Long) {
+        api.call("DELETE", "/api/library/$id")
+    }
+
+    /** importLibrary: upserts by (collection, slug). Answers "N new, M updated, K refused". */
+    suspend fun importLibrary(body: JSONObject): String {
+        val o = JSONObject(api.call("POST", "/api/library/import", body.toString()).text)
+        val failed = o.optJSONArray("failed")?.length() ?: 0
+        return "${o.optInt("created")} new, ${o.optInt("updated")} updated" + if (failed > 0) ", $failed refused" else ""
+    }
+
     suspend fun deload(id: Long, on: Boolean): Item =
         Items.item(JSONObject(api.call("POST", "/api/items/$id/deload", Items.deloadBody(on).toString()).text))
 }

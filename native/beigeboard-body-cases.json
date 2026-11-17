@@ -201,6 +201,169 @@
         "kind": "task",
         "idempotency_key": "k-7"
       }
+    },
+    {
+      "capability": "saveLibraryEntry",
+      "name": "a new library entry",
+      "build": {
+        "kind": "librarySave",
+        "changes": {
+          "collection": "exercise",
+          "title": "Landmine Press",
+          "unit": "reps",
+          "tags": [
+            "push",
+            "press"
+          ],
+          "variants": [
+            "Half-kneeling",
+            "Standing"
+          ]
+        }
+      },
+      "body": {
+        "collection": "exercise",
+        "title": "Landmine Press",
+        "unit": "reps",
+        "tags": [
+          "push",
+          "press"
+        ],
+        "variants": [
+          "Half-kneeling",
+          "Standing"
+        ]
+      }
+    },
+    {
+      "capability": "updateLibraryEntry",
+      "name": "an entry's title and unit cleared",
+      "build": {
+        "kind": "libraryEdit",
+        "changes": {
+          "title": "Landmine Press (kneeling)",
+          "unit": null
+        }
+      },
+      "body": {
+        "title": "Landmine Press (kneeling)",
+        "unit": null
+      }
+    },
+    {
+      "capability": "importRoutine",
+      "name": "a routine document, with what changed, its undeclared keys left out",
+      "build": {
+        "kind": "routineImport",
+        "document": {
+          "slug": "lower-body",
+          "title": "Lower Body",
+          "days": [
+            "mon",
+            "thu"
+          ],
+          "spec": {
+            "steps": [
+              {
+                "ref": "back-squat"
+              }
+            ]
+          },
+          "id": 41,
+          "created_at": "x"
+        },
+        "note": "heavier squats"
+      },
+      "body": {
+        "slug": "lower-body",
+        "title": "Lower Body",
+        "days": [
+          "mon",
+          "thu"
+        ],
+        "spec": {
+          "steps": [
+            {
+              "ref": "back-squat"
+            }
+          ]
+        },
+        "revision_note": "heavier squats"
+      },
+      "notSent": [
+        "created_at",
+        "id"
+      ]
+    },
+    {
+      "capability": "importRoutineBundle",
+      "name": "a bundle, its export-file keys left out",
+      "build": {
+        "kind": "bundleImport",
+        "document": {
+          "kind": "jkos.beigeboard.bundle",
+          "library": [
+            {
+              "collection": "exercise",
+              "slug": "nordic-curl"
+            }
+          ],
+          "routines": [
+            {
+              "title": "Posterior",
+              "spec": {
+                "steps": [
+                  {
+                    "ref": "nordic-curl"
+                  }
+                ]
+              }
+            }
+          ],
+          "exported_at": "x"
+        }
+      },
+      "body": {
+        "kind": "jkos.beigeboard.bundle",
+        "library": [
+          {
+            "collection": "exercise",
+            "slug": "nordic-curl"
+          }
+        ],
+        "routines": [
+          {
+            "title": "Posterior",
+            "spec": {
+              "steps": [
+                {
+                  "ref": "nordic-curl"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "notSent": [
+        "exported_at"
+      ]
+    },
+    {
+      "capability": "importLibrary",
+      "name": "a library export file's entries",
+      "build": {
+        "kind": "libraryImport",
+        "text": "{\"kind\":\"jkos.beigeboard.library\",\"count\":1,\"entries\":[{\"collection\":\"exercise\",\"slug\":\"zercher-squat\",\"title\":\"Zercher Squat\"}]}"
+      },
+      "body": {
+        "entries": [
+          {
+            "collection": "exercise",
+            "slug": "zercher-squat",
+            "title": "Zercher Squat"
+          }
+        ]
+      }
     }
   ]
 }

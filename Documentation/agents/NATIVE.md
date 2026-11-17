@@ -223,7 +223,10 @@ origin-scoped listeners gets no bridge at all (the page still works).
 >   holds them, CONTROLS.md CF-4), and a `Board` holding the items with optimistic writes. Pin
 >   and focus are the HUD shelf in jkAuth's preferences (`auth/HudShelf.kt`, through
 >   `AccountApi`), read with the web's XC-5 fallback. `Tree` walks goals → lists → tasks and
->   measures progress as the web's getProgress does.
+>   measures progress as the web's getProgress does. Routines and the library (`Routines.kt`):
+>   a routine is changed as its document, through the import's dry run and then the import.
+>   Every field list and vocabulary the app keeps is held by check:native to its declaration
+>   or to `@jkos/routine-spec`.
 > - **A tab exists only for an app in the token's `aud`** (`Tabs.forAud`). The audience is read
 >   from the access token and kept in the sealed session file, so the tabs are right at a cold
 >   start. Each tab has its own back stack; the mini player sits above the bar.

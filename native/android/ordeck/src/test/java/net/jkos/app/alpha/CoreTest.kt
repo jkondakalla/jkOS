@@ -595,6 +595,7 @@ class BeigeBoardTest {
         val wrong = (0 until all.length()).mapNotNull { i ->
             val c = all.getJSONObject(i)
             val b = c.getJSONObject("build")
+            var notSent = emptyList<String>()
             fun s(k: String) = if (b.has(k) && !b.isNull(k)) b.getString(k) else null
             val got = when (b.getString("kind")) {
                 "create" -> net.jkos.app.alpha.beigeboard.Items.createBody(b.getString("title"), b.getString("itemKind"), s("dueDate"), s("time"), b.getString("key"), if (b.has("parentId")) b.getLong("parentId") else null)
@@ -605,9 +606,19 @@ class BeigeBoardTest {
                 }
                 "dependency" -> net.jkos.app.alpha.beigeboard.Items.dependencyBody(b.getLong("dependsOn"))
                 "deload" -> net.jkos.app.alpha.beigeboard.Items.deloadBody(b.getBoolean("on"))
+                "librarySave", "libraryEdit" -> {
+                    val ch = b.getJSONObject("changes")
+                    fun v(k: String): Any? = when (val x = ch.opt(k)) { JSONObject.NULL -> null; is JSONArray -> (0 until x.length()).map { x.getString(it) }; else -> x }
+                    net.jkos.app.alpha.beigeboard.Library.body(ch.keys().asSequence().associateWith(::v), edit = b.getString("kind") == "libraryEdit")
+                }
+                "routineImport" -> net.jkos.app.alpha.beigeboard.Routines.importBody(b.getJSONObject("document"), s("note")).also { notSent = it.notSent }.body
+                "bundleImport" -> net.jkos.app.alpha.beigeboard.Routines.bundleBody(b.getJSONObject("document")).also { notSent = it.notSent }.body
+                "libraryImport" -> net.jkos.app.alpha.beigeboard.Library.importBody(b.getString("text"))!!
                 else -> error("unknown kind")
             }
-            if (canon(got) == canon(c.getJSONObject("body"))) null else "${c.getString("name")}: expected ${c.getJSONObject("body")}, got $got"
+            val wantNotSent = c.optJSONArray("notSent")?.let { a -> (0 until a.length()).map { a.getString(it) } } ?: emptyList()
+            if (canon(got) == canon(c.getJSONObject("body")) && notSent == wantNotSent) null
+            else "${c.getString("name")}: expected ${c.getJSONObject("body")} (not sent $wantNotSent), got $got (not sent $notSent)"
         }
         assertTrue(wrong.joinToString("\n"), all.length() >= 8 && wrong.isEmpty())
     }
@@ -651,6 +662,21 @@ class BeigeBoardTest {
         assertEquals(67, tree.progress(1).pct); assertEquals(0, tree.progress(9).pct)
         assertEquals(listOf(1L, 9L), tree.goals.map { it.id })
         assertEquals(listOf(3L, 4L), tree.children(2).map { it.id })
+    }
+
+    @Test fun aRoutinesReadsAndItsImportReports() {
+        val prev = net.jkos.app.alpha.beigeboard.Routines.preview("""{"id":4,"sessions":[{"cycle":2,"phase":"build","deload":false,"line":"3 steps","steps":[{"key":"squat","title":"Back Squat","line":"3 × 5 @ 185 lb"}]}]}""")
+        assertEquals(2, prev.single().cycle); assertEquals("3 × 5 @ 185 lb", prev.single().steps.single().line)
+        val ser = net.jkos.app.alpha.beigeboard.Routines.series("""{"steps":[{"key":"go","title":"Go","points":[{"cycle":0,"date":"2026-11-02","completed":true,"deload":false,"prescribed":5,"performed":3,"met":false},{"cycle":1,"date":null,"completed":false,"deload":false,"prescribed":6,"performed":null,"met":null}]}]}""")
+        assertEquals(listOf(3.0, null), ser.single().points.map { it.performed }); assertEquals(false, ser.single().points[0].met)
+        assertNull(net.jkos.app.alpha.beigeboard.Routines.metric("""{"id":4,"metric":null}"""))
+        assertEquals(40, net.jkos.app.alpha.beigeboard.Routines.metric("""{"metric":{"measure":"volume","unit":"reps","label":"Reps","target":500,"value":200,"pct":40}}""")!!.pct)
+        val dry = net.jkos.app.alpha.beigeboard.Routines.routineReport("""{"ok":true,"dryRun":true,"slug":"lower","action":"update","warnings":[{"path":"steps[0]","code":"NO_PROGRESSION","message":"never gets harder"}],"summary":"Mon, Thu","sessions":[]}""")
+        assertTrue(dry.dryRun); assertEquals(listOf("Would update “lower”"), dry.lines); assertEquals("never gets harder", dry.warnings.single().message)
+        val b = net.jkos.app.alpha.beigeboard.Routines.bundleReport("""{"ok":true,"library":{"created":1,"updated":0},"routines":[{"slug":"pc","created":true}]}""")
+        assertEquals(listOf("Library: 1 new, 0 updated", "Routine “pc”: created"), b.lines)
+        assertTrue(net.jkos.app.alpha.beigeboard.Routines.isBundle(JSONObject("""{"routines":[]}"""))); assertFalse(net.jkos.app.alpha.beigeboard.Routines.isBundle(JSONObject("""{"title":"x","spec":{}}""")))
+        assertTrue(runCatching { net.jkos.app.alpha.beigeboard.Library.body(mapOf("slug" to "x"), edit = true) }.exceptionOrNull() is IllegalArgumentException)
     }
 
     @Test fun theCalendarsDaysStartOnMonday() {

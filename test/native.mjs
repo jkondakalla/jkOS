@@ -636,12 +636,29 @@ const policy = require(resolve(root, 'native/desktop/src/policy.js'));
   check(bodies.length >= 8 && bodyWrong.length === 0,
     `BeigeBoard: all ${bodies.length} bodies the app builds carry only their capability's declared fields, required ones included`,
     `a BeigeBoard body goes past its declaration:\n    ${bodyWrong.join('\n    ')}`);
-  const upd = /val UPDATE_FIELDS = setOf\(([\s\S]*?)\)/.exec(read(`${SRC}/beigeboard/Items.kt`))?.[1] ?? '';
-  const updKotlin = [...upd.matchAll(/"(\w+)"/g)].map((m) => m[1]).sort();
-  const updDeclared = caps.updateItem.body.map((f) => f.name).filter((n) => !pathParams(caps.updateItem).includes(n)).sort();
-  check(JSON.stringify(updKotlin) === JSON.stringify(updDeclared),
-    `Items.UPDATE_FIELDS is updateItem's declared body (${updDeclared.length} fields)`,
-    `Items.UPDATE_FIELDS ${JSON.stringify(updKotlin)} is not updateItem's declared body ${JSON.stringify(updDeclared)}`);
+  // Each field list the app keeps is its capability's declared body (less the path's own
+  // parameters), and each vocabulary is @jkos/routine-spec's: typed twice, held equal here.
+  const kotlinList = (file, name) => {
+    const m = new RegExp(`val ${name} = (?:setOf|listOf)\\(([\\s\\S]*?)\\)`).exec(read(`${SRC}/beigeboard/${file}`));
+    return m ? [...m[1].matchAll(/"([^"]+)"/g)].map((x) => x[1]) : null;
+  };
+  const declaredBody = (id) => caps[id].body.map((f) => f.name).filter((n) => !pathParams(caps[id]).includes(n));
+  const RS = require(resolve(root, 'packages/routine-spec/src/index.js'));
+  const lists = [
+    ['Items.kt', 'UPDATE_FIELDS', declaredBody('updateItem'), 'updateItem'],
+    ['Routines.kt', 'IMPORT_FIELDS', declaredBody('importRoutine'), 'importRoutine'],
+    ['Routines.kt', 'BUNDLE_FIELDS', declaredBody('importRoutineBundle'), 'importRoutineBundle'],
+    ['Routines.kt', 'SAVE_FIELDS', declaredBody('saveLibraryEntry'), 'saveLibraryEntry'],
+    ['Routines.kt', 'EDIT_FIELDS', declaredBody('updateLibraryEntry'), 'updateLibraryEntry'],
+    ['Routines.kt', 'COLLECTIONS', RS.COLLECTIONS, 'routine-spec COLLECTIONS'],
+    ['Routines.kt', 'UNITS', RS.UNITS, 'routine-spec UNITS'],
+    ['Routines.kt', 'LOAD_UNITS', RS.LOAD_UNITS, 'routine-spec LOAD_UNITS'],
+  ];
+  const listWrong = lists.filter(([f, n, want]) => JSON.stringify((kotlinList(f, n) ?? []).slice().sort()) !== JSON.stringify(want.slice().sort()))
+    .map(([f, n, want, of]) => `${f} ${n} ${JSON.stringify(kotlinList(f, n))} is not ${of} ${JSON.stringify(want)}`);
+  check(listWrong.length === 0,
+    `the app's ${lists.length} field lists and vocabularies are their declarations' (${lists.map(([, n, , of]) => `${n} = ${of}`).join(', ')})`,
+    `a list the app keeps has drifted from its declaration:\n    ${listWrong.join('\n    ')}`);
   check(/System\.getProperty\(prop\)/.test(pcTest) && ['sessionModeCases', 'sessionStateCases', 'sessionCommandCases', 'hudShelfCases', 'beigeboardBodyCases'].every((k) => pcTest.includes(`cases("jkos.${k}")`)
       && new RegExp(`systemProperty\\("jkos\\.${k}", ${k}\\.absolutePath\\)`).test(gradle)),
     'the Kotlin session, shelf and BeigeBoard tests read the same five case files',

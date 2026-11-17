@@ -71,10 +71,13 @@ import java.util.UUID
 sealed interface BeigeBoardScreen : Screen {
     data object Today : BeigeBoardScreen
     data class GoalPage(val id: Long) : BeigeBoardScreen
+    data class RoutinePage(val id: Long) : BeigeBoardScreen
+    /** A routine's document to edit ([routineId]), or a new one or a bundle to import (null). */
+    data class DocumentPage(val routineId: Long?) : BeigeBoardScreen
 }
 
 /** The tab's first screen shows one of these; the rest are pushed. */
-enum class BoardSection(val label: String) { Today("Today"), Goals("Goals"), Calendar("Calendar") }
+enum class BoardSection(val label: String) { Today("Today"), Goals("Goals"), Calendar("Calendar"), Routines("Routines") }
 
 /** The BeigeBoard tab's first screen. */
 val BeigeBoardRoot: Screen = BeigeBoardScreen.Today
@@ -174,6 +177,8 @@ fun BeigeBoardTab(screen: Screen, nav: Nav) {
     LaunchedEffect(Unit) { board.load() }
     when (screen) {
         is BeigeBoardScreen.GoalPage -> GoalScreen(screen.id, board, nav::pop, nav::push)
+        is BeigeBoardScreen.RoutinePage -> RoutineScreen(screen.id, board, nav::pop, nav::push)
+        is BeigeBoardScreen.DocumentPage -> DocumentScreen(screen.routineId, board, nav::pop)
         else -> Column(Modifier.fillMaxSize()) {
             Header("BeigeBoard", onBack = null) {
                 TextButton(onClick = { board.load() }) { Text("Refresh") }
@@ -185,6 +190,7 @@ fun BeigeBoardTab(screen: Screen, nav: Nav) {
                 BoardSection.Today -> TodayScreen(board, nav::push)
                 BoardSection.Goals -> GoalsPane(board, nav::push)
                 BoardSection.Calendar -> CalendarPane(board, nav::push)
+                BoardSection.Routines -> RoutinesPane(board, nav::push)
             }
         }
     }

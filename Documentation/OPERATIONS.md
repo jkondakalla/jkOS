@@ -462,7 +462,24 @@ exists.
   - Tick a task from either view: it's done on Today and on the web.
   - Calendars: each provider, connected (with its account) or "Connect it from BeigeBoard on
     the web". With one connected: Sync now says how many of its events are on the board,
-    and they appear. A calendar that answers empty keeps the events the board had, and says so. Disconnect asks first, then its events leave the board, here and on the web.
+    and they appear. A calendar that answers empty keeps the events the board had, and says
+    so. Disconnect asks first, then its events leave the board, here and on the web.
+
+- **H4 · BeigeBoard: routines and the library.** BeigeBoard → Routines.
+  - Routines: each routine with its summary. Open one: its goal metric (value of target),
+    the next six sessions as numbers, "Coming up" (its sessions as tasks; tick one, or take it
+    easy, from its sheet), "How it has gone" per step (prescribed as a line, performed as
+    dots; switch between load, reps, sets and volume), and its versions.
+  - Edit: the routine's document. Change a number, add "What changed", Check (a dry run: what
+    it would do, the lint, the first sessions as numbers), then Import. The web shows the
+    change, and its versions list your note. Edit the text after a Check: Import waits for
+    another Check.
+  - New or import: Paste a document an assistant wrote (a routine, or a bundle with library
+    entries), Check, Import. Add a key the import doesn't take: it is listed as not sent.
+    Paste something that isn't JSON: it says so, and nothing is sent.
+  - Library: search, and filter by collection. Add an entry (pick its unit and load unit, a
+    ladder one rung a line). Edit one: only what changed is sent, and its slug can't change.
+    Delete one (it asks first). Import… a library export from the web: "N new, M updated".
 
 ### Android: jkOS Home on a panel device
 

@@ -635,13 +635,18 @@ Each step ends in an APK and a device checklist. Everything goes through a capab
    applies. That's a server change, in the same deploy. Connecting a calendar stays on the web.
    The APK is `~/Android/jkos-apks/jkos-alpha-0.1.0-staging-h3.apk`.
    **You:** after the deploy, run OPERATIONS § Native apps' H3 checks.
-4. **Routines and the library:**
-   - routines with their preview, series, metric and revisions;
-   - occurrences are ordinary tasks;
-   - creating or changing a routine goes through the same document import the web uses
-     (`importRoutineBundle`, `importRoutine`);
-   - the library is browsed, edited and imported. Only `importLibrary` is declared today, so
-     declare the edit routes first.
+4. **Routines and the library.** Built 2026-11-17, and not pushed.
+   - BeigeBoard first declared what the app needed, and fixed what it found wrong. That's three
+     server changes, in the same deploy:
+     - the library's one-entry writes;
+     - the routine's document read, and the import fields that document carries;
+     - `importRoutineBundle`'s body, which declared `{ bundle, dryRun }` and never worked as
+       declared.
+   - A pasted document's undeclared keys are named back as "not sent", never forwarded.
+   - Not built: the web's RoutineForge (a form-based routine editor). On the phone a routine is
+     its document, checked by dry run before it's imported.
+   - The APK is `~/Android/jkos-apks/jkos-alpha-0.1.0-staging-h4.apk`.
+   - **You:** after the deploy, run OPERATIONS § Native apps' H4 checks.
 
 ### I · The HUD as home
 
