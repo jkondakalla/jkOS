@@ -545,6 +545,9 @@ const TRACKS_DATASET = {
     { name: 'album',  type: 'string', label: 'Album (exact)',                              column: 'album',      op: 'eq' },
     { name: 'genre',  type: 'string', label: 'Genre (exact tag match)',                    column: 'genres',     op: 'tags' },
     { name: 'since',  type: 'string', label: 'Updated since (updated_at delta cursor)',    column: 'updated_at', op: 'gt' },
+    // For a reader that already holds track ids (a playlist's track_refs, the session's
+    // queue) and needs those rows, not the catalog.
+    { name: 'ids',    type: 'number', label: 'Track ids (comma-separated; at most 200 per request)', column: 'id', op: 'in' },
   ],
   item: TRACK_SHAPE,
   invalidates: [TRACKS_KEY],

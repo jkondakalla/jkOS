@@ -10,7 +10,9 @@
 //   'eq'     column = ?
 //   'gt'     column > ?            (deltas, e.g. ?since= over updated_at)
 //   'prefix' column LIKE ?  (value + '%')   — an app's own ext_ref namespace
+//   'search' (col LIKE ? OR …)    — one free-text box over several declared columns
 //   'tags'   one `column LIKE '%"tag"%'` per CSV tag — JSON-array membership
+//   'in'     column IN (?, …)     — the rows whose ids the caller already holds (CSV)
 //
 // Example spec (BeigeBoard items):
 //   [ { param:'kind', column:'kind', op:'eq' },
@@ -22,7 +24,7 @@
 
 /**
  * @param {Record<string, unknown>} query  req.query
- * @param {Array<{param:string, column:string, op:'eq'|'gt'|'prefix'|'tags'}>} spec
+ * @param {Array<{param:string, column:string, op:'eq'|'gt'|'prefix'|'search'|'tags'|'in'}>} spec
  * @param {{ base?: string[], baseParams?: unknown[] }} [seed] clauses/params the
  *   caller always wants ANDed in first (e.g. ['user_id = ?'] + [req.user.sub]).
  * @returns {{ clauses: string[], params: unknown[], where: string }}
@@ -74,7 +76,7 @@ function coerceFilterValue(type, s) {
  * SAYS it can be read by is exactly what it filters on. `column` defaults to the param name,
  * `op` to 'eq'. `type` rides along too — buildItemFilters needs it to bind a value that
  * matches the column's actual storage affinity (see coerceFilterValue above).
- * @param {Array<{name:string, type?:string, column?:string, op?:'eq'|'gt'|'prefix'|'tags'}>} filters
+ * @param {Array<{name:string, type?:string, column?:string, op?:'eq'|'gt'|'prefix'|'search'|'tags'|'in'}>} filters
  * @returns {Array<{param:string, column:string, op:string, type:string}>}
  */
 function filterSpec(filters = []) {
@@ -84,6 +86,9 @@ function filterSpec(filters = []) {
     columns: f.columns,
   }))
 }
+
+/** How many values one `in` filter reads. A reader holding more ids asks in pages of this. */
+const IN_MAX = 200
 
 function buildItemFilters(query, spec, seed = {}) {
   const clauses = Array.isArray(seed.base) ? [...seed.base] : []
@@ -126,10 +131,27 @@ function buildItemFilters(query, spec, seed = {}) {
           clauses.push(`${f.column} LIKE ? ESCAPE '\\'`); params.push('%"' + escLike(t.replace(/"/g, '')) + '"%')
         }
         break
+      case 'in': {
+        // Membership in a list the CALLER already holds: a playlist's track ids, a queue.
+        // Without it the only way to turn ids into rows was to read the whole dataset and
+        // pick, which is fine for 300 rows and not for a 47,000-track catalog on a phone.
+        // Each value is coerced like 'eq' (so an INTEGER id column is bound a number), what
+        // doesn't coerce is dropped, duplicates collapse, and at most IN_MAX are read.
+        // ⚠️ A list with nothing usable in it matches NOTHING. Every other op drops an
+        // unusable value and its clause with it, which is right for a narrowing filter and
+        // wrong here: `?ids=junk` would answer with every row, to a caller who asked for
+        // some specific ones.
+        const values = [...new Set(s.split(',').map((x) => x.trim()).filter(Boolean)
+          .map((x) => coerceFilterValue(f.type, x)).filter((x) => x !== undefined))].slice(0, IN_MAX)
+        if (values.length === 0) { clauses.push('0'); break }
+        clauses.push(`${f.column} IN (${values.map(() => '?').join(',')})`)
+        params.push(...values)
+        break
+      }
       default: break
     }
   }
   return { clauses, params, where: clauses.join(' AND ') }
 }
 
-module.exports = { buildItemFilters, filterSpec }
+module.exports = { buildItemFilters, filterSpec, IN_MAX }

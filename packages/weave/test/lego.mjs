@@ -196,6 +196,32 @@ if (!Database) {
   ok('GET ?priority=nope (invalid number) is ignored, not a false-match-everything or a 500',
     r.code === 200 && r.body.length === 2)
 
+  // ── Op 'in': exactly the rows whose ids the caller already holds (a playlist's
+  // track_refs, a queue). Driven through buildItemFilters directly: the op is the
+  // vocabulary's, whichever dataset declares it.
+  {
+    const { buildItemFilters, filterSpec, IN_MAX } = require('../src/server/filters.js')
+    const spec = [{ param: 'ids', column: 'id', op: 'in', type: 'number' }]
+    let f = buildItemFilters({ ids: '3,7,9' }, spec)
+    ok("op 'in': ?ids=3,7,9 → id IN (?,?,?) with the values bound as numbers",
+      f.where === 'id IN (?,?,?)' && JSON.stringify(f.params) === '[3,7,9]', JSON.stringify(f))
+    f = buildItemFilters({ ids: ' 3, x,,7 ,3' }, spec)
+    ok("op 'in': values that don't coerce are dropped, duplicates collapse",
+      f.where === 'id IN (?,?)' && JSON.stringify(f.params) === '[3,7]', JSON.stringify(f))
+    f = buildItemFilters({ ids: 'x,y' }, spec)
+    ok("op 'in': a list with nothing usable matches NOTHING — never every row",
+      f.where === '0' && f.params.length === 0, JSON.stringify(f))
+    f = buildItemFilters({ ids: '' }, spec)
+    ok("op 'in': an absent or empty param is no filter at all, like every op", f.where === '' && f.params.length === 0)
+    f = buildItemFilters({ ids: Array.from({ length: IN_MAX + 50 }, (_, i) => i + 1).join(',') }, spec)
+    ok(`op 'in': at most IN_MAX (${IN_MAX}) values are read`, IN_MAX === 200 && f.params.length === IN_MAX && f.params[IN_MAX - 1] === IN_MAX)
+    f = buildItemFilters({ slug: 'a,b' }, [{ param: 'slug', column: 'slug', op: 'in', type: 'string' }], { base: ['user_id = ?'], baseParams: [7] })
+    ok("op 'in': string values stay strings, after the caller's own seed clause",
+      f.where === 'user_id = ? AND slug IN (?,?)' && JSON.stringify(f.params) === '[7,"a","b"]', JSON.stringify(f))
+    ok("op 'in': filterSpec carries it from a declaration",
+      filterSpec([{ name: 'ids', type: 'number', column: 'id', op: 'in' }])[0].op === 'in')
+  }
+
   // ── Op-coverage: 'eq' on a `ref` field matches the same canonical string the
   // write path stored (numeric ref "1", and a string ref unchanged).
   r = call('GET /api/items', { query: { parent_ref: '1' } })

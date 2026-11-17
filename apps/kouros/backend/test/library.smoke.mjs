@@ -182,6 +182,24 @@ try {
   ok(Array.isArray(titlePrefix.json) && titlePrefix.json.length === 2,
     `filter: title=Song (prefix) matches Song One + Song Two (got ${titlePrefix.json?.length})`);
 
+  // ── GET /api/tracks?ids=<a,b> — exactly the rows a reader already holds ids for
+  // (a playlist's track_refs, a queue), instead of the whole catalog ───────────
+  {
+    const everyTrack = (await req('GET', '/api/tracks')).json;
+    const [a, , c] = everyTrack.map((t) => t.id);
+    ok(tracksDs.filters.some((f) => f.name === 'ids' && f.column === 'id' && f.op === 'in'),
+      'datasets doc: tracks declares the ids filter (column id, op in)');
+    const two = await req('GET', `/api/tracks?ids=${c},${a}`);
+    ok(Array.isArray(two.json) && two.json.length === 2 && two.json.map((t) => t.id).sort().join() === [a, c].sort().join(),
+      `filter: ids=${c},${a} returns exactly those two tracks (got ${JSON.stringify(two.json?.map?.((t) => t.id))})`);
+    const none = await req('GET', '/api/tracks?ids=999999,nope');
+    ok(Array.isArray(none.json) && none.json.length === 0,
+      `filter: ids that match no track return an empty list, never the catalog (got ${none.json?.length})`);
+    const junk = await req('GET', '/api/tracks?ids=nope');
+    ok(Array.isArray(junk.json) && junk.json.length === 0,
+      `filter: ids with nothing usable return an empty list, never the catalog (got ${junk.json?.length})`);
+  }
+
   // ── GET /api/tracks?genre=<value> — JSON-array membership, not substring ─────
   const genreRock = await req('GET', '/api/tracks?genre=Rock');
   ok(Array.isArray(genreRock.json) && genreRock.json.length === 2,

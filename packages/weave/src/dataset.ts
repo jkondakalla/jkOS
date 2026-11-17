@@ -24,7 +24,9 @@ export type FilterOp =
   | 'eq'      // column = value
   | 'gt'      // column > value (deltas, e.g. ?since= over updated_at)
   | 'prefix'  // column LIKE value%  (an app's own ext_ref namespace)
-  | 'tags';   // JSON-array membership, one clause per CSV tag
+  | 'search'  // one free-text box over several declared `columns`, OR'd
+  | 'tags'    // JSON-array membership, one clause per CSV tag
+  | 'in';     // column IN (the CSV values) — rows whose ids the caller already holds; at most 200
 
 /**
  * One query param a dataset's list endpoint honours. Extends BodyField (the public,

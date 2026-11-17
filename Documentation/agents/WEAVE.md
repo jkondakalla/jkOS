@@ -163,7 +163,10 @@ sweeps every declared dataset with `checkDeclaredDatasets` (`test/lib/smoke.mjs`
 the spec `buildItemFilters()` turns into bound SQL. **The declaration is the source; the
 SQL derives from it.** A filter with no `op` means the SQL was hand-written elsewhere — a
 drift surface. Operators: `eq`, `gt` (the `since` cursor), `prefix` (LIKE, metacharacters
-escaped), `tags` (JSON-array membership). Values are always bound.
+escaped), `search` (one text box over several declared columns), `tags` (JSON-array
+membership) and `in` (the rows whose ids the caller already holds, comma-separated, at most 200
+per request; a list with nothing usable in it matches nothing, never every row). Values are
+always bound.
 
 **`defineCollection` — one spec, no drift.** (`server/collection.js`, subpath
 `@jkos/weave/collection`, zero deps.) One typed field list expands into the table DDL +
