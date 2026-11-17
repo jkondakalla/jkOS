@@ -80,6 +80,13 @@ object Auth {
     /** A one-line message for the sign-in screen, or null. */
     val message = MutableStateFlow<String?>(null)
 
+    /** This install's own session, as GET /auth/sessions lists it (null until jkAuth says). */
+    @Volatile var familyId: String? = null
+        private set
+
+    /** The suite's theme mode for this person; the last one seen is kept across restarts. */
+    val themeMode = MutableStateFlow(ThemeMode.System)
+
     private val mutex = Mutex()
     private var access: String? = null
     private var accessExpiresAtMs = 0L
@@ -91,7 +98,10 @@ object Auth {
     fun init(context: Context) {
         config = ShellConfig.load(context)
         store = SessionStore(context)
-        _state.value = store.readSession()?.let { AuthState.SignedIn(it.user, it.aud) } ?: AuthState.SignedOut
+        val session = store.readSession()
+        familyId = session?.familyId
+        themeMode.value = ThemeMode.of(store.readThemeMode())
+        _state.value = session?.let { AuthState.SignedIn(it.user, it.aud) } ?: AuthState.SignedOut
     }
 
     /** Open jkAuth's authorize page in a Custom Tab (the system browser's engine, not ours). */
@@ -167,6 +177,21 @@ object Auth {
         }
     }
 
+    /** The profile changed (a new display name): keep what the screens show in step. */
+    suspend fun userChanged(user: User): Unit = withContext(Dispatchers.IO) {
+        mutex.withLock {
+            val s = store.readSession() ?: return@withLock
+            store.writeSession(s.refreshToken, user, s.aud, s.familyId)
+            _state.value = AuthState.SignedIn(user, s.aud)
+        }
+    }
+
+    /** The theme mode this person chose, here or on another device. */
+    fun themeModeSeen(mode: ThemeMode) {
+        themeMode.value = mode
+        store.writeThemeMode(mode.wire)
+    }
+
     /** Sign out here AND on the server (revoke), then forget everything. */
     suspend fun signOut(): Unit = withContext(Dispatchers.IO) {
         mutex.withLock {
@@ -210,7 +235,8 @@ object Auth {
 
     private fun adopt(grant: TokenGrant): String {
         val aud = Claims.audOf(grant.accessToken)
-        store.writeSession(grant.refreshToken, grant.user, aud) // FIRST: the old token is already spent
+        store.writeSession(grant.refreshToken, grant.user, aud, grant.familyId ?: familyId) // FIRST: the old token is already spent
+        familyId = grant.familyId ?: familyId
         access = grant.accessToken
         accessExpiresAtMs = System.currentTimeMillis() + grant.expiresInSec * 1000
         _state.value = AuthState.SignedIn(grant.user, aud)
@@ -222,6 +248,7 @@ object Auth {
         accessExpiresAtMs = 0
         store.clearSession()
         store.clearPending()
+        familyId = null
         _state.value = AuthState.SignedOut
     }
 }

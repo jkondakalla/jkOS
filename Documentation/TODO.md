@@ -580,11 +580,11 @@ app's Bearer user token (`resolveCaller`), and the token endpoint names the app'
 
 ### F · Account and devices
 
-- Who you are, the environment and the build.
-- Your devices, from `/auth/sessions`, with revoke.
-- Display name and theme, through `/auth/profile`.
-- Sign out.
-- Password and 2FA stay jkAuth's own pages, opened in a Custom Tab.
+Built, and not pushed (it ships with D and E): who you are, the display name and the theme mode
+through `/auth/profile`, your devices from `/auth/sessions` with sign-out, the build, and sign
+out. Password and two-factor open jkAuth's own page in a Custom Tab.
+
+1. **You:** after the D and E deploy, run OPERATIONS § Native apps' phase F checks.
 
 ### G · KourOS
 

@@ -187,6 +187,14 @@ origin-scoped listeners gets no bridge at all (the page still works).
 >   base".
 > - **One Kotlin package per app** under `net.jkos.app.alpha`, and every `/api/…` path an app's
 >   package types is a route that app declares, or is on `check:native`'s named list.
+> - **The Account tab is jkAuth's**: the display name and the theme mode through
+>   `/auth/profile`, the devices list and sign-out-a-device through `/auth/sessions`, each with
+>   the app's Bearer token (`AccountApi`). The app marks "this device" by the `family_id` the
+>   token endpoint returned. The theme mode is the suite's own `preferences.theme.mode`, drawn
+>   as the paper or dark face from hub.css's computed values. Password and two-factor stay
+>   jkAuth's own pages, opened in a Custom Tab.
+> - **One transport holds the token** (`BearerClient`): `AppApi` builds one for
+>   `${an app's base}/api/`, `AccountApi` one for `${auth_origin}/auth/`, and nothing else may.
 > - **A tab exists only for an app in the token's `aud`** (`Tabs.forAud`). The audience is read
 >   from the access token and kept in the sealed session file, so the tabs are right at a cold
 >   start. Each tab has its own back stack; the mini player sits above the bar.

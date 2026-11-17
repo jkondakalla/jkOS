@@ -7,8 +7,9 @@ import org.json.JSONObject
 
 data class User(val id: Long, val email: String, val name: String?, val role: String)
 
-/** POST /auth/native/token's answer, either grant. */
-data class TokenGrant(val accessToken: String, val expiresInSec: Long, val refreshToken: String, val user: User)
+/** POST /auth/native/token's answer, either grant. [familyId] is which of the person's
+ *  sessions this install is (null from a jkAuth that doesn't say). */
+data class TokenGrant(val accessToken: String, val expiresInSec: Long, val refreshToken: String, val user: User, val familyId: String?)
 
 object AuthModels {
     /** A string field, with JSON null and absence both null. (optString turns null into "null".) */
@@ -28,6 +29,7 @@ object AuthModels {
             expiresInSec = o.getLong("expires_in"),
             refreshToken = o.getString("refresh_token"),
             user = user(o.getJSONObject("user")),
+            familyId = o.str("family_id"),
         )
     }
 }

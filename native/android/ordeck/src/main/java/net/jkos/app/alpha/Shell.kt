@@ -41,6 +41,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
+import net.jkos.app.alpha.auth.AccountApi
 import net.jkos.app.alpha.auth.AccountRoot
 import net.jkos.app.alpha.auth.AccountTab
 import net.jkos.app.alpha.auth.Auth
@@ -130,6 +131,13 @@ private fun SignedIn(user: User, aud: Set<String>) {
         // here. Ask jkAuth for a token: its `aud` then decides.
         LearningAudience()
         return
+    }
+
+    // The person's theme mode, as soon as they are in: the profile is theirs to read with the
+    // app's token. A jkAuth that doesn't take the token yet answers 401, and the last mode
+    // seen stays.
+    LaunchedEffect(user.id) {
+        runCatching { Auth.themeModeSeen(AccountApi.profile().themeMode) }
     }
 
     var selected by remember { mutableStateOf(tabs.first()) }

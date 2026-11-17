@@ -1,7 +1,10 @@
 package net.jkos.app.alpha
 
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -9,40 +12,66 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.PathBuilder
 import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.unit.dp
+import net.jkos.app.alpha.auth.ThemeMode
 
-// The suite's dark face (packages/design/tokens/hub.css): ORDECK's near-black ground, the
-// cream ink and the amber accent, with KourOS's violet kept for its own surfaces.
-object Palette {
-    val Ground = Color(0xFF0F0F0F)      // ORDECK's theme_color, = @color/surface_dark
-    val Surface = Color(0xFF1A1814)
-    val SurfaceHigh = Color(0xFF2A261E)
-    val Ink = Color(0xFFEFE6C9)         // --hub-ink (dark)
-    val InkDim = Color(0xFFA39A86)
-    val Amber = Color(0xFFFFB000)       // --hub-accent (dark)
-    val OnAmber = Color(0xFF1C1408)     // --hub-ink (light): text on the accent
-    val Violet = Color(0xFF4B3F8F)      // KourOS's theme_color
-    val Danger = Color(0xFFFF4530)      // --hub-danger (dark)
-}
-
-private val Scheme = darkColorScheme(
-    primary = Palette.Amber,
-    onPrimary = Palette.OnAmber,
-    primaryContainer = Palette.Violet,
-    onPrimaryContainer = Palette.Ink,
-    secondary = Palette.Amber,
-    onSecondary = Palette.OnAmber,
-    background = Palette.Ground,
-    onBackground = Palette.Ink,
-    surface = Palette.Surface,
-    onSurface = Palette.Ink,
-    surfaceVariant = Palette.SurfaceHigh,
-    onSurfaceVariant = Palette.InkDim,
-    outline = Palette.InkDim,
-    error = Palette.Danger,
+// The suite's two faces, from packages/design/tokens/hub.css as a browser computes them
+// (packages/design/tokens/computed-baseline.json): paper and dark. Which one is drawn is the
+// person's own `preferences.theme.mode`, the same setting every web app follows.
+private class Face(
+    val ground: Color, val surface: Color, val surfaceHigh: Color, val line: Color,
+    val ink: Color, val inkDim: Color, val accent: Color, val onAccent: Color,
+    val danger: Color, val ok: Color,
 )
 
+private val DarkFace = Face(
+    ground = Color(0xFF11100D),       // --hub-ground-0
+    surface = Color(0xFF1A1814),      // --hub-ground-1
+    surfaceHigh = Color(0xFF2C2820),  // --hub-ground-3
+    line = Color(0xFF3A3528),         // --hub-line
+    ink = Color(0xFFEFE6C9),          // --hub-ink
+    inkDim = Color(0xFFD6CBA8),       // --hub-ink-muted
+    accent = Color(0xFFFFB000),       // --hub-accent
+    onAccent = Color(0xFF1C1408),
+    danger = Color(0xFFFF4530),       // --hub-danger
+    ok = Color(0xFF5CD66A),           // --hub-ok
+)
+
+private val PaperFace = Face(
+    ground = Color(0xFFEDE2C8),
+    surface = Color(0xFFE4D5B0),
+    surfaceHigh = Color(0xFFEAD9BB),
+    line = Color(0xFFC8AE88),
+    ink = Color(0xFF1C1408),
+    inkDim = Color(0xFF6B5038),
+    accent = Color(0xFFB27B05),       // the amber deepened for paper (color-mix 64% with #2a1c0e)
+    onAccent = Color(0xFFF7F1E3),     // --hub-ground-4
+    danger = Color(0xFFB42010),
+    ok = Color(0xFF2A7040),
+)
+
+/** KourOS's own colour (its web manifest's theme_color), for its surfaces. */
+val KourosViolet = Color(0xFF4B3F8F)
+
+private fun schemeOf(f: Face, dark: Boolean): ColorScheme {
+    val base = if (dark) darkColorScheme() else lightColorScheme()
+    return base.copy(
+        primary = f.accent, onPrimary = f.onAccent,
+        primaryContainer = KourosViolet, onPrimaryContainer = Color(0xFFEFE6C9),
+        secondary = f.accent, onSecondary = f.onAccent,
+        tertiary = f.ok, onTertiary = f.ground,
+        background = f.ground, onBackground = f.ink,
+        surface = f.surface, onSurface = f.ink,
+        surfaceVariant = f.surfaceHigh, onSurfaceVariant = f.inkDim,
+        outline = f.line, outlineVariant = f.line,
+        error = f.danger, onError = f.ground,
+    )
+}
+
 @Composable
-fun JkosTheme(content: @Composable () -> Unit) = MaterialTheme(colorScheme = Scheme, content = content)
+fun JkosTheme(mode: ThemeMode, content: @Composable () -> Unit) {
+    val dark = mode.isDark(isSystemInDarkTheme())
+    MaterialTheme(colorScheme = schemeOf(if (dark) DarkFace else PaperFace, dark), content = content)
+}
 
 /** The few glyphs the app needs, drawn here on a 24-unit grid (no icon library). */
 object Glyphs {

@@ -69,7 +69,7 @@ internal class KeystoreBox(private val alias: String) {
 /** What survives a restart: the refresh token, who it belongs to, and the audience the last
  *  access token carried (so the tabs are right before the first refresh). Never the access
  *  token itself. */
-internal data class StoredSession(val refreshToken: String, val user: User, val aud: Set<String>)
+internal data class StoredSession(val refreshToken: String, val user: User, val aud: Set<String>, val familyId: String?)
 
 /** A sign-in in flight: the PKCE verifier and state, kept across the app being killed while
  *  the Custom Tab is in front (the redirect then starts a fresh process). */
@@ -121,18 +121,20 @@ internal class SessionStore(context: Context) {
             StoredSession(
                 it.getString("refresh_token"), AuthModels.user(it.getJSONObject("user")),
                 if (aud == null) emptySet() else List(aud.length()) { i -> aud.getString(i) }.toSet(),
+                if (it.isNull("family_id")) null else it.getString("family_id"),
             )
         } catch (_: org.json.JSONException) {
             null
         }
     }
 
-    fun writeSession(refreshToken: String, user: User, aud: Set<String>) = write(
+    fun writeSession(refreshToken: String, user: User, aud: Set<String>, familyId: String?) = write(
         SESSION,
         JSONObject()
             .put("refresh_token", refreshToken)
             .put("user", JSONObject().put("id", user.id).put("email", user.email).put("name", user.name ?: JSONObject.NULL).put("role", user.role))
-            .put("aud", org.json.JSONArray(aud.toList())),
+            .put("aud", org.json.JSONArray(aud.toList()))
+            .put("family_id", familyId ?: JSONObject.NULL),
     )
 
     fun clearSession() = AtomicFile(File(dir, SESSION)).delete()
@@ -150,8 +152,16 @@ internal class SessionStore(context: Context) {
 
     fun clearPending() = AtomicFile(File(dir, PENDING)).delete()
 
+    /** The theme mode last seen for this person: not a secret, but it goes through the same
+     *  sealed, atomic write as everything else, so this stays the app's one way to a file. It
+     *  survives a sign-out on purpose: the sign-in screen keeps the face the person chose. */
+    fun readThemeMode(): String? = read(PREFS)?.let { if (it.isNull("theme_mode")) null else it.optString("theme_mode") }
+
+    fun writeThemeMode(mode: String) = write(PREFS, JSONObject().put("theme_mode", mode))
+
     companion object {
         private const val SESSION = "session.bin"
         private const val PENDING = "pending.bin"
+        private const val PREFS = "prefs.bin"
     }
 }

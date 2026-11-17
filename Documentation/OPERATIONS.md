@@ -335,6 +335,17 @@ exists.
   appear at once, before any network call. The consent page names **jkOS Alpha (staging)**, and
   `/auth/security` lists the session as app `net.jkos.app.alpha.staging`.
 
+- **F · Account and devices** (needs jkAuth with phase E deployed). The Account tab shows your
+  name, email and role. Change the display name and save: Home's greeting follows, and so does
+  the web portal after a reload. Pick Paper, Dark or System: the app changes face at once, the
+  status-bar icons stay readable, and the web apps follow after a reload. "Your devices" lists
+  this phone as **This device** with no sign-out button, your browser sessions as "A browser",
+  and signed-out ones last. Sign a browser out from the phone: that browser is bounced to the
+  sign-in page on its next request, and `/auth/security` shows it as `user_revoked`. "Open
+  account security" opens jkAuth's page in the browser. Sign out, then confirm the phone's
+  entry on `/auth/security` reads "signed out (logout)". Kill and reopen the app: it opens in
+  the face you chose, before any network call.
+
 ### Android: jkOS Home on a panel device
 
 Install `home-*.apk`, press Home, and choose **jkOS Home**, then **Always**. To get out: **hold

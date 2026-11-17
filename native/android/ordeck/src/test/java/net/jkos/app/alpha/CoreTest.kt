@@ -1,6 +1,8 @@
 package net.jkos.app.alpha
 
+import net.jkos.app.alpha.auth.AccountModels
 import net.jkos.app.alpha.auth.AuthModels
+import net.jkos.app.alpha.auth.ThemeMode
 import net.jkos.app.alpha.auth.Claims
 import net.jkos.app.alpha.auth.Pkce
 import net.jkos.app.alpha.auth.TokenGrant
@@ -163,7 +165,7 @@ class ModelsTest {
 
     @Test fun tokenGrant() {
         val g = AuthModels.tokenGrant("""{"access_token":"a.b.c","token_type":"Bearer","expires_in":900,"refresh_token":"ff","user":{"id":1,"email":"e@x","name":null,"avatar_url":null,"role":"admin"}}""")
-        assertEquals(TokenGrant("a.b.c", 900, "ff", User(1, "e@x", null, "admin")), g)
+        assertEquals(TokenGrant("a.b.c", 900, "ff", User(1, "e@x", null, "admin"), familyId = null), g)
     }
 
     @Test fun aListenWithoutContextOmitsIt() {
@@ -209,5 +211,71 @@ class AudienceTest {
     @Test fun anAppTheBuildHasNoBaseForGetsNoTab() {
         // LazurOS is in a user's aud but this build has no API base for it.
         assertEquals(listOf(Tab.Home, Tab.Account), Tabs.forAud(setOf("auth", "ordeck", "lazuros"), emptyList()))
+    }
+}
+
+/** jkAuth's account shapes: the profile, the devices list, and the bodies the app sends. */
+class AccountTest {
+    @Test fun theProfileCarriesTheModeAndTheVersion() {
+        val p = AccountModels.profile("""{"user":{"id":3,"email":"a@b.c","name":"Ann","role":"user"},"preferences":{"theme":{"mode":"dark","primary":"#ffb000","secondary":"#4ecdc4"}},"prefs_version":7}""")
+        assertEquals("Ann", p.user.name)
+        assertEquals(ThemeMode.Dark, p.themeMode)
+        assertEquals(7, p.prefsVersion)
+    }
+
+    @Test fun aMissingOrUnknownModeIsSystem() {
+        val bare = """{"user":{"id":3,"email":"a@b.c","name":null,"role":"user"},"preferences":{}}"""
+        assertEquals(ThemeMode.System, AccountModels.profile(bare).themeMode)
+        assertEquals(0, AccountModels.profile(bare).prefsVersion)
+        assertEquals(ThemeMode.System, ThemeMode.of("sepia"))
+        assertEquals(ThemeMode.Light, ThemeMode.of("light"))
+        // The legacy nested theme keeps `mode` at its top too.
+        val legacy = """{"user":{"id":3,"email":"a@b.c","name":null,"role":"user"},"preferences":{"theme":{"mode":"light","dark":{"primary":"#fff"}}}}"""
+        assertEquals(ThemeMode.Light, AccountModels.profile(legacy).themeMode)
+    }
+
+    @Test fun darkIsTheChoiceOrTheDevice() {
+        assertTrue(ThemeMode.Dark.isDark(systemDark = false))
+        assertFalse(ThemeMode.Light.isDark(systemDark = true))
+        assertTrue(ThemeMode.System.isDark(systemDark = true))
+        assertFalse(ThemeMode.System.isDark(systemDark = false))
+    }
+
+    private val sessions = """{"sessions":[
+        {"family_id":"f-browser","created_at":"2026-11-10T08:00:00.000Z","last_used_at":"2026-11-16T09:00:00.000Z","remember_me":true,"revoked":false,"revoked_reason":null,"client_id":null,"rotations":4,"current":false},
+        {"family_id":"f-old","created_at":"2026-10-01T08:00:00.000Z","last_used_at":"2026-10-02T09:00:00.000Z","remember_me":false,"revoked":true,"revoked_reason":"logout","client_id":null,"rotations":1,"current":false},
+        {"family_id":"f-me","created_at":"2026-11-16T07:00:00.000Z","last_used_at":"2026-11-16T08:00:00.000Z","remember_me":true,"revoked":false,"revoked_reason":null,"client_id":"net.jkos.app.alpha.staging","rotations":2,"current":false}
+    ]}"""
+
+    @Test fun thisDeviceIsTheFamilyTheTokenEndpointNamed() {
+        val d = AccountModels.devices(sessions, "f-me")
+        assertEquals(listOf("f-me", "f-browser", "f-old"), d.map { it.familyId }) // mine, the live ones, the signed-out ones
+        assertEquals(listOf(true, false, false), d.map { it.isThisDevice })
+        assertEquals("net.jkos.app.alpha.staging", d[0].clientId)
+        assertNull(d[1].clientId)
+        assertTrue(d[2].revoked)
+        assertEquals("logout", d[2].revokedReason)
+    }
+
+    @Test fun withNoFamilyNamedNothingIsMarked() {
+        val d = AccountModels.devices(sessions, null)
+        assertTrue(d.none { it.isThisDevice })
+        assertEquals(listOf("f-browser", "f-me", "f-old"), d.map { it.familyId }) // the server's order, signed-out last
+        assertEquals(emptyList<Any>(), AccountModels.devices("{}", "f-me"))
+    }
+
+    @Test fun theBodiesTheAppSends() {
+        assertEquals("""{"name":"Ann B"}""", AccountModels.nameBody("Ann B"))
+        val theme = JSONObject(AccountModels.themeBody(ThemeMode.Light, 7))
+        assertEquals(7, theme.getInt("prefs_version"))
+        // Only the mode: the server deep-merges, so the accent pair and every other slice stay.
+        assertEquals("""{"theme":{"mode":"light"}}""", theme.getJSONObject("preferences").toString())
+        assertEquals("""{"family_id":"f-browser"}""", AccountModels.revokeBody("f-browser"))
+    }
+
+    @Test fun aGrantNamesTheSessionWhenTheServerDoes() {
+        val user = """{"id":1,"email":"a@b.c","name":null,"role":"admin"}"""
+        assertEquals("fam-1", AuthModels.tokenGrant("""{"access_token":"a","expires_in":900,"refresh_token":"r","family_id":"fam-1","user":$user}""").familyId)
+        assertNull(AuthModels.tokenGrant("""{"access_token":"a","expires_in":900,"refresh_token":"r","user":$user}""").familyId)
     }
 }

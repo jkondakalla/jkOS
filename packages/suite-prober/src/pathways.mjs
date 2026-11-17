@@ -46,6 +46,12 @@ export const PATHWAYS = [
   // apps/jkauth/test/multiuser.mjs. The residual, genuine gap is that the lock is OPT-IN.
   { system: 'jkauth', id: 'profile-patch', method: 'PATCH', path: '/auth/profile', helper: 'patchProfile', kind: 'prefs',
     gap: 'the prefs_version optimistic lock is OPT-IN: a client that omits it still writes (deep-merged, so it cannot drop a sibling slice, but it cannot detect a concurrent edit either)' },
+  // Your devices (routes/account.js): the caller's own session families, and signing one out.
+  // jkAuth's own security page posts the revoke as a form; the native app (native/android/ordeck)
+  // reads and revokes with its Bearer token. No frontend helper wraps either.
+  { system: 'jkauth', id: 'sessions', method: 'GET', path: '/auth/sessions', helper: null, kind: 'identity' },
+  { system: 'jkauth', id: 'sessions-revoke', method: 'POST', path: '/auth/sessions/revoke', helper: null, kind: 'identity' },
+  { system: 'jkauth', id: 'security-page', method: 'GET', path: '/auth/security', helper: null, kind: 'page-auth' },
   { system: 'jkauth', id: 'apps', method: 'GET', path: '/auth/apps', helper: 'useSuiteApps', kind: 'directory' },
   { system: 'jkauth', id: 'events', method: 'GET', path: '/auth/events', helper: 'authFetch', kind: 'directory' },
   { system: 'jkauth', id: 'jwks', method: 'GET', path: '/auth/jwks', helper: 'weaveAuth', kind: 'key' },

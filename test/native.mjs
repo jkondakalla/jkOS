@@ -415,23 +415,50 @@ const policy = require(resolve(root, 'native/desktop/src/policy.js'));
   check(/instanceFollowRedirects = false/.test(http) && /startsWith\("https:\/\/"\)/.test(http),
     'HTTP never follows a redirect and refuses http:', 'Http.kt follows redirects or accepts non-https URLs');
   // ── The Bearer token goes only to a derived base ──────────────────────────────────────
-  // One generic client (AppApi) attaches it, to URLs under ITS app's base and nowhere else;
-  // the player's data source asks KourOS's client the same question. An app's base comes
-  // from shell.xml's generated list, so an app outside native/shells.js's derivation has no
-  // base to call.
+  // One transport (BearerClient) attaches it, to URLs under the root it was built for and
+  // nowhere else. Two clients build one: AppApi, for `${an app's derived base}/api/`, and
+  // AccountApi, for `${the derived auth origin}/auth/`. The player's data source asks KourOS's
+  // client the same question. A base comes from shell.xml's generated list, so an app outside
+  // native/shells.js's derivation has no base to call.
+  const bearer = kt['BearerClient.kt'] || '';
   const appApi = kt['AppApi.kt'] || '';
+  const accountApi = kt['AccountApi.kt'] || '';
   const svc = kt['PlaybackService.kt'] || '';
-  check(/val base: String get\(\) = Auth\.config\.apiBases\.getValue\(app\)/.test(appApi)
-      && /fun authorized\(url: String\): Boolean = url\.startsWith\("\$base\/api\/"\)/.test(appApi)
-      && /val target = url\(path\)\s*check\(authorized\(target\)\)/.test(appApi)
+  const built = all.flatMap(([f, src]) => [...src.matchAll(/BearerClient\(([^)]*)\) \{ ([^}]*) \}/g)].map((m) => `${f}: ${m[2].trim()}`)).sort();
+  check(/fun authorized\(url: String\): Boolean = url\.startsWith\(root\(\)\)/.test(bearer)
+      && /internal suspend fun call\(method: String, target: String, json: String\? = null\): HttpResult = withContext\(Dispatchers\.IO\) \{\s*check\(authorized\(target\)\)/.test(bearer)
+      && /val base: String get\(\) = Auth\.config\.apiBases\.getValue\(app\)/.test(appApi)
+      && /private val origin: String get\(\) = Auth\.config\.authOrigin/.test(accountApi)
+      && JSON.stringify(built) === JSON.stringify(['AccountApi.kt: "$origin/auth/"', 'AppApi.kt: "$base/api/"'])
+      && [...all.map(([, src]) => [...src.matchAll(/BearerClient\(/g)].length)].reduce((a, b) => a + b, 0) === 3 // the class + two clients
+      && /fun authorized\(url: String\): Boolean = client\.authorized\(url\)/.test(appApi)
       && /fun authorized\(url: String\): Boolean = api\.authorized\(url\)/.test(kt['KourosApi.kt'] || '')
       && /if \(!KourosApi\.authorized\(spec\.uri\.toString\(\)\)\) return spec/.test(svc),
-    "a Bearer token is attached only to URLs under its app's derived base — by the API client and the player alike",
-    'AppApi.authorized changed, or the API client / the player data source attaches the token without asking it');
+    "a Bearer token is attached only to URLs under a derived base — an app's /api/ or jkAuth's /auth/ — by the two clients and the player alike",
+    `BearerClient.authorized changed, a client is built for another root (${JSON.stringify(built)}), or the player data source attaches the token without asking`);
   const bearerFiles = hits(/"Bearer /).sort();
-  check(JSON.stringify(bearerFiles) === JSON.stringify(['AppApi.kt', 'PlaybackService.kt']),
-    'the Authorization header is built in exactly two places (the API client and the player)',
+  check(JSON.stringify(bearerFiles) === JSON.stringify(['BearerClient.kt', 'PlaybackService.kt']),
+    'the Authorization header is built in exactly two places (the transport and the player)',
     `"Bearer " appears in ${JSON.stringify(bearerFiles)}`);
+  // jkAuth has no discovery doc; its declaration is the route catalog the prober reads
+  // (packages/suite-prober/src/pathways.mjs). Every /auth/ path typed in the app's auth
+  // package is a route in it, and the ones the app sends its TOKEN to are routes whose
+  // jkAuth handler reads a Bearer user token (resolveCaller) — derived from jkAuth's source.
+  const { PATHWAYS } = await import(resolve(root, 'packages/suite-prober/src/pathways.mjs'));
+  const catalog = new Set(PATHWAYS.filter((p) => p.system === 'jkauth').map((p) => `${p.method} ${p.path}`));
+  const catalogPaths = new Set([...catalog].map((r) => r.split(' ')[1]));
+  const takesBearer = new Set(walk('apps/jkauth/src/routes', /\.js$/).flatMap((f) =>
+    [...read(f).matchAll(/router\.(get|post|patch|delete)\('([^']+)', \(req, res\) => \{\s*(?:const isJson = isJsonReq\(req\)\s*)?const \w+ = resolveCaller\(req\)/g)]
+      .map((m) => `${m[1].toUpperCase()} ${m[2]}`)));
+  const authLiterals = walk(`${MOD}/src/main/java/net/jkos/app/alpha/auth`, /\.kt$/)
+    .flatMap((f) => [...stripCode(read(f)).matchAll(/"(?:\$\{?[\w.]+\}?)?(\/auth\/[a-z0-9/_-]+)"/g)].map((m) => m[1]));
+  const sent = [...accountApi.matchAll(/client\.call\("([A-Z]+)", "\$origin(\/auth\/[a-z/]+)"/g)].map((m) => `${m[1]} ${m[2]}`);
+  const offCatalog = authLiterals.filter((p) => p !== '/auth/' && !catalogPaths.has(p));
+  check(takesBearer.size >= 5 && sent.length >= 4 && sent.every((r) => takesBearer.has(r)) && sent.every((r) => catalog.has(r))
+      && authLiterals.length >= 7 && offCatalog.length === 0
+      && [...accountApi.matchAll(/client\.call\(/g)].length === sent.length,
+    `the app sends its token to jkAuth only on routes that read a Bearer user token (${[...new Set(sent)].join(', ')}), and every /auth/ path it types is in jkAuth's route catalog`,
+    `the app calls jkAuth outside what jkAuth offers a Bearer caller: sends to ${JSON.stringify(sent.filter((r) => !takesBearer.has(r) || !catalog.has(r)))}, off-catalog paths ${JSON.stringify(offCatalog)} (jkAuth reads a Bearer user token on ${JSON.stringify([...takesBearer])})`);
   const shellXml = read(`${MOD}/src/debug/res/values/shell.xml`);
   check(/apiBases = context\.resources\.getStringArray\(R\.array\.api_apps\)\s*\.zip\(context\.resources\.getStringArray\(R\.array\.api_bases\)\)\.toMap\(\)/.test(auth)
       && /<string-array name="api_apps">/.test(shellXml) && /<string-array name="api_bases">/.test(shellXml)
@@ -494,12 +521,13 @@ const policy = require(resolve(root, 'native/desktop/src/policy.js'));
   // A client is built for one app, inside that app's package, and no path is typed anywhere else.
   const stray = walk(SRC, /\.kt$/).filter((f) => !apiApps.some((a) => f.startsWith(`${SRC}/${a}/`)))
     .filter((f) => /"[^"]*\/api\/[a-z]/.test(stripCode(read(f))));
+  const strayAuth = walk(SRC, /\.kt$/).filter((f) => !f.startsWith(`${SRC}/auth/`)).filter((f) => /"[^"]*\/auth\//.test(stripCode(read(f))));
   const clients = walk(SRC, /\.kt$/).flatMap((f) => [...stripCode(read(f)).matchAll(/AppApi\("([^"]*)"\)/g)].map((m) => ({ f, app: m[1] })));
   const misplaced = clients.filter((c) => !apiApps.includes(c.app) || !c.f.startsWith(`${SRC}/${c.app}/`));
-  check(stray.length === 0 && clients.length >= 1 && misplaced.length === 0
+  check(stray.length === 0 && strayAuth.length === 0 && clients.length >= 1 && misplaced.length === 0
       && walk(SRC, /\.kt$/).every((f) => !/AppApi\((?!")/.test(stripCode(read(f)).replace(/class AppApi\(/, ''))),
     `an app's client is built in that app's own package (${clients.map((c) => c.app).join(', ')}), and no API path is typed outside one`,
-    `an API path or client is in the wrong place: ${[...stray, ...misplaced.map((c) => `${c.f} builds AppApi("${c.app}")`)].join(', ') || 'AppApi is built from a non-literal app id'}`);
+    `an API path or client is in the wrong place: ${[...stray, ...strayAuth, ...misplaced.map((c) => `${c.f} builds AppApi("${c.app}")`)].join(', ') || 'AppApi is built from a non-literal app id'}`);
 
   // ── A tab exists only for an app in the token's `aud` ─────────────────────────────────
   const tabs = kt['Tabs.kt'] || '';
