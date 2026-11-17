@@ -601,10 +601,47 @@ const policy = require(resolve(root, 'native/desktop/src/policy.js'));
   check(cmds.cases.length >= 10 && cmdRefused.length === 0,
     `session commands: all ${cmds.cases.length} the app sends are accepted by validate.js command`,
     `validate.js refuses a command the app would send:\n    ${cmdRefused.map(([n, r]) => `${n}: ${r.error}`).join('\n    ')}`);
-  check(/System\.getProperty\(prop\)/.test(pcTest) && ['sessionModeCases', 'sessionStateCases', 'sessionCommandCases'].every((k) => pcTest.includes(`cases("jkos.${k}")`)
+  // The HUD shelf (pins + focus): the web's hudPrefs.ts on the shared vectors.
+  const hudJs = transpile(read('packages/auth-client/src/hudPrefs.ts'), 'hudPrefs.ts');
+  const { readHudPref, writeHudPref } = await import(`data:text/javascript;base64,${Buffer.from(hudJs).toString('base64')}`);
+  const shelf = JSON.parse(read('native/hud-shelf-cases.json'));
+  const shelfWrong = [
+    ...shelf.read.filter((c) => JSON.stringify(readHudPref(c.preferences, 'hudPins') ?? []) !== JSON.stringify(c.expect.pins)
+      || JSON.stringify(readHudPref(c.preferences, 'hudFocus') ?? null) !== JSON.stringify(c.expect.focus)).map((c) => c.name),
+    ...shelf.write.filter((c) => JSON.stringify(writeHudPref(c.key, c.value)) !== JSON.stringify(c.expect)).map((c) => c.name),
+  ];
+  check(shelf.read.length >= 5 && shelf.write.length >= 3 && shelfWrong.length === 0,
+    `the HUD shelf: all ${shelf.read.length + shelf.write.length} vectors agree with the web's hudPrefs.ts`,
+    `hud-shelf-cases.json disagrees with hudPrefs.ts: ${shelfWrong.join('; ')}`);
+  // BeigeBoard: every body the app sends carries only what its capability declares. The
+  // server's PATCH takes any client column, so the declaration is the only thing saying what a
+  // peer may write; an app that sends more is writing past the contract.
+  const BB = require(resolve(root, 'apps/beigeboard/backend/discovery.js'));
+  const caps = Object.fromEntries(BB.CAPABILITIES.capabilities.map((c) => [c.id, c]));
+  const bodies = JSON.parse(read('native/beigeboard-body-cases.json')).cases;
+  const pathParams = (c) => [...c.path.matchAll(/:(\w+)/g)].map((m) => m[1]);
+  const bodyWrong = bodies.flatMap((c) => {
+    const cap = caps[c.capability];
+    if (!cap) return [`${c.name}: no capability ${c.capability}`];
+    const declared = new Set([...cap.body.map((f) => f.name), 'idempotency_key']);
+    const params = pathParams(cap);
+    const extra = Object.keys(c.body).filter((k) => !declared.has(k) || params.includes(k));
+    const missing = cap.body.filter((f) => f.required && !params.includes(f.name) && !(f.name in c.body)).map((f) => f.name);
+    return [...extra.map((k) => `${c.name}: ${k} is not in ${c.capability}'s declared body`), ...missing.map((k) => `${c.name}: required ${k} is missing`)];
+  });
+  check(bodies.length >= 8 && bodyWrong.length === 0,
+    `BeigeBoard: all ${bodies.length} bodies the app builds carry only their capability's declared fields, required ones included`,
+    `a BeigeBoard body goes past its declaration:\n    ${bodyWrong.join('\n    ')}`);
+  const upd = /val UPDATE_FIELDS = setOf\(([\s\S]*?)\)/.exec(read(`${SRC}/beigeboard/Items.kt`))?.[1] ?? '';
+  const updKotlin = [...upd.matchAll(/"(\w+)"/g)].map((m) => m[1]).sort();
+  const updDeclared = caps.updateItem.body.map((f) => f.name).filter((n) => !pathParams(caps.updateItem).includes(n)).sort();
+  check(JSON.stringify(updKotlin) === JSON.stringify(updDeclared),
+    `Items.UPDATE_FIELDS is updateItem's declared body (${updDeclared.length} fields)`,
+    `Items.UPDATE_FIELDS ${JSON.stringify(updKotlin)} is not updateItem's declared body ${JSON.stringify(updDeclared)}`);
+  check(/System\.getProperty\(prop\)/.test(pcTest) && ['sessionModeCases', 'sessionStateCases', 'sessionCommandCases', 'hudShelfCases', 'beigeboardBodyCases'].every((k) => pcTest.includes(`cases("jkos.${k}")`)
       && new RegExp(`systemProperty\\("jkos\\.${k}", ${k}\\.absolutePath\\)`).test(gradle)),
-    'the Kotlin session tests read the same three case files',
-    'CoreTest.kt or the Gradle wiring no longer reads native/session-{mode,state,command}-cases.json — the app and the server can drift apart');
+    'the Kotlin session, shelf and BeigeBoard tests read the same five case files',
+    'CoreTest.kt or the Gradle wiring no longer reads one of native/{session-mode,session-state,session-command,hud-shelf,beigeboard-body}-cases.json — the app and the server can drift apart');
 }
 
 // ── 8. Native sign-in reaches the right jkAuth, through the edge ─────────────

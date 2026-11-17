@@ -618,9 +618,12 @@ Each step ends in an APK and a device checklist.
 Each step ends in an APK and a device checklist. Everything goes through a capability declared in
 [discovery.js](../apps/beigeboard/backend/discovery.js).
 
-1. **Today and quick actions:** today's tasks and events, quick add (`createItem`), complete
-   (`completeItem`), pin and focus. ORDECK's [slices.ts](../apps/ordeck/src/hud/slices.ts) shows
-   where pin and focus come from.
+1. **Today and quick actions.** Built 2026-11-17, and not pushed. Pin and focus are the
+   person's HUD shelf in jkAuth's preferences, read and written as the web's `hudPrefs.ts` does
+   (`native/hud-shelf-cases.json`). Every body the app sends carries only its capability's
+   declared fields (`native/beigeboard-body-cases.json`, CONTROLS.md CF-4). The APK is
+   `~/Android/jkos-apks/jkos-alpha-0.1.0-staging-h1.apk`, which includes G.
+   **You:** after the deploy, run OPERATIONS § Native apps' H1 checks.
 2. **Goals and milestones:** the tree, editing (`updateItem`, `deleteItem`), dependencies
    (`addDependency`, `removeDependency`) and deload.
 3. **The calendar:** week and month views, `syncCalendar` and `disconnectCalendar`. Connecting an

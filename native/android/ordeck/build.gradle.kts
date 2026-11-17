@@ -76,6 +76,8 @@ val playContextCases: File = rootProject.file("../play-context-cases.json")
 val sessionModeCases: File = rootProject.file("../session-mode-cases.json")
 val sessionStateCases: File = rootProject.file("../session-state-cases.json")
 val sessionCommandCases: File = rootProject.file("../session-command-cases.json")
+val hudShelfCases: File = rootProject.file("../hud-shelf-cases.json")
+val beigeboardBodyCases: File = rootProject.file("../beigeboard-body-cases.json")
 
 android {
     namespace = "net.jkos.app.alpha"
@@ -100,6 +102,10 @@ android {
             test.systemProperty("jkos.sessionStateCases", sessionStateCases.absolutePath)
             test.inputs.file(sessionCommandCases)
             test.systemProperty("jkos.sessionCommandCases", sessionCommandCases.absolutePath)
+            test.inputs.file(hudShelfCases)
+            test.systemProperty("jkos.hudShelfCases", hudShelfCases.absolutePath)
+            test.inputs.file(beigeboardBodyCases)
+            test.systemProperty("jkos.beigeboardBodyCases", beigeboardBodyCases.absolutePath)
         }
     }
 }

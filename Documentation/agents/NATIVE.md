@@ -218,6 +218,11 @@ origin-scoped listeners gets no bridge at all (the page still works).
 >   remote, `SessionLink.role` routes the screens' plays (Player.kt) to the output as
 >   commands, and `RemoteUi` draws the output's session on the server's clock and edits its
 >   queue (jump, remove, reorder, in the session's indices).
+> - **BeigeBoard (phase H):** `BeigeBoardApi` over the declared routes, `Items` for the
+>   shape and the bodies (each holds only its capability's declared fields; check:native
+>   holds them, CONTROLS.md CF-4), and a `Board` holding the items with optimistic writes. Pin
+>   and focus are the HUD shelf in jkAuth's preferences (`auth/HudShelf.kt`, through
+>   `AccountApi`), read with the web's XC-5 fallback.
 > - **A tab exists only for an app in the token's `aud`** (`Tabs.forAud`). The audience is read
 >   from the access token and kept in the sealed session file, so the tabs are right at a cold
 >   start. Each tab has its own back stack; the mini player sits above the bar.

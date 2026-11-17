@@ -1,0 +1,209 @@
+{
+  "_comment": "The HUD shelf (pins + focus) in jkAuth's preferences. `read` cases: what packages/auth-client/src/hudPrefs.ts readHudPref returns, which HudShelf.read must return too. `write` cases: writeHudPref's patch (the `preferences` of PATCH /auth/profile), which HudShelf's bodies must carry. check:native runs the TypeScript; the JVM test runs the Kotlin.",
+  "read": [
+    {
+      "name": "nothing stored",
+      "preferences": {},
+      "expect": {
+        "pins": [],
+        "focus": null
+      }
+    },
+    {
+      "name": "the namespaced slices",
+      "preferences": {
+        "ordeck": {
+          "hudPins": [
+            {
+              "app": "beigeboard",
+              "id": "1",
+              "label": "Task 1",
+              "ts": 5
+            }
+          ],
+          "hudFocus": {
+            "app": "beigeboard",
+            "id": "2",
+            "label": "Task 2"
+          }
+        }
+      },
+      "expect": {
+        "pins": [
+          {
+            "app": "beigeboard",
+            "id": "1",
+            "label": "Task 1",
+            "ts": 5
+          }
+        ],
+        "focus": {
+          "app": "beigeboard",
+          "id": "2",
+          "label": "Task 2"
+        }
+      }
+    },
+    {
+      "name": "legacy top-level slices, not yet migrated",
+      "preferences": {
+        "hudPins": [
+          {
+            "app": "beigeboard",
+            "id": "3",
+            "label": "Task 3"
+          }
+        ],
+        "hudFocus": {
+          "app": "beigeboard",
+          "id": "4",
+          "label": "Task 4"
+        }
+      },
+      "expect": {
+        "pins": [
+          {
+            "app": "beigeboard",
+            "id": "3",
+            "label": "Task 3"
+          }
+        ],
+        "focus": {
+          "app": "beigeboard",
+          "id": "4",
+          "label": "Task 4"
+        }
+      }
+    },
+    {
+      "name": "the namespaced key wins over a legacy one",
+      "preferences": {
+        "ordeck": {
+          "hudPins": [
+            {
+              "app": "beigeboard",
+              "id": "5",
+              "label": "Task 5"
+            }
+          ]
+        },
+        "hudPins": [
+          {
+            "app": "beigeboard",
+            "id": "6",
+            "label": "Task 6"
+          }
+        ]
+      },
+      "expect": {
+        "pins": [
+          {
+            "app": "beigeboard",
+            "id": "5",
+            "label": "Task 5"
+          }
+        ],
+        "focus": null
+      }
+    },
+    {
+      "name": "a namespaced null focus is 'nothing in focus', never the legacy focus",
+      "preferences": {
+        "ordeck": {
+          "hudFocus": null
+        },
+        "hudFocus": {
+          "app": "beigeboard",
+          "id": "7",
+          "label": "Task 7"
+        }
+      },
+      "expect": {
+        "pins": [],
+        "focus": null
+      }
+    },
+    {
+      "name": "a namespaced null pin list falls back to the legacy pins",
+      "preferences": {
+        "ordeck": {
+          "hudPins": null
+        },
+        "hudPins": [
+          {
+            "app": "beigeboard",
+            "id": "8",
+            "label": "Task 8"
+          }
+        ]
+      },
+      "expect": {
+        "pins": [
+          {
+            "app": "beigeboard",
+            "id": "8",
+            "label": "Task 8"
+          }
+        ],
+        "focus": null
+      }
+    }
+  ],
+  "write": [
+    {
+      "name": "pins: namespaced, legacy retired",
+      "key": "hudPins",
+      "value": [
+        {
+          "app": "beigeboard",
+          "id": "1",
+          "label": "Task 1",
+          "ts": 5
+        }
+      ],
+      "expect": {
+        "ordeck": {
+          "hudPins": [
+            {
+              "app": "beigeboard",
+              "id": "1",
+              "label": "Task 1",
+              "ts": 5
+            }
+          ]
+        },
+        "hudPins": null
+      }
+    },
+    {
+      "name": "focus",
+      "key": "hudFocus",
+      "value": {
+        "app": "beigeboard",
+        "id": "2",
+        "label": "Task 2"
+      },
+      "expect": {
+        "ordeck": {
+          "hudFocus": {
+            "app": "beigeboard",
+            "id": "2",
+            "label": "Task 2"
+          }
+        },
+        "hudFocus": null
+      }
+    },
+    {
+      "name": "focus cleared",
+      "key": "hudFocus",
+      "value": null,
+      "expect": {
+        "ordeck": {
+          "hudFocus": null
+        },
+        "hudFocus": null
+      }
+    }
+  ]
+}

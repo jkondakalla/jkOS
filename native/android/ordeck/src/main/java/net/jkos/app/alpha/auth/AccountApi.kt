@@ -25,6 +25,18 @@ object AccountApi {
         client.call("PATCH", "$origin/auth/profile", AccountModels.themeBody(mode, prefsVersion))
     }
 
+    /** The person's HUD shelf (pins and focus), from their preferences. */
+    suspend fun shelf(): Shelf = HudShelf.read(org.json.JSONObject(client.call("GET", "$origin/auth/profile").text).optJSONObject("preferences"))
+
+    /** Replace the pin list. No prefs_version: like the web's shelf, the last write wins. */
+    suspend fun setPins(pins: List<HudRef>) {
+        client.call("PATCH", "$origin/auth/profile", HudShelf.pinsBody(pins))
+    }
+
+    suspend fun setFocus(focus: HudRef?) {
+        client.call("PATCH", "$origin/auth/profile", HudShelf.focusBody(focus))
+    }
+
     suspend fun devices(): List<Device> =
         AccountModels.devices(client.call("GET", "$origin/auth/sessions").text, Auth.familyId)
 

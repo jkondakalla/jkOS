@@ -424,6 +424,21 @@ exists.
   - Close the computer's tab mid-song, then play an album on the phone: it plays on the
     phone (the command is refused, so it plays here).
 
+- **H1 · BeigeBoard: Today.**
+  - The tab opens on today: the date, the greeting, a line saying how much is left, and a
+    meter of done out of all. Then Next up, Other things, Events (a multi-day event shows on
+    each of its days), Running behind (with their dates) and Done. Compare with the web's
+    mobile Today: the same tasks, in the same order.
+  - Add a task, then an event, then one with a time: each appears where it belongs, and on
+    the web after a refresh. Turn on airplane mode and add one: "Couldn't add it", and
+    nothing half-added once you're back online.
+  - Tick a task: it moves to Done, here and on the web. Untick it.
+  - Open a task: Focus puts it on ORDECK's focus card (web, after a reload); Focus again
+    clears it. Pin adds it to the pinned card; Pin again removes it. Focus something on the
+    web: the phone shows it focused after Refresh.
+  - Delete a task (it asks first): it's gone here and on the web. Delete a goal with tasks
+    under it: they go too.
+
 ### Android: jkOS Home on a panel device
 
 Install `home-*.apk`, press Home, and choose **jkOS Home**, then **Always**. To get out: **hold

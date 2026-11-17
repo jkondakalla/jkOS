@@ -538,3 +538,112 @@ class SessionTest {
         assertEquals(2, v.cursor); assertEquals(0, v.entryOf(0)); assertEquals(2, v.entryOf(1)); assertEquals(-1, v.entryOf(9))
     }
 }
+
+/** The HUD shelf and BeigeBoard's half, held to the case files the web and the server pass too. */
+class BeigeBoardTest {
+    private fun cases(prop: String) = JSONObject(File(System.getProperty(prop) ?: error("$prop not set")).readText())
+
+    private fun canon(v: Any?): Any? = when (v) {
+        is JSONObject -> v.keys().asSequence().associateWith { canon(v.opt(it)) }.toSortedMap()
+        is JSONArray -> (0 until v.length()).map { canon(v.opt(it)) }
+        is Number -> v.toDouble()
+        JSONObject.NULL -> null
+        else -> v
+    }
+
+    private fun refJson(r: net.jkos.app.alpha.auth.HudRef?): Any = if (r == null) JSONObject.NULL else JSONObject().apply {
+        put("app", r.app); put("id", r.id); put("label", r.label); r.deeplink?.let { put("deeplink", it) }; r.tone?.let { put("tone", it) }; r.ts?.let { put("ts", it) }
+    }
+
+    @Test fun theShelfIsReadAndWrittenAsHudPrefsTsDoes() {
+        val doc = cases("jkos.hudShelfCases")
+        val reads = doc.getJSONArray("read")
+        val wrong = mutableListOf<String>()
+        for (i in 0 until reads.length()) {
+            val c = reads.getJSONObject(i)
+            val s = net.jkos.app.alpha.auth.HudShelf.read(c.getJSONObject("preferences"))
+            val got = JSONObject().put("pins", JSONArray(s.pins.map(::refJson))).put("focus", refJson(s.focus))
+            if (canon(got) != canon(c.getJSONObject("expect"))) wrong += "${c.getString("name")}: got $got"
+        }
+        val writes = doc.getJSONArray("write")
+        for (i in 0 until writes.length()) {
+            val c = writes.getJSONObject(i)
+            val body = when (c.getString("key")) {
+                "hudPins" -> {
+                    val a = c.getJSONArray("value")
+                    net.jkos.app.alpha.auth.HudShelf.pinsBody(net.jkos.app.alpha.auth.HudShelf.read(JSONObject().put("hudPins", a)).pins)
+                }
+                else -> net.jkos.app.alpha.auth.HudShelf.focusBody(net.jkos.app.alpha.auth.HudShelf.read(JSONObject().put("hudFocus", c.get("value"))).focus)
+            }
+            if (canon(JSONObject(body).getJSONObject("preferences")) != canon(c.getJSONObject("expect"))) wrong += "${c.getString("name")}: got $body"
+        }
+        assertTrue(wrong.joinToString("\n"), wrong.isEmpty())
+    }
+
+    @Test fun pinningTogglesAndFocusIsOne() {
+        val r = net.jkos.app.alpha.auth.HudRef("beigeboard", "4", "Call the bank")
+        val empty = net.jkos.app.alpha.auth.Shelf(emptyList(), null)
+        val pinned = net.jkos.app.alpha.auth.HudShelf.togglePin(empty, r, 99)
+        assertEquals(listOf(r.copy(ts = 99)), pinned)
+        assertEquals(emptyList<Any>(), net.jkos.app.alpha.auth.HudShelf.togglePin(net.jkos.app.alpha.auth.Shelf(pinned, null), r, 100))
+        assertEquals(r, net.jkos.app.alpha.auth.HudShelf.toggleFocus(empty, r))
+        assertNull(net.jkos.app.alpha.auth.HudShelf.toggleFocus(net.jkos.app.alpha.auth.Shelf(emptyList(), r), r))
+    }
+
+    @Test fun everyBodyIsTheDeclaredOne() {
+        val all = cases("jkos.beigeboardBodyCases").getJSONArray("cases")
+        val wrong = (0 until all.length()).mapNotNull { i ->
+            val c = all.getJSONObject(i)
+            val b = c.getJSONObject("build")
+            fun s(k: String) = if (b.has(k) && !b.isNull(k)) b.getString(k) else null
+            val got = when (b.getString("kind")) {
+                "create" -> net.jkos.app.alpha.beigeboard.Items.createBody(b.getString("title"), b.getString("itemKind"), s("dueDate"), s("time"), b.getString("key"))
+                "complete" -> net.jkos.app.alpha.beigeboard.Items.completeBody(b.getBoolean("completed"))
+                "update" -> {
+                    val ch = b.getJSONObject("changes")
+                    net.jkos.app.alpha.beigeboard.Items.updateBody(ch.keys().asSequence().associateWith { if (ch.isNull(it)) null else ch.get(it) })
+                }
+                "dependency" -> net.jkos.app.alpha.beigeboard.Items.dependencyBody(b.getLong("dependsOn"))
+                "deload" -> net.jkos.app.alpha.beigeboard.Items.deloadBody(b.getBoolean("on"))
+                else -> error("unknown kind")
+            }
+            if (canon(got) == canon(c.getJSONObject("body"))) null else "${c.getString("name")}: expected ${c.getJSONObject("body")}, got $got"
+        }
+        assertTrue(wrong.joinToString("\n"), all.length() >= 8 && wrong.isEmpty())
+    }
+
+    @Test fun anUndeclaredFieldCannotBeWritten() {
+        val thrown = runCatching { net.jkos.app.alpha.beigeboard.Items.updateBody(mapOf("parent_id" to 3)) }.exceptionOrNull()
+        assertTrue(thrown is IllegalArgumentException)
+    }
+
+    private fun item(id: Long, kind: String = "task", due: String? = null, done: Boolean = false, time: String? = null, end: String? = null, parent: Long? = null, accent: String? = null) =
+        net.jkos.app.alpha.beigeboard.Items.item(JSONObject().apply {
+            put("id", id); put("kind", kind); put("title", "#$id"); put("completed", if (done) 1 else 0)
+            put("due_date", due ?: JSONObject.NULL); put("scheduled_time", time ?: JSONObject.NULL); put("end_date", end ?: JSONObject.NULL)
+            put("parent_id", parent ?: JSONObject.NULL); put("accent", accent ?: JSONObject.NULL)
+        })
+
+    @Test fun todayIsWhatTheWebsMobileTodayShows() {
+        val d = "2026-11-17"
+        val items = listOf(
+            item(1, due = d, time = "14:00"), item(2, due = d), item(3, due = d, time = "09:00"), item(4, due = d, done = true),
+            item(5, due = "2026-11-10"), item(6, due = "2026-11-10", done = true), item(7, due = "2026-11-18"),
+            item(8, kind = "event", due = "2026-11-16", end = "2026-11-18", time = "08:00"), item(9, kind = "event", due = d, time = "07:00"),
+            item(10, kind = "goal", due = d),
+        )
+        val t = net.jkos.app.alpha.beigeboard.Today.of(items, d)
+        assertEquals(listOf(3L, 1L, 2L), t.active.map { it.id })          // by time, untimed last
+        assertEquals(listOf(4L), t.done.map { it.id }); assertEquals(listOf(5L), t.overdue.map { it.id })
+        assertEquals(listOf(9L, 8L), t.events.map { it.id })              // a multi-day event shows on each of its days
+        assertEquals(3L, t.next?.id); assertEquals(25, t.pct)
+    }
+
+    @Test fun anAccentIsTheNearestDrawableOne() {
+        val goal = item(1, kind = "goal", accent = "#C0392B"); val ms = item(2, kind = "milestone", parent = 1, accent = "var(--color-accent)"); val task = item(3, parent = 2)
+        val byId = listOf(goal, ms, task).associateBy { it.id }
+        assertEquals(0xFFC0392BL, net.jkos.app.alpha.beigeboard.accentOf(task, byId))
+        assertNull(net.jkos.app.alpha.beigeboard.accentOf(item(4), byId))
+        assertEquals("9:05 AM", net.jkos.app.alpha.beigeboard.fmtTime("09:05")); assertEquals("12:30 PM", net.jkos.app.alpha.beigeboard.fmtTime("12:30"))
+    }
+}

@@ -1,0 +1,141 @@
+{
+  "_comment": "Every body the app sends BeigeBoard. Items.kt must build `body` from `build` (the JVM test), and check:native holds each body's keys to the declared body of its `capability` in apps/beigeboard/backend/discovery.js (plus the suite's idempotency_key, and less the path's own id), with every required field present.",
+  "cases": [
+    {
+      "capability": "createItem",
+      "name": "a quick task for today at 9",
+      "build": {
+        "kind": "create",
+        "title": "  Call the bank  ",
+        "itemKind": "task",
+        "dueDate": "2026-11-17",
+        "time": "09:00",
+        "key": "k-1"
+      },
+      "body": {
+        "title": "Call the bank",
+        "kind": "task",
+        "due_date": "2026-11-17",
+        "scheduled_time": "09:00",
+        "idempotency_key": "k-1"
+      }
+    },
+    {
+      "capability": "createItem",
+      "name": "an untimed event",
+      "build": {
+        "kind": "create",
+        "title": "Dentist",
+        "itemKind": "event",
+        "dueDate": "2026-11-18",
+        "key": "k-2"
+      },
+      "body": {
+        "title": "Dentist",
+        "kind": "event",
+        "due_date": "2026-11-18",
+        "idempotency_key": "k-2"
+      }
+    },
+    {
+      "capability": "createItem",
+      "name": "an unknown kind is a task",
+      "build": {
+        "kind": "create",
+        "title": "x",
+        "itemKind": "goal",
+        "key": "k-3"
+      },
+      "body": {
+        "title": "x",
+        "kind": "task",
+        "idempotency_key": "k-3"
+      }
+    },
+    {
+      "capability": "completeItem",
+      "name": "done",
+      "build": {
+        "kind": "complete",
+        "completed": true
+      },
+      "body": {
+        "completed": true
+      }
+    },
+    {
+      "capability": "completeItem",
+      "name": "not done after all",
+      "build": {
+        "kind": "complete",
+        "completed": false
+      },
+      "body": {
+        "completed": false
+      }
+    },
+    {
+      "capability": "updateItem",
+      "name": "move to tomorrow, clear the time",
+      "build": {
+        "kind": "update",
+        "changes": {
+          "due_date": "2026-11-18",
+          "scheduled_time": null
+        }
+      },
+      "body": {
+        "due_date": "2026-11-18",
+        "scheduled_time": null
+      }
+    },
+    {
+      "capability": "updateItem",
+      "name": "rename and note",
+      "build": {
+        "kind": "update",
+        "changes": {
+          "title": "Call the bank (again)",
+          "notes": "ask about the fee"
+        }
+      },
+      "body": {
+        "title": "Call the bank (again)",
+        "notes": "ask about the fee"
+      }
+    },
+    {
+      "capability": "addDependency",
+      "name": "block on another item",
+      "build": {
+        "kind": "dependency",
+        "dependsOn": 42
+      },
+      "body": {
+        "depends_on": 42
+      }
+    },
+    {
+      "capability": "deloadSession",
+      "name": "take it easy",
+      "build": {
+        "kind": "deload",
+        "on": true
+      },
+      "body": {
+        "deload": true
+      }
+    },
+    {
+      "capability": "deloadSession",
+      "name": "hand it back to the programme",
+      "build": {
+        "kind": "deload",
+        "on": false
+      },
+      "body": {
+        "clear": true
+      }
+    }
+  ]
+}
