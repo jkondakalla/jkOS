@@ -47,7 +47,8 @@ const require = createRequire(import.meta.url);
 const { normalizeGoogle }  = require('../src/calendar/google.js');
 const { normalizeOutlook } = require('../src/calendar/outlook.js');
 const { normalizeICal }    = require('../src/calendar/icloud.js');
-const { replaceCalendarSource, purgeCalendarSource } = require('../src/calendar/replace.js');
+const { replaceCalendarSource, purgeCalendarSource, syncBody } = require('../src/calendar/replace.js');
+const { CAPABILITIES } = require('../discovery.js');
 const { encryptSecret, decryptSecret } = require('../src/crypto.js');
 const { run, all } = require('../src/db.js');
 
@@ -125,6 +126,12 @@ try {
   ok(wrote.synced === 1 && wrote.skipped === false && count('google') === 1, 'F: a non-empty upstream replaces normally');
   const emptyNoLocal = replaceCalendarSource('outlook', 1, [], { force: false });
   ok(emptyNoLocal.synced === 0 && emptyNoLocal.skipped === false, 'F: empty upstream with NO local rows → synced 0, not "skipped" (nothing to protect)');
+  //    The route answers syncBody(result): every key of it, skipped or not, is what syncCalendar
+  //    declares it returns, and every declared field but the conditional `reason` is there.
+  const declared = CAPABILITIES.capabilities.find((c) => c.id === 'syncCalendar').returns.map((f) => f.name);
+  const answers = [syncBody(guard), syncBody(wrote)];
+  ok(answers.every((b) => Object.keys(b).every((k) => declared.includes(k)) && declared.filter((k) => k !== 'reason').every((k) => k in b)),
+    `F: the sync answer is exactly syncCalendar's declared returns (declared ${declared.join(', ')}; answered ${answers.map((b) => Object.keys(b).join('+')).join(' / ')})`);
 
   // ── I. THE REPLACE CASCADES (BB-12 / D10) ──────────────────────────────────
   //    ⚠️ The audit named the DISCONNECT route's raw DELETE. It missed the one that

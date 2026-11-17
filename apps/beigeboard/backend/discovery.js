@@ -326,10 +326,14 @@ const CAPABILITIES = {
     {
       id: 'syncCalendar', label: 'Pull a connected calendar', method: 'POST', path: '/calendar/:provider/sync',
       body: [{ name: 'provider', type: 'enum', label: 'Provider', enum: ['google', 'outlook', 'icloud'], required: true }],
+      /* What syncBody (src/calendar/replace.js) answers. This said imported/updated/removed
+         until 2026-11-17, which nothing ever returned: a reader trusting it saw three zeros on
+         every sync. calendar.sandbox holds the answer to this list now. */
       returns: [
-        { name: 'imported', type: 'number', label: 'Events written' },
-        { name: 'updated',  type: 'number', label: 'Events changed' },
-        { name: 'removed',  type: 'number', label: 'Events withdrawn' },
+        { name: 'ok',      type: 'boolean' },
+        { name: 'synced',  type: 'number',  label: "This calendar's events now on the board (the window is replaced whole)" },
+        { name: 'skipped', type: 'boolean', label: 'Nothing was replaced: the provider answered empty while the board held its events (?force=1 overrides)' },
+        { name: 'reason',  type: 'string',  label: "Why it was skipped: 'empty-upstream' (absent when not skipped)" },
       ],
       invalidates: [ITEMS_KEY], scopes: ['beigeboard:write'],
       doc: 'Pull-only: reads the connected calendar and reconciles its events into `items`. '
