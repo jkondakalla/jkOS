@@ -19,12 +19,13 @@ object Covers {
         override fun sizeOf(key: String, value: Bitmap) = value.byteCount / 1024
     }
 
-    suspend fun load(trackId: Long, sizePx: Int): Bitmap? {
-        val key = "$trackId@$sizePx"
+    /** A track's cover, or a book's when [book]. */
+    suspend fun load(id: Long, sizePx: Int, book: Boolean = false): Bitmap? {
+        val key = "${if (book) "b" else "t"}$id@$sizePx"
         cache.get(key)?.let { return it }
         return withContext(Dispatchers.IO) {
             val bytes = try {
-                KourosApi.coverBytes(trackId)
+                if (book) KourosApi.bookCoverBytes(id) else KourosApi.coverBytes(id)
             } catch (_: Exception) {
                 null
             } ?: return@withContext null

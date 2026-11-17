@@ -3,6 +3,9 @@ package net.jkos.app.alpha.kouros
 import net.jkos.app.alpha.*
 import net.jkos.app.alpha.auth.*
 
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import org.json.JSONObject
 import java.net.URLEncoder
 
 /**
@@ -80,8 +83,71 @@ object KourosApi {
     }
 
     suspend fun recordListen(l: Listen) {
-        api.call("POST", "/api/history", Models.listenBody(l))
+        if (l.book) api.call("POST", "/api/book_history", BookModels.bookListenBody(l))
+        else api.call("POST", "/api/history", Models.listenBody(l))
     }
+
+    // ── audiobooks ──
+
+    /** The book catalog; [title] and [author] are the dataset's prefix filters. */
+    suspend fun books(title: String = "", author: String = ""): List<Book> {
+        val qs = listOfNotNull(
+            title.trim().takeIf { it.isNotEmpty() }?.let { "title=${enc(it)}" },
+            author.trim().takeIf { it.isNotEmpty() }?.let { "author=${enc(it)}" },
+        ).joinToString("&")
+        return BookModels.books(get("/api/books" + if (qs.isEmpty()) "" else "?$qs"))
+    }
+
+    suspend fun book(id: Long): BookDetail = BookModels.detail(get("/api/book/$id"))
+
+    /** This listener's positions, every book; [unfinished] asks only for those still under way. */
+    suspend fun progress(unfinished: Boolean = false): List<Progress> =
+        BookModels.progress(get("/api/progress" + if (unfinished) "?finished=false" else ""))
+
+    private val progressLock = Mutex()
+    private val progressRows = HashMap<Long, Long>()
+
+    /**
+     * Save [bookId]'s position. ⚠️ The row is PATCHed by its id, as the web does, and POSTed only
+     * when there is none: a POST onto an existing row is the server's upsert, which deletes it
+     * and inserts a new id, and a web tab holding the old id would then PATCH a row that's gone.
+     * One at a time, so two saves of a new book can't both create it.
+     */
+    suspend fun saveProgress(bookId: Long, body: String) = progressLock.withLock {
+        val known = progressRows[bookId] ?: progress().firstOrNull { it.bookId == bookId }?.id
+        if (known != null) {
+            try {
+                api.call("PATCH", "/api/progress/$known", body)
+                progressRows[bookId] = known
+                return@withLock
+            } catch (e: ApiException) {
+                if (e.code != 404) throw e
+                progressRows.remove(bookId)   // removed elsewhere: make it again
+            }
+        }
+        progressRows[bookId] = JSONObject(api.call("POST", "/api/progress", body).text).getLong("id")
+    }
+
+    /** This listener's bookmarks in [bookId] (the collection has no book filter: the rest are dropped here). */
+    suspend fun bookmarks(bookId: Long): List<Bookmark> =
+        BookModels.bookmarks(get("/api/bookmarks")).filter { it.bookId == bookId }.sortedBy { it.positionSec }
+
+    suspend fun addBookmark(bookId: Long, positionMs: Long, title: String?) {
+        api.call("POST", "/api/bookmarks", BookModels.bookmarkBody(bookId, positionMs, title))
+    }
+
+    suspend fun deleteBookmark(id: Long) {
+        api.call("DELETE", "/api/bookmarks/$id")
+    }
+
+    suspend fun bookCoverBytes(bookId: Long): ByteArray? = try {
+        api.call("GET", "/api/books/cover/$bookId").body
+    } catch (e: ApiException) {
+        if (e.code == 404) null else throw e
+    }
+
+    fun bookStreamUrl(bookId: Long, fileIndex: Int) = api.url("/api/books/stream/$bookId/$fileIndex")
+    fun bookCoverUrl(bookId: Long) = api.url("/api/books/cover/$bookId")
 
     fun streamUrl(trackId: Long) = api.url("/api/stream/$trackId/0")
     fun coverUrl(trackId: Long) = api.url("/api/cover/$trackId")

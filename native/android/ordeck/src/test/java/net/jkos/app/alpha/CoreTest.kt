@@ -16,6 +16,14 @@ import net.jkos.app.alpha.kouros.ListenLedger
 import net.jkos.app.alpha.kouros.Models
 import net.jkos.app.alpha.kouros.PlayContext
 import net.jkos.app.alpha.kouros.Playlist
+import net.jkos.app.alpha.kouros.BookFile
+import net.jkos.app.alpha.kouros.BookLayout
+import net.jkos.app.alpha.kouros.BookModels
+import net.jkos.app.alpha.kouros.Chapter
+import net.jkos.app.alpha.kouros.MediaRef
+import net.jkos.app.alpha.kouros.Rates
+import net.jkos.app.alpha.kouros.SleepState
+import net.jkos.app.alpha.kouros.SleepTimer
 import java.util.Base64
 
 import org.json.JSONArray
@@ -144,6 +152,16 @@ class ListenLedgerTest {
     }
 
     @Test fun closingWithNothingOpenIsNothing() = assertNull(ledger.close(0, 0))
+
+    @Test fun aBookIsItsOwnListenApartFromATrackWithItsId() {
+        ledger.start(7, "album/a/b")
+        now += 5_000
+        ledger.start(7, null, book = true)      // book 7 is not track 7: the track's stretch is replaced
+        assertTrue(ledger.isOpenFor(7, book = true)); assertFalse(ledger.isOpenFor(7, book = false))
+        now += 2_000
+        val row = ledger.close(60_000, 3_600_000)!!
+        assertTrue(row.book); assertNull(row.context); assertEquals(2_000, row.msPlayed); assertFalse(row.completed)
+    }
 
     @Test fun timestampsAreJavaScriptsToISOString() {
         assertEquals("1970-01-01T00:00:00.000Z", ListenLedger.iso(0))
@@ -323,5 +341,79 @@ class AccountTest {
         val user = """{"id":1,"email":"a@b.c","name":null,"role":"admin"}"""
         assertEquals("fam-1", AuthModels.tokenGrant("""{"access_token":"a","expires_in":900,"refresh_token":"r","family_id":"fam-1","user":$user}""").familyId)
         assertNull(AuthModels.tokenGrant("""{"access_token":"a","expires_in":900,"refresh_token":"r","user":$user}""").familyId)
+    }
+}
+
+/** Audiobooks: the shapes, a book's files and chapters, and the bodies the app sends. */
+class BooksTest {
+    private val layout = BookLayout(
+        listOf(BookFile(1, 600.0), BookFile(0, 1200.0)),   // out of order on purpose: play order is by index
+        listOf(Chapter(0.0, 900.0, "One"), Chapter(900.0, 1500.0, "Two"), Chapter(1500.0, 1800.0, "Three")),
+    )
+
+    @Test fun aPositionInTheBookIsAFileAndAnOffset() {
+        assertEquals(1_800_000L, layout.totalMs)
+        assertEquals(0 to 0L, layout.locate(0))
+        assertEquals(0 to 1_199_000L, layout.locate(1_199_000))
+        assertEquals(1 to 0L, layout.locate(1_200_000))          // on a boundary: the later file
+        assertEquals(1 to 600_000L, layout.locate(9_999_999))    // past the end: the end
+        assertEquals(0 to 0L, layout.locate(-5))
+        assertEquals(1_200_000L, layout.startOf(1))
+        assertEquals(1, layout.files[1].index)
+    }
+
+    @Test fun chaptersAcrossTheFiles() {
+        assertEquals(0, layout.chapterAt(899_999)); assertEquals(1, layout.chapterAt(900_000)); assertEquals(-1, layout.chapterAt(1_800_000))
+        assertEquals(1_500_000L, layout.nextChapterStart(1_000_000)); assertNull(layout.nextChapterStart(1_600_000))
+        // Back: this chapter's start, or the one before within its first three seconds.
+        assertEquals(900_000L, layout.previousChapterStart(1_000_000))
+        assertEquals(0L, layout.previousChapterStart(901_000))
+        assertEquals(0L, layout.previousChapterStart(1_000))
+    }
+
+    @Test fun aQueueEntryIsATrackOrABooksFile() {
+        assertEquals(MediaRef.TrackRef(12), MediaRef.parse("12"))
+        assertEquals(MediaRef.BookFileRef(7, 2), MediaRef.parse(MediaRef.of(7, 2)))
+        for (junk in listOf("-1", "book:7", "book:x:0", "book:7:-1", "track:7:0", "book:7:0:1", "")) assertNull(junk, MediaRef.parse(junk))
+    }
+
+    @Test fun bookRefsArriveAsTextAndAreCoercedAtOneDoor() {
+        val p = BookModels.progress("""[{"id":1,"book_ref":"13","position":61.5,"duration":3600,"finished":false,"last_played":"t"},{"id":2,"book_ref":"x","position":1}]""")
+        assertEquals(1, p.size); assertEquals(13L, p[0].bookId); assertEquals(1L, p[0].id); assertEquals(61.5, p[0].positionSec, 0.0)
+        val b = BookModels.bookmarks("""[{"id":4,"book_ref":13,"position":90,"title":null,"note":null}]""").single()
+        assertEquals(13L, b.bookId); assertNull(b.title)
+    }
+
+    @Test fun aBooksDetailCarriesItsFilesAndChapters() {
+        val d = BookModels.detail("""{"id":3,"title":"Dune","author":"Frank Herbert","narrator":null,"series":null,"series_seq":null,"year":1965,"duration":75000,"cover_path":"covers/3.jpg","description":"<p>Arrakis &amp; spice</p>","files":[{"index":0,"duration":75000,"codec":"aac","compat_ready":false}],"chapters":[{"start":0,"end":600,"title":""}]}""")
+        assertEquals("Dune", d.book.title); assertTrue(d.book.hasCover); assertEquals(1965, d.book.year)
+        assertEquals(listOf(BookFile(0, 75000.0)), d.files)
+        assertEquals("Chapter 1", d.chapters.single().title)                // a blank title gets a name
+        assertEquals("Arrakis & spice", BookModels.plain(d.description))    // HTML flattened, never rendered
+        assertEquals("Frank Herbert", BookModels.byline(d.book))
+    }
+
+    @Test fun theBodiesTheBookHalfSends() {
+        val p = JSONObject(BookModels.progressBody(13, 61_500, 3_600_000, false, "2026-11-17T00:00:00.000Z"))
+        assertEquals(13L, p.getLong("book_ref")); assertEquals(61.5, p.getDouble("position"), 0.0); assertEquals(3600.0, p.getDouble("duration"), 0.0)
+        assertFalse(p.getBoolean("finished")); assertEquals("2026-11-17T00:00:00.000Z", p.getString("last_played"))
+        assertFalse(JSONObject(BookModels.bookmarkBody(13, 1_000, "  ")).has("title"))
+        val l = JSONObject(BookModels.bookListenBody(net.jkos.app.alpha.kouros.Listen(13, "t", 5_000, true, "album/x/y", book = true)))
+        assertFalse(l.has("context")); assertEquals(13L, l.getLong("item_ref"))
+    }
+
+    @Test fun ratesCycleThroughTheEnginesPresets() {
+        assertEquals(listOf(0.75f, 1f, 1.25f, 1.5f, 1.75f, 2f, 2.5f), Rates.PRESETS)
+        assertEquals(1.25f, Rates.next(1f)); assertEquals(0.75f, Rates.next(2.5f))
+        assertEquals(listOf("0.75×", "1×", "1.5×", "2.5×"), listOf(0.75f, 1f, 1.5f, 2.5f).map(Rates::label))
+    }
+
+    @Test fun theSleepTimer() {
+        val t = SleepTimer.plan("15", nowMs = 1_000, chapterEndMs = null)
+        assertEquals(1_000 + 15 * 60_000L, t.deadlineMs); assertFalse(t.due(900_000, 0)); assertTrue(t.due(901_000, 0))
+        val c = SleepTimer.plan(SleepState.CHAPTER, 0, chapterEndMs = 900_000)
+        assertFalse(c.due(0, 899_000)); assertTrue(c.due(0, 899_750))     // a quarter second early
+        assertFalse(SleepTimer.plan(SleepState.CHAPTER, 0, null).on)       // no chapter to end: off
+        assertFalse(SleepTimer.plan("90", 0, null).on)                     // not a mode: off
     }
 }

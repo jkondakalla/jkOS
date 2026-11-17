@@ -74,11 +74,12 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+/** A track's cover ([id] is a track id), or a book's when [book]. No id: the empty tile. */
 @Composable
-fun Cover(trackId: Long?, size: Dp, modifier: Modifier = Modifier) {
+fun Cover(id: Long?, size: Dp, modifier: Modifier = Modifier, book: Boolean = false) {
     val px = with(LocalDensity.current) { size.roundToPx() }
-    val bitmap by produceState<ImageBitmap?>(null, trackId, px) {
-        value = trackId?.let { Covers.load(it, px)?.asImageBitmap() }
+    val bitmap by produceState<ImageBitmap?>(null, id, px, book) {
+        value = id?.let { Covers.load(it, px, book)?.asImageBitmap() }
     }
     Box(modifier.clip(RoundedCornerShape(6.dp)).background(MaterialTheme.colorScheme.surfaceVariant)) {
         bitmap?.let {
@@ -96,6 +97,7 @@ sealed interface KourosScreen : Screen {
     data object QueuePage : KourosScreen
     data object PlaylistsPage : KourosScreen
     data class PlaylistPage(val id: Long, val name: String) : KourosScreen
+    data class BookPage(val id: Long, val title: String) : KourosScreen
 
     /** A search keeps what was typed while an album or artist opened from it is on top. */
     class Search : KourosScreen {
@@ -114,6 +116,7 @@ fun KourosTab(screen: Screen, nav: Nav, controller: MediaController?, now: NowPl
         KourosScreen.PlaylistsPage -> PlaylistsScreen(nav::pop, nav::push)
         is KourosScreen.PlaylistPage -> PlaylistScreen(screen, controller, now, nav::pop, nav::push)
         is KourosScreen.Search -> SearchScreen(screen, controller, now, nav::pop, nav::push)
+        is KourosScreen.BookPage -> BookScreen(screen, controller, now, nav::pop)
         else -> LibraryScreen(nav::push)
     }
 }
@@ -137,10 +140,11 @@ private fun LibraryScreen(push: (Screen) -> Unit) {
         Row(Modifier.padding(horizontal = 8.dp)) {
             Choice("Albums", tab == 0) { tab = 0 }
             Choice("Artists", tab == 1) { tab = 1 }
+            Choice("Books", tab == 2) { tab = 2 }
         }
         OutlinedTextField(
             value = query, onValueChange = { query = it }, singleLine = true,
-            placeholder = { Text(if (tab == 0) "Search albums" else "Search artists") },
+            placeholder = { Text(when (tab) { 0 -> "Search albums"; 1 -> "Search artists"; else -> "Search books by title" }) },
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
         )
         if (tab == 0) {
@@ -150,8 +154,10 @@ private fun LibraryScreen(push: (Screen) -> Unit) {
                 }
             }
             AlbumGrid(query = query, artist = null, sort = sort, push = push)
-        } else {
+        } else if (tab == 1) {
             ArtistList(query, push)
+        } else {
+            BooksPane(query, push)
         }
     }
 }
@@ -321,7 +327,7 @@ fun MiniPlayer(now: NowPlaying, controller: MediaController?, open: () -> Unit) 
         Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).clickable(onClick = open).padding(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Cover(now.trackId.takeIf { now.hasArtwork }, 44.dp, Modifier.size(44.dp))
+        Cover(now.coverId, 44.dp, Modifier.size(44.dp), book = now.book != null)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(now.title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium)
@@ -346,13 +352,17 @@ private fun NowPlayingScreen(controller: MediaController?, now: NowPlaying?, onB
             Text("Nothing is playing.", Modifier.padding(24.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
             return@Column
         }
+        if (now.book != null) {
+            BookNowPlaying(controller, now, now.book)
+            return@Column
+        }
         val position = rememberPosition(controller, now.isPlaying)
         var dragging by remember { mutableStateOf<Float?>(null) }
         Column(
             Modifier.fillMaxSize().padding(horizontal = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Cover(now.trackId.takeIf { now.hasArtwork }, 320.dp, Modifier.fillMaxWidth().aspectRatio(1f))
+            Cover(now.coverId, 320.dp, Modifier.fillMaxWidth().aspectRatio(1f))
             Spacer(Modifier.height(20.dp))
             Text(now.title, style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Text(
@@ -386,7 +396,7 @@ private fun NowPlayingScreen(controller: MediaController?, now: NowPlaying?, onB
             }
             Spacer(Modifier.height(16.dp))
             OutlinedButton(onClick = {
-                val seed = now.trackId
+                val seed = now.trackId ?: return@OutlinedButton
                 radioNote = "Building a station…"
                 scope.launch {
                     when (val r = attempt { KourosApi.radio(seed) }) {

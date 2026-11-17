@@ -25,7 +25,11 @@ import java.util.concurrent.Executor
 
 /** What the UI shows of the player, as one immutable snapshot. */
 data class NowPlaying(
-    val trackId: Long,
+    /** The track playing, or null while a book plays. */
+    val trackId: Long?,
+    /** The book playing ([trackId] is then null): its id, where this file starts, its chapters. */
+    val book: BookInfo?,
+    val rate: Float,
     val title: String,
     val artist: String,
     val album: String,
@@ -35,6 +39,9 @@ data class NowPlaying(
     val hasNext: Boolean,
     val hasPrevious: Boolean,
 )
+
+/** The cover to draw: the track's, or the book's (Cover's `book`), or none. */
+val NowPlaying.coverId: Long? get() = if (!hasArtwork) null else trackId ?: book?.bookId
 
 private val mainExecutor = Executor { Handler(Looper.getMainLooper()).post(it) }
 
@@ -58,8 +65,11 @@ fun rememberController(): MediaController? {
 private fun Player.snapshot(): NowPlaying? {
     val item = currentMediaItem ?: return null
     val md = item.mediaMetadata
+    val ref = MediaRef.parse(item.mediaId) ?: return null
     return NowPlaying(
-        trackId = item.mediaId.toLongOrNull() ?: return null,
+        trackId = (ref as? MediaRef.TrackRef)?.id,
+        book = item.bookInfo(),
+        rate = playbackParameters.speed,
         title = md.title?.toString() ?: "",
         artist = md.artist?.toString() ?: "",
         album = md.albumTitle?.toString() ?: "",
@@ -104,9 +114,12 @@ fun rememberPosition(controller: MediaController?, playing: Boolean): Long {
     return position
 }
 
-/** One row of the queue, as the player holds it. */
+/** One row of the queue, as the player holds it: a track, or one file of a book. */
 data class QueueEntry(
-    val trackId: Long,
+    val mediaId: String,
+    /** The cover's id: the track's, or the book's when [isBook]. */
+    val coverId: Long,
+    val isBook: Boolean,
     val title: String,
     val artist: String,
     val hasArtwork: Boolean,
@@ -126,10 +139,14 @@ private fun Player.queueSnapshot(): QueueState {
     val entries = (0 until mediaItemCount).mapNotNull { i ->
         val item = getMediaItemAt(i)
         val md = item.mediaMetadata
+        val ref = MediaRef.parse(item.mediaId) ?: return@mapNotNull null
         QueueEntry(
-            trackId = item.mediaId.toLongOrNull() ?: return@mapNotNull null,
+            mediaId = item.mediaId,
+            coverId = when (ref) { is MediaRef.TrackRef -> ref.id; is MediaRef.BookFileRef -> ref.bookId },
+            isBook = ref is MediaRef.BookFileRef,
             title = md.title?.toString() ?: "",
-            artist = (md.artist ?: md.albumArtist)?.toString() ?: "",
+            artist = listOfNotNull((md.artist ?: md.albumArtist)?.toString(), md.albumTitle?.toString().takeIf { ref is MediaRef.BookFileRef })
+                .filter { it.isNotEmpty() }.joinToString(" · "),
             hasArtwork = md.artworkUri != null,
             durationMs = md.extras?.getLong(EXTRA_DURATION_MS) ?: 0L,
         )
@@ -171,6 +188,34 @@ fun MediaController.enqueue(tracks: List<Track>, next: Boolean, context: String?
 /** Play a station around [seed]: the seed first, then the station. */
 fun MediaController.playStation(seed: Track, station: List<Track>) {
     playQueue(listOf(seed) + station.filter { it.id != seed.id }, 0, PlayContext.station(seed.id))
+}
+
+/**
+ * Play [book] from [globalMs] (a position in the whole book): the queue becomes its files, the
+ * player starts in the one that position falls in, and the device's book rate applies.
+ */
+fun MediaController.playBook(book: BookDetail, globalMs: Long, rate: Float) {
+    val items = book.toMediaItems()
+    if (items.isEmpty()) return
+    val (pos, offset) = BookLayout(book.files, book.chapters).locate(globalMs)
+    setMediaItems(items, pos, offset)
+    setPlaybackSpeed(rate)
+    prepare()
+    play()
+}
+
+/** Seek to [globalMs] in the book now playing, across its files. */
+fun MediaController.seekInBook(book: BookInfo, globalMs: Long) {
+    val target = globalMs.coerceIn(0L, book.totalMs)
+    // The book's files are queue entries; find the one [target] falls in by their offsets.
+    var best = -1
+    var bestOffset = -1L
+    for (i in 0 until mediaItemCount) {
+        val info = getMediaItemAt(i).bookInfo() ?: continue
+        if (info.bookId != book.bookId) continue
+        if (info.offsetMs <= target && info.offsetMs >= bestOffset) { best = i; bestOffset = info.offsetMs }
+    }
+    if (best >= 0) seekTo(best, target - bestOffset)
 }
 
 /** Replace the queue with [tracks] and play from [start]. */

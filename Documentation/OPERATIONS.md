@@ -369,6 +369,24 @@ exists.
   - Known limit: a drag doesn't scroll the list, so a row can only be dropped somewhere on the
     screen. To move a row further, drop it at the edge, scroll, and drag it again.
 
+- **G2 · Audiobooks.** KourOS → Books.
+  - **Library:** every book, with "Continue listening" first for the ones under way, each with
+    its progress. Search by title.
+  - **A book:** its details, and a description with no HTML showing. Play. Then Pause, open the
+    book on the web: it offers Resume at the same place (within ~5 s). Resume on the phone from
+    a place set on the web. A finished book starts over. Tap a chapter: it plays from there.
+    Chapter rows fill with what you've heard.
+  - **The book player:** ±30 s, previous and next chapter (previous within the first 3 s of a
+    chapter goes to the one before), and the scrubber across the whole book. The speed button
+    cycles 0.75–2.5×. Play a song: it's at 1×. Go back to the book: your speed is back. Kill
+    the app: the speed is kept.
+  - **Sleep:** set 15 minutes, lock the phone; it pauses on time. Set "End of chapter": it
+    pauses as the chapter ends, before the next one starts.
+  - **Bookmarks:** add one (with and without a title); it is listed at its time, and on the
+    web. Tap it to jump there. Delete it.
+  - **Ledger:** a book's listen appears in the web's recently played as the book, never as a
+    track. The lock screen and notification show the book's cover and title.
+
 ### Android: jkOS Home on a panel device
 
 Install `home-*.apk`, press Home, and choose **jkOS Home**, then **Always**. To get out: **hold

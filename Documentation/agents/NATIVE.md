@@ -199,6 +199,16 @@ origin-scoped listeners gets no bridge at all (the page still works).
 >   read by id (`/api/tracks?ids=`, in pieces of Weave's `IN_MAX`), never by pulling the
 >   catalog. The queue is Media3's own, so every edit is a player call. Reordering, in the
 >   queue and in a playlist, is one grip-bound `ReorderList` over pure `Reorder` arithmetic.
+> - **Audiobooks (phase G2):** a book is its files in the queue, one entry each, as
+>   `book:<bookId>:<fileIndex>` (`MediaRef`; a bare number is still a track). Each entry's
+>   extras carry its book, where it starts in the book, the book's length and its chapters, so
+>   the service needs no lookup. `BookLayout` turns a position in the book into a file and an
+>   offset. The service's `BookKeeper` saves `progress` (a PATCH of the row by id, a POST only when there
+>   is none: the server's upsert gives a POSTed row a new id, which would strand a web tab) every
+>   5 s of playing, on pause, on a switch and at the end; sets the device's book rate on a book
+>   and 1× on anything else; and fires the `SleepTimer`. A book's listen goes to `book_history`,
+>   one stretch across its files. The rate is a device preference in the sealed `prefs.bin`
+>   (`Auth.pref`), since `check:native` allows no SharedPreferences.
 > - **A tab exists only for an app in the token's `aud`** (`Tabs.forAud`). The audience is read
 >   from the access token and kept in the sealed session file, so the tabs are right at a cold
 >   start. Each tab has its own back stack; the mini player sits above the bar.

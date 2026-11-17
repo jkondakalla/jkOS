@@ -477,6 +477,8 @@ const policy = require(resolve(root, 'native/desktop/src/policy.js'));
     kouros: [
       { path: '/stream', web: 'apps/kouros/src/api.ts', why: 'the track stream: bytes, mounted by the @jkos/weave media brick' },
       { path: '/cover', web: 'apps/kouros/src/api.ts', why: 'a track\'s cover art: bytes, from the same brick' },
+      { path: '/books/stream', web: 'apps/kouros/src/books/api.ts', why: 'a book file\'s stream: the same brick, mounted under /api/books (books/media.js)' },
+      { path: '/books/cover', web: 'apps/kouros/src/books/api.ts', why: 'a book\'s cover art: the same brick, under /api/books' },
     ],
     beigeboard: [],
   };
@@ -495,7 +497,8 @@ const policy = require(resolve(root, 'native/desktop/src/policy.js'));
     return segs.some((seg) => seg.includes('$')) ? null : '/' + segs.join('/');
   };
   const problems = [];
-  const used = Object.fromEntries(apiApps.map((a) => [a, new Set()]));
+  // For each exemption, the routes the app actually reaches through it.
+  const used = Object.fromEntries(apiApps.map((a) => [a, new Map()]));
   let literalCount = 0;
   for (const app of apiApps) {
     const declared = [...declaredPaths(DISCOVERY[app])];
@@ -505,14 +508,17 @@ const policy = require(resolve(root, 'native/desktop/src/policy.js'));
         const route = routeOf(literal);
         if (!route) { problems.push(`${file}: "${literal}" can't be read as a route — make each segment a literal or one variable`); continue; }
         const exempt = UNDECLARED_BY_DESIGN[app].find((e) => route === e.path || route.startsWith(e.path + '/'));
-        if (exempt) { used[app].add(exempt.path); continue; }
+        if (exempt) { (used[app].get(exempt.path) ?? used[app].set(exempt.path, new Set()).get(exempt.path)).add(route); continue; }
         if (!declared.some((d) => pathMatches(route, d))) problems.push(`${file}: "${literal}" (${route}) is not declared in ${DISCOVERY[app]}`);
       }
     }
     for (const e of UNDECLARED_BY_DESIGN[app]) {
       if (!used[app].has(e.path)) problems.push(`the named list exempts ${app} ${e.path}, which the app no longer calls — remove it`);
       if (!read(e.web).includes(`/api${e.path}/`)) problems.push(`the named list exempts ${app} ${e.path} as a route its web client uses, but ${e.web} has no /api${e.path}/`);
-      if (declared.some((d) => pathMatches(e.path, d))) problems.push(`${app} ${e.path} is declared now — take it off the named list`);
+      // Stale only when what the app calls through it is declared: the bare prefix can be covered
+      // by a shallower declaration (/books covers /books/stream) while /books/stream/:id/:file isn't.
+      const through = [...(used[app].get(e.path) ?? [])];
+      if (through.length && through.every((r) => declared.some((d) => pathMatches(r, d)))) problems.push(`${app} ${e.path} is declared now (${through.join(', ')}) — take it off the named list`);
     }
   }
   // A reader by id asks in pieces no bigger than the server reads: a larger piece would be

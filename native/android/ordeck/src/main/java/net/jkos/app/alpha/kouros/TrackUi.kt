@@ -55,6 +55,7 @@ fun TrackRow(
     modifier: Modifier = Modifier,
     lead: String? = null,
     coverId: Long? = null,
+    coverIsBook: Boolean = false,
     showCover: Boolean = false,
     onMenu: (() -> Unit)? = null,
     start: @Composable () -> Unit = {},
@@ -71,7 +72,7 @@ fun TrackRow(
         start()
         if (showCover) {
             Spacer(Modifier.width(8.dp))
-            Cover(coverId, 40.dp, Modifier.size(40.dp))
+            Cover(coverId, 40.dp, Modifier.size(40.dp), book = coverIsBook)
             Spacer(Modifier.width(12.dp))
         } else {
             Text(

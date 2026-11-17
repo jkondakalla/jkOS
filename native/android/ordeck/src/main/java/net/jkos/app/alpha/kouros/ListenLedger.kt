@@ -7,13 +7,14 @@ import java.time.Instant
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 
-/** One history row: POST /api/history. */
+/** One ledger row: POST /api/history for a track, POST /api/book_history for a [book]. */
 data class Listen(
     val itemRef: Long,
     val startedAt: String,
     val msPlayed: Long,
     val completed: Boolean,
     val context: String?,
+    val book: Boolean = false,
 )
 
 /**
@@ -24,21 +25,27 @@ data class Listen(
  * then reopens it, so a long screen-locked listen is banked as it goes rather than lost if the
  * process is killed). A stretch under [MIN_MS] is not a listen.
  *
+ * A book is one item however many files it is: its stretch spans them, and is keyed apart from
+ * a track with the same id (two ledgers, BOOK_HISTORY in discovery.js says why).
+ *
  * Not thread-safe: the playback service drives it from the player's (main) thread only.
  */
 class ListenLedger(private val clock: () -> Long) {
-    private class Stretch(val itemRef: Long, val context: String?, val startedAt: String, val startedAtMs: Long)
+    private class Stretch(val itemRef: Long, val book: Boolean, val context: String?, val startedAt: String, val startedAtMs: Long)
 
     private var open: Stretch? = null
 
     val isOpen get() = open != null
     val openItem get() = open?.itemRef
 
-    /** Open a stretch for [itemRef] unless one is already open for it. */
-    fun start(itemRef: Long, context: String?) {
-        if (open?.itemRef == itemRef) return
+    /** True when the open stretch is [itemRef] of that kind. */
+    fun isOpenFor(itemRef: Long, book: Boolean) = open?.let { it.itemRef == itemRef && it.book == book } ?: false
+
+    /** Open a stretch for [itemRef] unless one is already open for it. A book's carries no context. */
+    fun start(itemRef: Long, context: String?, book: Boolean = false) {
+        if (isOpenFor(itemRef, book)) return
         val now = clock()
-        open = Stretch(itemRef, context, iso(now), now)
+        open = Stretch(itemRef, book, if (book) null else context, iso(now), now)
     }
 
     /**
@@ -51,7 +58,7 @@ class ListenLedger(private val clock: () -> Long) {
         val played = (clock() - s.startedAtMs).coerceAtLeast(0)
         if (played < MIN_MS) return null
         val completed = forcedCompleted || (durationMs > 0 && positionMs >= durationMs - 1000)
-        return Listen(s.itemRef, s.startedAt, played, completed, s.context)
+        return Listen(s.itemRef, s.startedAt, played, completed, s.context, s.book)
     }
 
     companion object {

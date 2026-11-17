@@ -593,15 +593,15 @@ Each step ends in an APK and a device checklist.
 1. **Search, queue and playlists.** Built 2026-11-17, and not pushed (it needs the `ids`
    filter, which ships with D and E). The staging APK is `~/Android/jkos-apks/jkos-alpha-0.1.0-staging-g1.apk`.
    **You:** after the D and E deploy, run OPERATIONS § Native apps' G1 checks.
-2. **Audiobooks.**
-   - The book library, a book's detail with its chapters, and playback with speed, sleep,
-     bookmarks and resume, over `/api/books`, `/api/book/:bookId` and the `progress`,
-     `bookmarks` and `book_history` collections.
-   - Speed applies to books only (`rateAppliesTo`, [sources.ts](../apps/kouros/src/player/sources.ts))
-     and is kept per device. Long-term resume is for books only (§9).
-   - A book's listening ledger follows the music one, with context `book/<id>`.
-   - Check what `/api/books/stream` serves ExoPlayer before building any compat path. The remux
-     ladder exists for Firefox.
+2. **Audiobooks.** Built 2026-11-17, and not pushed (it ships with G1, after the D and E
+   deploy). The APK is `~/Android/jkos-apks/jkos-alpha-0.1.0-staging-g2.apk`, which includes G1.
+   - **No compat path.** `/api/books/stream` direct-plays the file, and every book in the
+     library is a single `.m4b` (18 of 18, counted on the mount 2026-11-17), which ExoPlayer's
+     MP4 extractor reads. The remux ladder is for Firefox's `mp4parse`. Add `?compat=1` only if
+     a device check finds a book that won't play.
+   - Not in the app, on purpose: the web's offline copies, downloads, "Fix metadata" and the
+     admin rescan and match.
+   - **You:** after the deploy, run OPERATIONS § Native apps' G2 checks.
 3. **The listening session.** The phone joins as an output or a remote.
    [routes.js](../apps/kouros/backend/src/session/routes.js) is the protocol.
    - One device per install.

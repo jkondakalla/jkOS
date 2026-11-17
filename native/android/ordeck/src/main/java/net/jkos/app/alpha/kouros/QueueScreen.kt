@@ -39,18 +39,19 @@ fun QueueScreen(controller: MediaController?, onBack: () -> Unit) {
         }
         ReorderList(
             items = queue.entries,
-            key = { i, e -> "${e.trackId}:$i" },
+            key = { i, e -> "${e.mediaId}:$i" },
             onMove = { from, to -> controller.moveMediaItem(from, to) },
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = 8.dp),
         ) { i, e, grip, lifted ->
             TrackRow(
-                title = e.title.ifEmpty { "Track ${e.trackId}" },
+                title = e.title.ifEmpty { e.mediaId },
                 subtitle = e.artist,
                 durationMs = e.durationMs,
                 playing = i == queue.current,
                 showCover = true,
-                coverId = e.trackId.takeIf { e.hasArtwork },
+                coverId = e.coverId.takeIf { e.hasArtwork },
+                coverIsBook = e.isBook,
                 onClick = {
                     controller.seekTo(i, 0L)
                     controller.play()
