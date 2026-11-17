@@ -38,6 +38,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -236,4 +237,89 @@ fun DevicesDialog(onDismiss: () -> Unit) {
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text("Done") } },
     )
+}
+
+/** One row of the output's queue, resolved for drawing. */
+private data class RemoteRow(val ref: String, val title: String, val subtitle: String, val coverId: Long?, val isBook: Boolean, val durationMs: Long)
+
+/** The session's refs as rows: tracks read by id (in pieces), books one detail each. A ref that no longer resolves draws as itself. */
+private suspend fun resolveRows(refs: List<String>): Map<String, RemoteRow> {
+    val out = HashMap<String, RemoteRow>()
+    val trackIds = refs.mapNotNull { r -> (r.toLongOrNull() ?: r.takeIf { it.startsWith("kouros:") }?.removePrefix("kouros:")?.toLongOrNull()) }.distinct()
+    if (trackIds.isNotEmpty()) {
+        for (t in KourosApi.tracksByIds(trackIds)) {
+            val row = RemoteRow("kouros:${t.id}", t.title, t.byline(), t.id.takeIf { t.hasCover }, false, t.durationMs)
+            out["kouros:${t.id}"] = row
+            out["${t.id}"] = row
+        }
+    }
+    for (r in refs.filter { it.startsWith("book:") }.distinct()) {
+        val id = r.removePrefix("book:").toLongOrNull() ?: continue
+        runCatching { KourosApi.book(id) }.getOrNull()?.let { d ->
+            out[r] = RemoteRow(r, d.book.title, BookModels.byline(d.book), d.book.id.takeIf { d.book.hasCover }, true, BookLayout(d.files, d.chapters).totalMs)
+        }
+    }
+    return out
+}
+
+/**
+ * The output's queue, edited from here (the web's Queue.tsx, as a remote): tap a row to play
+ * it there, × to take it out, drag a grip to move it. Each is a command (jump, remove,
+ * reorder) in the session's own indices. A move is drawn at once and gives way to the output's
+ * next report, which is the truth.
+ */
+@Composable
+fun RemoteQueue() {
+    val st by SessionLink.state.collectAsState()
+    val s = st.session
+    val items = s?.items ?: emptyList()
+    var moved by remember(s?.rev) { mutableStateOf<List<String>?>(null) }
+    val shown = moved ?: items
+    val rows by produceState<Map<String, RemoteRow>>(emptyMap(), items.toSet()) {
+        value = runCatching { resolveRows(items) }.getOrDefault(emptyMap())
+    }
+    val cursor = s?.cursor ?: -1
+    Column(Modifier.fillMaxSize()) {
+        val upNext = if (cursor < 0) shown.size else shown.size - cursor - 1
+        Text(
+            "On ${outputName(st)} · " + if (upNext > 0) "$upNext up next" else "nothing up next",
+            Modifier.padding(start = 16.dp, bottom = 8.dp),
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary,
+        )
+        if (shown.isEmpty()) {
+            Text("Its queue is empty.", Modifier.padding(24.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            return@Column
+        }
+        ReorderList(
+            items = shown,
+            key = { i, r -> "$r:$i" },
+            onMove = { from, to ->
+                moved = Reorder.move(shown, from, to)
+                send("reorder", SessionCore.Commands.reorder(from, to))
+            },
+            modifier = Modifier.fillMaxSize(),
+        ) { i, ref, grip, lifted ->
+            val row = rows[ref]
+            TrackRow(
+                title = row?.title ?: ref,
+                subtitle = row?.subtitle,
+                durationMs = row?.durationMs ?: 0L,
+                playing = i == cursor && moved == null,
+                showCover = true,
+                coverId = row?.coverId,
+                coverIsBook = row?.isBook == true,
+                onClick = { send("jump", SessionCore.Commands.jump(i)) },
+                modifier = Modifier
+                    .background(if (lifted) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.background)
+                    .alpha(if (i < cursor && moved == null) 0.55f else 1f),
+                start = { Icon(Glyphs.Grip, contentDescription = "Reorder ${row?.title ?: ref}", modifier = grip.padding(12.dp)) },
+                end = {
+                    IconButton(onClick = {
+                        moved = shown.filterIndexed { j, _ -> j != i }
+                        send("remove", SessionCore.Commands.remove(i))
+                    }) { Icon(Glyphs.Close, contentDescription = "Remove ${row?.title ?: ref} from the queue") }
+                },
+            )
+        }
+    }
 }

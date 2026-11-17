@@ -418,6 +418,9 @@ exists.
   - Devices: lists every device, online first, the output marked. Tap the phone: it takes
     over at the same second and the computer pauses. Tap the computer: back again. Drag the
     computer's volume: it changes there.
+  - Queue: lists the computer's queue, "On <the computer>", the current row marked. Tap a
+    row: the computer plays it. × removes it there. Drag a row: it moves at once, and the
+    computer's queue follows.
   - Close the computer's tab mid-song, then play an album on the phone: it plays on the
     phone (the command is refused, so it plays here).
 

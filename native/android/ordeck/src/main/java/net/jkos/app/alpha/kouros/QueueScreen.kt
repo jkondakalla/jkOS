@@ -30,12 +30,8 @@ fun QueueScreen(controller: MediaController?, onBack: () -> Unit) {
     Column(Modifier.fillMaxSize()) {
         Header("Queue", onBack)
         if (remote) {
-            // Not built yet: the output's queue, edited from here. Its plays and "Play next"
-            // still go to it (Player.kt routes them).
-            Text(
-                "Another device is playing. Its queue is edited there for now; Play next and Add to queue on any track still go to it.",
-                Modifier.padding(24.dp), color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            // Another device is the output: its queue, edited from here by command.
+            RemoteQueue()
             return@Column
         }
         Text(

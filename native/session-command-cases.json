@@ -201,6 +201,41 @@
         "device": "1b4e28ba-2fa1-41d2-883f-0016d3cca427",
         "level": 1
       }
+    },
+    {
+      "name": "play the output's third queue row",
+      "op": "jump",
+      "build": {
+        "kind": "jump",
+        "index": 2
+      },
+      "args": {
+        "index": 2
+      }
+    },
+    {
+      "name": "take a row out of the output's queue",
+      "op": "remove",
+      "build": {
+        "kind": "remove",
+        "index": 4
+      },
+      "args": {
+        "index": 4
+      }
+    },
+    {
+      "name": "move a row of the output's queue",
+      "op": "reorder",
+      "build": {
+        "kind": "reorder",
+        "from": 3,
+        "to": 0
+      },
+      "args": {
+        "from": 3,
+        "to": 0
+      }
     }
   ]
 }

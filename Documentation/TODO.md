@@ -602,48 +602,16 @@ Each step ends in an APK and a device checklist.
    - Not in the app, on purpose: the web's offline copies, downloads, "Fix metadata" and the
      admin rescan and match.
    - **You:** after the deploy, run OPERATIONS § Native apps' G2 checks.
-3. **The listening session.** The phone joins as an output or a remote.
-   [routes.js](../apps/kouros/backend/src/session/routes.js) is the protocol.
-   - One device per install.
-   - The event stream goes through the KourOS base, the path the web client's stream already
-     uses.
-   - As the output, it applies commands through Media3 and reports state at least every 15 s
-     while playing (`HEARTBEAT_MS`, [usePlayerSession.ts](../apps/kouros/src/session/usePlayerSession.ts)).
-   - As a remote, it draws the session on the server's clock and sends commands with
-     idempotency keys.
-   - On `reauth` it reconnects with a fresh token.
-   - Volume is per device. Queue, shuffle and repeat belong to the session (§9).
-   - The role decision ([route.ts](../apps/kouros/src/session/route.ts)) and the state body
-     (`apps/kouros/backend/src/session/validate.js`) get shared case files that the TypeScript
-     and the Kotlin both pass.
-   - If remotes need presence, §4's "silent remote" ping comes in here, in the next server batch.
-   - **Landed (2026-11-17, not pushed):**
-     - The pure half, `SessionCore`: the role, the queue as the session's (a book's files are
-       one `book:<id>` item) and the report body. Both case files are in place:
-       `native/session-mode-cases.json` (route.ts passes it) and
-       `native/session-state-cases.json` (validate.js accepts every body).
-     - The transport, `SessionLink`: one device per install, the event stream with backoff
-       and `reauth`, and the clock sample.
-     - The output role, `SessionOutput`, in the service: it reports on every change and every
-       15 s while playing, claims the output when playback starts here, pauses when another
-       device takes it, applies remotes' commands, takes over on a transfer, and cues the
-       session after the app was killed.
-     - The remote role: while another device is the output, the mini player and Now Playing
-       draw its session on the server's clock, and every verb is a command. Every play and
-       Play next / Add to queue goes to the output as `load` or `enqueue`, and plays here if
-       the output has gone (409). Devices on Now Playing moves playback anywhere, this phone
-       included, and sets another device's volume.
-     - A third case file, `native/session-command-cases.json`: validate.js accepts every
-       command the app builds.
-     - The APK is `~/Android/jkos-apks/jkos-alpha-0.1.0-staging-g3.apk`, which includes G1
-       and G2.
-     - **You:** after the deploy, run OPERATIONS § Native apps' G3 checks.
-   - **Left in G3:** editing the output's queue from the phone. Today the Queue screen says the
-     queue is edited on the output, though plays and Play next still reach it.
+3. **The listening session.** Built 2026-11-17, and not pushed (it ships with G1 and G2). The
+   phone is a device of the session, as the output or as a remote for another device, and edits
+   the output's queue from its Queue screen. The design is in NATIVE.md § 5. The APK is
+   `~/Android/jkos-apks/jkos-alpha-0.1.0-staging-g3.apk`, which includes G1 and G2.
+   - **You:** after the deploy, run OPERATIONS § Native apps' G3 checks.
    - Not done, on purpose: `shuffle` from a remote is ignored (this player doesn't shuffle,
      and reports shuffle off). The phone cues the session only when the session names this
      phone; the web cues on every idle device. The phone's own volume isn't on its picker:
      its volume buttons set it.
+   - If remotes need presence, §4's "silent remote" ping comes in here, in the next server batch.
 
 ### H · BeigeBoard
 

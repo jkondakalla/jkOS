@@ -140,6 +140,14 @@ object SessionCore {
         fun segment(next: Boolean): JSONObject = JSONObject().put("dir", if (next) "next" else "prev")
 
         fun volume(device: String, level: Float): JSONObject = JSONObject().put("device", device).put("level", level.coerceIn(0f, 1f).toDouble())
+
+        /** Play session item [index] of the output's queue. */
+        fun jump(index: Int): JSONObject = JSONObject().put("index", index.coerceIn(0, MAX_QUEUE - 1))
+
+        fun remove(index: Int): JSONObject = JSONObject().put("index", index.coerceAtLeast(0))
+
+        /** Move session item [from] to [to], remove-then-insert, as the output's player does. */
+        fun reorder(from: Int, to: Int): JSONObject = JSONObject().put("from", from.coerceAtLeast(0)).put("to", to.coerceAtLeast(0))
     }
 
     /** The POST /api/session/commands body: the op, its args, the sender, and the suite's idempotency key. */

@@ -492,6 +492,9 @@ class SessionTest {
                 "skip" -> SessionCore.Commands.skip(b.getLong("deltaMs"))
                 "segment" -> SessionCore.Commands.segment(b.getBoolean("next"))
                 "volume" -> SessionCore.Commands.volume(b.getString("device"), b.getDouble("level").toFloat())
+                "jump" -> SessionCore.Commands.jump(b.getInt("index"))
+                "remove" -> SessionCore.Commands.remove(b.getInt("index"))
+                "reorder" -> SessionCore.Commands.reorder(b.getInt("from"), b.getInt("to"))
                 else -> error("unknown kind")
             }
             if (canon(got) == canon(c.getJSONObject("args"))) null else "${c.getString("name")}: expected ${c.getJSONObject("args")}, got $got"
