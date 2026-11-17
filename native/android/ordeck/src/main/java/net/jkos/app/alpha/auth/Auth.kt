@@ -192,6 +192,11 @@ object Auth {
         store.writeThemeMode(mode.wire)
     }
 
+    /** A device preference an app keeps (SessionStore's prefs file: sealed, no backup). */
+    fun pref(key: String): String? = store.readPref(key)
+
+    fun setPref(key: String, value: String) = store.writePref(key, value)
+
     /** Sign out here AND on the server (revoke), then forget everything. */
     suspend fun signOut(): Unit = withContext(Dispatchers.IO) {
         mutex.withLock {

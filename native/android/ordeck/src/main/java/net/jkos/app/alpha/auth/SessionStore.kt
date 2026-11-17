@@ -152,12 +152,17 @@ internal class SessionStore(context: Context) {
 
     fun clearPending() = AtomicFile(File(dir, PENDING)).delete()
 
-    /** The theme mode last seen for this person: not a secret, but it goes through the same
-     *  sealed, atomic write as everything else, so this stays the app's one way to a file. It
-     *  survives a sign-out on purpose: the sign-in screen keeps the face the person chose. */
-    fun readThemeMode(): String? = read(PREFS)?.let { if (it.isNull("theme_mode")) null else it.optString("theme_mode") }
+    /** The device's preferences: the theme mode last seen, a book's playback rate. Not secrets,
+     *  but they go through the same sealed, atomic write as everything else, so this stays the
+     *  app's one way to a file. They survive a sign-out on purpose: the sign-in screen keeps the
+     *  face the person chose. A write changes one key and keeps the others. */
+    fun readPref(key: String): String? = read(PREFS)?.let { if (it.isNull(key)) null else it.optString(key) }
 
-    fun writeThemeMode(mode: String) = write(PREFS, JSONObject().put("theme_mode", mode))
+    fun writePref(key: String, value: String) = write(PREFS, (read(PREFS) ?: JSONObject()).put(key, value))
+
+    fun readThemeMode(): String? = readPref("theme_mode")
+
+    fun writeThemeMode(mode: String) = writePref("theme_mode", mode)
 
     companion object {
         private const val SESSION = "session.bin"
