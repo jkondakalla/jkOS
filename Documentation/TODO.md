@@ -630,8 +630,11 @@ Each step ends in an APK and a device checklist. Everything goes through a capab
    `updateItem` doesn't declare `parent_id`. Editing a goal's target and "done means" waits on
    the same thing. The APK is `~/Android/jkos-apks/jkos-alpha-0.1.0-staging-h2.apk`.
    **You:** after the deploy, run OPERATIONS § Native apps' H2 checks.
-3. **The calendar:** week and month views, `syncCalendar` and `disconnectCalendar`. Connecting an
-   account stays on the web.
+3. **The calendar.** Built 2026-11-17, and not pushed. BeigeBoard now declares
+   `calendarStatus` (`GET /api/auth/:provider/status`), the read that says whether a sync
+   applies. That's a server change, in the same deploy. Connecting a calendar stays on the web.
+   The APK is `~/Android/jkos-apks/jkos-alpha-0.1.0-staging-h3.apk`.
+   **You:** after the deploy, run OPERATIONS § Native apps' H3 checks.
 4. **Routines and the library:**
    - routines with their preview, series, metric and revisions;
    - occurrences are ordinary tasks;

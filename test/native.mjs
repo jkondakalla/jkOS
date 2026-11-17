@@ -534,7 +534,11 @@ const policy = require(resolve(root, 'native/desktop/src/policy.js'));
   // A client is built for one app, inside that app's package, and no path is typed anywhere else.
   const stray = walk(SRC, /\.kt$/).filter((f) => !apiApps.some((a) => f.startsWith(`${SRC}/${a}/`)))
     .filter((f) => /"[^"]*\/api\/[a-z]/.test(stripCode(read(f))));
-  const strayAuth = walk(SRC, /\.kt$/).filter((f) => !f.startsWith(`${SRC}/auth/`)).filter((f) => /"[^"]*\/auth\//.test(stripCode(read(f))));
+  // jkAuth's /auth/ paths live in auth/ only. An app's own route that happens to hold /auth/
+  // (BeigeBoard's /api/auth/:provider, its calendar connections) is an /api/ path, held by the
+  // declared-routes rule above.
+  const strayAuth = walk(SRC, /\.kt$/).filter((f) => !f.startsWith(`${SRC}/auth/`))
+    .filter((f) => [...stripCode(read(f)).matchAll(/"([^"]*\/auth\/[^"]*)"/g)].some((m) => !m[1].includes('/api/auth/')));
   const clients = walk(SRC, /\.kt$/).flatMap((f) => [...stripCode(read(f)).matchAll(/AppApi\("([^"]*)"\)/g)].map((m) => ({ f, app: m[1] })));
   const misplaced = clients.filter((c) => !apiApps.includes(c.app) || !c.f.startsWith(`${SRC}/${c.app}/`));
   check(stray.length === 0 && strayAuth.length === 0 && clients.length >= 1 && misplaced.length === 0

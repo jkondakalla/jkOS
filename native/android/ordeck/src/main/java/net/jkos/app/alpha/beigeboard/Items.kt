@@ -33,6 +33,8 @@ data class Item(
     val targetDate: String?,
     val doneMeans: String?,
     val extRef: String?,
+    /** Where it came from: 'bb', or a connected calendar ('google', 'outlook', 'icloud'). */
+    val source: String?,
     val tags: List<String>,
     val deloadOverride: Int?,
 ) {
@@ -76,6 +78,7 @@ object Items {
             targetDate = o.str("target_date"),
             doneMeans = o.str("done_means"),
             extRef = o.str("ext_ref"),
+            source = o.str("source"),
             tags = if (tags == null) emptyList() else (0 until tags.length()).mapNotNull { tags.optString(it).takeIf(String::isNotBlank) },
             deloadOverride = if (o.isNull("deload_override") || !o.has("deload_override")) null else o.optInt("deload_override"),
         )
@@ -173,6 +176,32 @@ class Tree(val items: List<Item>) {
         val leaves = descendants(id).filter { it.isTask && kids[it.id].isNullOrEmpty() && !underRoutine(it) }
         return Progress(leaves.count { it.completed }, leaves.size)
     }
+}
+
+/** The calendar's days: weeks start on Monday, as the web's weekStart and month grid do. */
+object Days {
+    /** The Monday of [iso]'s week. */
+    fun weekStart(iso: String): String {
+        val d = java.time.LocalDate.parse(iso)
+        return d.minusDays((d.dayOfWeek.value - 1).toLong()).toString()
+    }
+
+    fun week(iso: String): List<String> {
+        val start = java.time.LocalDate.parse(weekStart(iso))
+        return (0L until 7L).map { start.plusDays(it).toString() }
+    }
+
+    /** A month as grid cells, Monday first: nulls before the 1st, then each day. */
+    fun monthCells(year: Int, month: Int): List<String?> {
+        val first = java.time.LocalDate.of(year, month, 1)
+        val lead = first.dayOfWeek.value - 1
+        return List(lead) { null } + (0 until first.lengthOfMonth()).map { first.plusDays(it.toLong()).toString() }
+    }
+
+    /** What falls on [iso]: anything due then, and a multi-day event on every day it spans. By time. */
+    fun on(items: List<Item>, iso: String): List<Item> = items
+        .filter { (it.isTask || it.isEvent) && it.dueDate != null && (it.dueDate == iso || (it.isEvent && it.dueDate <= iso && (it.endDate ?: it.dueDate) >= iso)) }
+        .sortedBy { it.scheduledTime ?: "zz" }
 }
 
 /** Today, as the web's mobile Today view derives it from the items (MobileTodayView.tsx). */

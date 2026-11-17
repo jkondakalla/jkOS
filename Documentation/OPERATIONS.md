@@ -453,6 +453,17 @@ exists.
     and the web shows it lighter; the sessions after it shift back. Off hands it back. A past
     session refuses it.
 
+- **H3 · BeigeBoard: the calendar.**
+  - Week: this week's seven days, Monday first, today marked, each day's tasks and events by
+    time. A multi-day event shows on each of its days. ‹ and › move by a week; "This week"
+    comes back. Compare a week with the web's.
+  - Month: the grid, Monday first, a dot on days with something open. Tap a day: its agenda
+    is under the grid. ‹ and › move by a month.
+  - Tick a task from either view: it's done on Today and on the web.
+  - Calendars: each provider, connected (with its account) or "Connect it from BeigeBoard on
+    the web". With one connected: Sync now says how many of its events are on the board,
+    and they appear. A calendar that answers empty keeps the events the board had, and says so. Disconnect asks first, then its events leave the board, here and on the web.
+
 ### Android: jkOS Home on a panel device
 
 Install `home-*.apk`, press Home, and choose **jkOS Home**, then **Always**. To get out: **hold

@@ -653,6 +653,17 @@ class BeigeBoardTest {
         assertEquals(listOf(3L, 4L), tree.children(2).map { it.id })
     }
 
+    @Test fun theCalendarsDaysStartOnMonday() {
+        assertEquals("2026-11-16", net.jkos.app.alpha.beigeboard.Days.weekStart("2026-11-22"))   // a Sunday
+        assertEquals("2026-11-16", net.jkos.app.alpha.beigeboard.Days.weekStart("2026-11-16"))   // a Monday
+        assertEquals(listOf("2026-11-16", "2026-11-22"), net.jkos.app.alpha.beigeboard.Days.week("2026-11-19").let { listOf(it.first(), it.last()) })
+        val nov = net.jkos.app.alpha.beigeboard.Days.monthCells(2026, 11)                         // 1 Nov 2026 is a Sunday
+        assertEquals(6 + 30, nov.size); assertNull(nov[5]); assertEquals("2026-11-01", nov[6])
+        val items = listOf(item(1, due = "2026-11-17", time = "10:00"), item(2, kind = "event", due = "2026-11-16", end = "2026-11-18", time = "08:00"),
+            item(3, kind = "goal", due = "2026-11-17"), item(4, due = "2026-11-16", end = "2026-11-18"))
+        assertEquals(listOf(2L, 1L), net.jkos.app.alpha.beigeboard.Days.on(items, "2026-11-17").map { it.id })   // a task's end_date spans nothing
+    }
+
     @Test fun anAccentIsTheNearestDrawableOne() {
         val goal = item(1, kind = "goal", accent = "#C0392B"); val ms = item(2, kind = "milestone", parent = 1, accent = "var(--color-accent)"); val task = item(3, parent = 2)
         val byId = listOf(goal, ms, task).associateBy { it.id }

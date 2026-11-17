@@ -44,9 +44,36 @@ object BeigeBoardApi {
     suspend fun removeDependency(id: Long, dep: Long): Deps =
         Deps.of(JSONObject(api.call("DELETE", "/api/items/$id/deps/$dep").text))
 
+    // ── connected calendars (connecting is an OAuth redirect, and stays in the browser) ──
+
+    /** The providers syncCalendar and disconnectCalendar take. */
+    val PROVIDERS = listOf("google", "outlook", "icloud")
+
+    suspend fun calendarStatus(provider: String): CalendarStatus {
+        val o = JSONObject(api.get("/api/auth/$provider/status"))
+        return CalendarStatus(provider, o.optBoolean("connected"), if (o.isNull("email")) null else o.optString("email"))
+    }
+
+    /**
+     * Pull the provider's events into the board (pull-only: nothing is written back). The window
+     * is replaced whole; an empty answer while the board holds its events replaces nothing.
+     */
+    suspend fun syncCalendar(provider: String): String {
+        val o = JSONObject(api.call("POST", "/api/calendar/$provider/sync").text)
+        return if (o.optBoolean("skipped")) "it answered with no events, so the board kept the ones it had"
+        else "${o.optInt("synced")} event${if (o.optInt("synced") == 1) "" else "s"} on the board"
+    }
+
+    /** Forget the credential, and every event it put on the board. */
+    suspend fun disconnectCalendar(provider: String) {
+        api.call("DELETE", "/api/auth/$provider")
+    }
+
     suspend fun deload(id: Long, on: Boolean): Item =
         Items.item(JSONObject(api.call("POST", "/api/items/$id/deload", Items.deloadBody(on).toString()).text))
 }
+
+data class CalendarStatus(val provider: String, val connected: Boolean, val email: String?)
 
 /** What blocks an item, and what it blocks (the itemDeps dataset). `blocked` is the server's, derived on every read. */
 data class Deps(val blocked: Boolean, val blockedBy: List<Item>, val blocks: List<Item>) {

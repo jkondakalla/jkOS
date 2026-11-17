@@ -74,7 +74,7 @@ sealed interface BeigeBoardScreen : Screen {
 }
 
 /** The tab's first screen shows one of these; the rest are pushed. */
-enum class BoardSection(val label: String) { Today("Today"), Goals("Goals") }
+enum class BoardSection(val label: String) { Today("Today"), Goals("Goals"), Calendar("Calendar") }
 
 /** The BeigeBoard tab's first screen. */
 val BeigeBoardRoot: Screen = BeigeBoardScreen.Today
@@ -184,6 +184,7 @@ fun BeigeBoardTab(screen: Screen, nav: Nav) {
             when (board.section) {
                 BoardSection.Today -> TodayScreen(board, nav::push)
                 BoardSection.Goals -> GoalsPane(board, nav::push)
+                BoardSection.Calendar -> CalendarPane(board, nav::push)
             }
         }
     }
