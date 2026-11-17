@@ -25,6 +25,8 @@
 //   H  revoke signs the app out (always 200); the trail is in auth_events
 //   I  with JKOS_NATIVE_ENV unset, every /auth/native route is 404; an unknown value refuses
 //      to boot
+//   K  /auth/me, /auth/profile, /auth/sessions and /auth/sessions/revoke take the app's Bearer
+//      user token (never a service token); the token endpoint names the app's own session
 //   J  a role the app does not admit (a guest: ORDECK admits users and admins) gets access_denied, never a consent
 //      page — the same answer its token's `aud` would give
 //
@@ -354,6 +356,77 @@ try {
   ok('a guest → access_denied back to the app, no consent page',
     gp.status === 302 && paramsOf(gp.location).get('error') === 'access_denied' && paramsOf(gp.location).get('state') === pg.state
       && !consentOf(gp.text), `${gp.status} ${gp.location}`);
+
+  // ── K · the account routes take the app's Bearer token ──────────────────────
+  // A native app holds no cookie, so /auth/me, /auth/profile, /auth/sessions and
+  // /auth/sessions/revoke read a Bearer USER token too. The token carries no session id, so
+  // the token endpoint says which session (family) the app is, beside the tokens.
+  section("K · the account routes take the app's Bearer token");
+  {
+    const call = (method, path, tok, json) => app.req(method, path, { json, headers: tok ? { Authorization: `Bearer ${tok}` } : {}, noCookies: true });
+    const pa = pkce(), pb = pkce(), pc = pkce();
+    const ta = (await exchange((await signIn(admin, pa)).code, pa.verifier)).json;     // the admin's phone
+    const ta2 = (await exchange((await signIn(admin, pc)).code, pc.verifier)).json;    // the admin's second device
+    const tb = (await exchange((await signIn(user, pb)).code, pb.verifier)).json;      // the user's phone
+    const famOf = (refreshToken) => db().prepare('SELECT family_id FROM sessions WHERE token_hash=?')
+      .get(createHash('sha256').update(refreshToken).digest('hex'))?.family_id;
+
+    // Which session am I? An additive field on the token response, never a claim in the JWT.
+    ok('the code grant says which session the app is (family_id), beside the tokens',
+      typeof ta.family_id === 'string' && ta.family_id === famOf(ta.refresh_token), JSON.stringify({ family_id: ta.family_id }));
+    const ra = await refresh(ta.refresh_token);
+    ok('…and so does the refresh grant, with the same family', ra.status === 200 && typeof ra.json.family_id === 'string' && ra.json.family_id === ta.family_id);
+    ok('…while the access token still carries no session identity',
+      !JSON.stringify(claims(ra.json.access_token)).includes(ta.family_id) && claims(ra.json.access_token).family_id === undefined);
+    const A = ra.json.access_token, B = tb.access_token;
+
+    const me = await call('GET', '/auth/me', A);
+    ok('GET /auth/me with a Bearer token → the person', me.status === 200 && me.json?.user?.email === 'admin@native.test', `${me.status}`);
+    const prof = await call('GET', '/auth/profile', B);
+    ok('GET /auth/profile with a Bearer token → the profile and its version',
+      prof.status === 200 && prof.json?.user?.email === 'user@native.test' && typeof prof.json.prefs_version === 'number', `${prof.status}`);
+    const patch = await call('PATCH', '/auth/profile', B, { name: 'Phone User', preferences: { theme: 'dark' }, prefs_version: prof.json?.prefs_version });
+    const after = await call('GET', '/auth/profile', B);
+    ok('PATCH /auth/profile with a Bearer token writes the caller\'s own row',
+      patch.status === 200 && after.json?.user?.name === 'Phone User' && after.json?.preferences?.theme === 'dark'
+        && (await call('GET', '/auth/me', A)).json?.user?.name !== 'Phone User', `${patch.status}`);
+    ok('…under the same optimistic lock as a browser (a stale version → 409)',
+      (await call('PATCH', '/auth/profile', B, { preferences: { theme: 'paper' }, prefs_version: prof.json?.prefs_version })).status === 409);
+    ok('…and is audited against the caller',
+      !!db().prepare("SELECT 1 FROM auth_events WHERE type='profile_update' AND user_id=?").get(tb.user.id));
+
+    const list = await call('GET', '/auth/sessions', A);
+    const mine = (list.json?.sessions || []).find((x) => x.family_id === ta.family_id);
+    ok('GET /auth/sessions with a Bearer token lists the caller\'s sessions, the app\'s own among them by family_id',
+      list.status === 200 && mine && mine.client_id === STAGING.client_id && !mine.revoked, `${list.status}`);
+    ok('…and nobody else\'s', (list.json?.sessions || []).every((x) => x.family_id !== tb.family_id)
+      && (await call('GET', '/auth/sessions', B)).json?.sessions?.every((x) => x.family_id !== ta.family_id));
+
+    // Revoke: only the caller's own sessions, whoever asks.
+    const cross = await call('POST', '/auth/sessions/revoke', B, { family_id: ta2.family_id });
+    ok("a Bearer caller cannot revoke another person's session (404, and it stays live)",
+      cross.status === 404 && (await refresh(ta2.refresh_token)).status === 200, `${cross.status}`);
+    const ta2Live = (await call('GET', '/auth/sessions', A)).json?.sessions?.find((x) => x.family_id === ta2.family_id);
+    const own = await call('POST', '/auth/sessions/revoke', A, { family_id: ta2.family_id });
+    ok('a Bearer caller revokes one of their own other devices', ta2Live && !ta2Live.revoked && own.status === 200 && own.json?.revoked >= 1, `${own.status}`);
+    const gone = db().prepare('SELECT revoked_reason FROM sessions WHERE family_id=? ORDER BY id DESC').get(ta2.family_id);
+    ok('…which is tombstoned as user_revoked and audited', gone?.revoked_reason === 'user_revoked'
+      && !!db().prepare("SELECT 1 FROM auth_events WHERE type='session_revoked' AND user_id=? AND meta LIKE ?").get(ta.user.id, `%${ta2.family_id}%`));
+    ok('…and leaves the caller\'s own session and the other person\'s alone',
+      (await call('GET', '/auth/me', A)).status === 200 && (await refresh(tb.refresh_token)).status === 200);
+
+    // Who is not a person.
+    const routes = [['GET', '/auth/me'], ['GET', '/auth/profile'], ['PATCH', '/auth/profile', { name: 'x' }],
+      ['GET', '/auth/sessions'], ['POST', '/auth/sessions/revoke', { family_id: ta.family_id }]];
+    const statuses = async (tok) => Promise.all(routes.map(([m, p, j]) => call(m, p, tok, j).then((x) => x.status)));
+    ok('a service token is refused on every account route (401)', (await statuses(svc.json.access_token)).every((c) => c === 401), JSON.stringify(await statuses(svc.json.access_token)));
+    ok('…and it revoked nothing', (await call('GET', '/auth/me', A)).status === 200);
+    ok('a garbage Bearer, a consent ticket and no credential at all are each refused (401)',
+      (await statuses('not.a.jwt')).every((c) => c === 401) && (await statuses(ticket)).every((c) => c === 401)
+        && (await statuses(null)).every((c) => c === 401));
+    ok('a browser\'s cookie still works on the same routes',
+      (await admin.req('GET', '/auth/me')).status === 200 && (await admin.req('GET', '/auth/sessions')).json?.sessions?.some((x) => x.current));
+  }
 
   // ── I · off unless configured ───────────────────────────────────────────────
   section('I · JKOS_NATIVE_ENV unset → native sign-in is off');

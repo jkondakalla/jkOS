@@ -7,7 +7,7 @@
 const express = require('express')
 const { get, run, logEvent } = require('../db')
 const { deepMerge } = require('../util')
-const { resolveUser, resolveBearerUser, liveSession, clearTokens, publicUser } = require('../tokens')
+const { resolveUser, resolveBearerUser, resolveCaller, liveSession, clearTokens, publicUser } = require('../tokens')
 const { can } = require('../policy')
 
 const router = express.Router()
@@ -28,9 +28,11 @@ router.get('/auth/require-admin', (req, res) => {
   res.status(200).json({ ok: true })
 })
 
-// GET /auth/me — validate token, return user
+// GET /auth/me — validate token, return user. Like the profile routes below, it takes the
+// access cookie or a native app's Bearer user token (resolveCaller); a service token is not
+// a person and gets the 401.
 router.get('/auth/me', (req, res) => {
-  const user = resolveUser(req)
+  const user = resolveCaller(req)
   if (!user) return res.status(401).json({ error: 'Not authenticated', code: 'UNAUTHENTICATED' })
   const u = get('SELECT * FROM users WHERE id=?', [user.sub])
   if (!u) { clearTokens(res); return res.status(401).json({ error: 'User not found', code: 'UNAUTHENTICATED' }) }
@@ -41,7 +43,7 @@ router.get('/auth/me', (req, res) => {
 // optimistic-lock cursor (ARCH-7.2): a client echoes it back on PATCH so a write
 // built on a stale blob is rejected instead of silently clobbering a concurrent one.
 router.get('/auth/profile', (req, res) => {
-  const jwtUser = resolveUser(req)
+  const jwtUser = resolveCaller(req)
   if (!jwtUser) return res.status(401).json({ error: 'Not authenticated', code: 'UNAUTHENTICATED' })
   const u = get('SELECT * FROM users WHERE id=?', [jwtUser.sub])
   if (!u) return res.status(401).json({ error: 'User not found', code: 'UNAUTHENTICATED' })
@@ -66,7 +68,7 @@ router.get('/auth/profile', (req, res) => {
 // blob and retry. A client that omits prefs_version (e.g. a fire-and-forget HUD
 // autosave) skips the check — it still deep-merges, so it can't drop a sibling slice.
 router.patch('/auth/profile', (req, res) => {
-  const jwtUser = resolveUser(req)
+  const jwtUser = resolveCaller(req)
   if (!jwtUser) return res.status(401).json({ error: 'Not authenticated', code: 'UNAUTHENTICATED' })
   const u = get('SELECT * FROM users WHERE id=?', [jwtUser.sub])
   if (!u) return res.status(401).json({ error: 'User not found', code: 'UNAUTHENTICATED' })

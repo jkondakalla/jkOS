@@ -19,7 +19,7 @@ const { PASSWORD_MAX } = require('../config')
 const { get, run, logEvent } = require('../db')
 const { isJsonReq, passwordError } = require('../util')
 const { loginPage, forgotPage, resetPage, verifyEmailPage, securityPage } = require('../views')
-const { resolveUser, DUMMY_HASH, sessionFamilies, currentFamilyOf } = require('../tokens')
+const { resolveUser, resolveCaller, DUMMY_HASH, sessionFamilies, currentFamilyOf } = require('../tokens')
 const { hashPassword, verifyPassword } = require('../password')
 const { mintOtp, verifyEmailOtp, recoveryCodesRemaining } = require('../twofactor')
 const { can } = require('../policy')
@@ -218,8 +218,12 @@ router.post('/auth/verify/confirm', (req, res) => {
 // would show "47 sessions" for one browser that has been open a month, which is
 // noise rather than information — so the rows fold into the family and the
 // timestamps are the family's: first seen, last used.
+//
+// A native app reads it with its Bearer token (resolveCaller). `current` is decided from the
+// refresh COOKIE, which an app doesn't hold, so for an app it is always false: the app marks
+// its own entry by the `family_id` its token response carried (routes/native.js).
 router.get('/auth/sessions', (req, res) => {
-  const jwtUser = resolveUser(req)
+  const jwtUser = resolveCaller(req)
   if (!jwtUser) return res.status(401).json({ error: 'Not authenticated', code: 'UNAUTHENTICATED' })
   res.json({ sessions: sessionFamilies(jwtUser.sub, currentFamilyOf(req)) })
 })
@@ -232,7 +236,7 @@ router.get('/auth/sessions', (req, res) => {
 // doesn't exist" should be indistinguishable to a prober.
 router.post('/auth/sessions/revoke', (req, res) => {
   const isJson = isJsonReq(req)
-  const jwtUser = resolveUser(req)
+  const jwtUser = resolveCaller(req)
   if (!jwtUser) return res.status(401).json({ error: 'Not authenticated', code: 'UNAUTHENTICATED' })
   const familyId = String(req.body?.family_id || '')
   if (!familyId) return res.status(400).json({ error: 'family_id is required' })

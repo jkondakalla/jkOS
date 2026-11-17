@@ -572,21 +572,11 @@ in with KourOS Alpha's client, which this phase removes from jkAuth's list.
 
 ### E · jkAuth: the account routes take a Bearer token
 
-1. `GET /auth/me`, `GET`/`PATCH /auth/profile`, `GET /auth/sessions` and
-   `POST /auth/sessions/revoke` read only the cookie today (`resolveUser` in
-   [tokens.js](../apps/jkauth/src/tokens.js)). Make each accept a Bearer **user** token too,
-   through `resolveBearerUser`, which already refuses service and pending-2FA tokens, as
-   `/auth/require-admin` does in [profile.js](../apps/jkauth/src/routes/profile.js). Cookie
-   behaviour doesn't change.
-2. The app needs to know which session is its own, to mark "this device". Add that as an
-   additive field, not a token-format change.
-3. Prove it in `apps/jkauth/test/native.mjs`, each assertion failing first:
-   - a Bearer token reaches each route;
-   - a service token is refused;
-   - revoke touches only the caller's own sessions.
+Landed locally with D, and not pushed for the same reason: the five account routes take the
+app's Bearer user token (`resolveCaller`), and the token endpoint names the app's own session
+(`family_id`), so the app can mark "this device".
 
-   Update the CONTROLS.md rows that cite these routes.
-4. **You:** deploy staging with D and E.
+1. **You:** deploy staging with D and E.
 
 ### F · Account and devices
 

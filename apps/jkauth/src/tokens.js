@@ -397,6 +397,16 @@ function resolveBearerUser(req) {
   }
 }
 
+// The person a request comes from, by either transport: the access cookie (a browser) or a
+// Bearer user token (a native app, which holds no cookie). For the routes a person uses on
+// their OWN account from any client: /auth/me, /auth/profile, /auth/sessions and its revoke.
+// The cookie is read first, so a browser's behaviour is unchanged. A Bearer token is not
+// ambient: no page can make a browser send one, so it adds no cross-site request to defend
+// against. Routes that render jkAuth's own pages (password, 2FA, invites) stay on resolveUser.
+function resolveCaller(req) {
+  return resolveUser(req) || resolveBearerUser(req)
+}
+
 // Short-lived signed token issued when a password login passes but a
 // second factor is still required. It is NOT a session — it only authorises the
 // 2FA step. Stateless (no DB row): carries the user id, the remember choice, and
@@ -539,6 +549,6 @@ function publicUser(u) {
 module.exports = {
   DUMMY_HASH, sha256, signAccess, signService, issueTokens, clearTokens,
   liveSession, tryRotate, resolveUser, resolveOrRefresh, publicUser,
-  rotateNative, issueNativeSession, resolveBearerUser,
+  rotateNative, issueNativeSession, resolveBearerUser, resolveCaller,
   signPending, verifyPending, provenance, sessionFamilies, currentFamilyOf,
 }

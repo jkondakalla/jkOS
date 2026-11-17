@@ -10,7 +10,7 @@
 //   POST /auth/native/authorize   the consent page's Allow / Cancel
 //   POST /auth/native/token       grant_type=authorization_code {code, code_verifier, client_id, redirect_uri}
 //                                 grant_type=refresh_token      {refresh_token, client_id}
-//        → { access_token, token_type, expires_in, refresh_token, user }
+//        → { access_token, token_type, expires_in, refresh_token, family_id, user }
 //   POST /auth/native/revoke      { client_id, token } — signs the app out (RFC 7009: always 200)
 //
 // WHAT HOLDS IT:
@@ -196,13 +196,17 @@ router.post('/auth/native/authorize', (req, res) => {
   res.redirect(back(client, { code, state: ticket.st }))
 })
 
-/** The token response — the one shape both grants answer with. */
-function tokenResponse(user, client, refresh) {
+/** The token response — the one shape both grants answer with.
+ *  `family_id` is which of the person's sessions this app is: the id GET /auth/sessions lists
+ *  it under, so the app can mark "this device". It rides beside the tokens, not inside one:
+ *  the access JWT carries no session identity, and that format doesn't change. */
+function tokenResponse(user, client, refresh, family) {
   return {
     access_token: signAccess(user, { azp: client.app }),
     token_type: 'Bearer',
     expires_in: ACCESS_TTL_MS / 1000,
     refresh_token: refresh,
+    family_id: family,
     user: publicUser(user),
   }
 }
@@ -253,14 +257,14 @@ router.post('/auth/native/token', (req, res) => {
     const { refresh, family } = issueNativeSession(user, client.client_id)
     run('UPDATE native_auth_codes SET family_id=? WHERE code_hash=?', [family, hash])
     logEvent('native_token', user.id, req, { client_id: client.client_id, family })
-    return res.json(tokenResponse(user, client, refresh))
+    return res.json(tokenResponse(user, client, refresh, family))
   }
 
   if (b.grant_type === 'refresh_token') {
     const r = rotateNative(req, b.refresh_token, client.client_id)
     if (r.status === 'ok') {
       if (!mayUse(r.user, client)) return invalidGrant(res, 'this account may no longer use this app')
-      return res.json(tokenResponse(r.user, client, r.refresh))
+      return res.json(tokenResponse(r.user, client, r.refresh, r.family))
     }
     if (r.status === 'race') {
       return res.status(409).json({ error: 'refresh_race', code: 'REFRESH_RACE',
