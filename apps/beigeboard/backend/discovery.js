@@ -460,6 +460,19 @@ const DATASETS = {
      * `:id` paths are per-routine reads rather than filtered lists, so their
      * parameters are `computed` — there is no WHERE clause to map them to. */
     {
+      /* Whether a calendar is connected, and as whom. syncCalendar and disconnectCalendar
+         were declared and the one read that says whether either applies was not: a peer (the
+         native app, TODO §10 H3) had to try a sync to learn. Connecting stays an OAuth
+         redirect in the browser and is not declared. */
+      id: 'calendarStatus', label: 'A calendar connection', path: '/auth/:provider/status',
+      cardinality: 'one',
+      filters: [{ name: 'provider', type: 'enum', label: 'Provider', enum: ['google', 'outlook', 'icloud'], computed: true }],
+      item: [
+        { name: 'connected', type: 'boolean', label: 'A credential is stored for this provider' },
+        { name: 'email',     type: 'string',  label: 'The account it is connected as (null: none)' },
+      ],
+    },
+    {
       id: 'routineMetric', label: "A routine's goal metric", path: '/routines/:id/metric',
       cardinality: 'one',
       filters: [],

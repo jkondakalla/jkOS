@@ -248,17 +248,17 @@ const syncHandler = (provider) => async (req, res) => {
 };
 
 /* ── Google ────────────────────────────────────────────────────────────── */
-router.get('/api/auth/google/status', statusHandler('google'));      // app-private: connector state for this app's own settings panel
+router.get('/api/auth/google/status', statusHandler('google'));
 router.delete('/api/auth/google', disconnectHandler('google'));      // app-private: forgets credentials this app stores; the RESULT is the declared connector state
 router.post('/api/calendar/google/sync', syncHandler('google'));
 
 /* ── Outlook ───────────────────────────────────────────────────────────── */
-router.get('/api/auth/outlook/status', statusHandler('outlook'));    // app-private: connector state for this app's own settings panel
+router.get('/api/auth/outlook/status', statusHandler('outlook'));
 router.delete('/api/auth/outlook', disconnectHandler('outlook'));    // app-private: forgets credentials this app stores; the RESULT is the declared connector state
 router.post('/api/calendar/outlook/sync', syncHandler('outlook'));
 
 /* ── iCloud ────────────────────────────────────────────────────────────── */
-router.get('/api/auth/icloud/status', statusHandler('icloud'));      // app-private: connector state for this app's own settings panel
+router.get('/api/auth/icloud/status', statusHandler('icloud'));
 router.delete('/api/auth/icloud', disconnectHandler('icloud'));      // app-private: forgets credentials this app stores; the RESULT is the declared connector state
 router.post('/api/calendar/icloud/sync', syncHandler('icloud'));
 

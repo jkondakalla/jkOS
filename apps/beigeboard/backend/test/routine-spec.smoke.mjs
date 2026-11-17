@@ -595,7 +595,8 @@ try {
   const { DATASETS } = createRequire(import.meta.url)(join(BACKEND, 'discovery.js'));
   await checkDeclaredDatasets({
     ok, doc: DATASETS, base: `${BASE}/api`,
-    params: { id: worked.json.routines[0].id },
+    // `provider`: calendarStatus answers for a provider never connected, too ({connected:false}).
+    params: { id: worked.json.routines[0].id, provider: 'google' },
     fetchOpts: { headers: { Authorization: `Bearer ${A}`, 'X-JKOS-TODAY': TODAY } },
   });
 
