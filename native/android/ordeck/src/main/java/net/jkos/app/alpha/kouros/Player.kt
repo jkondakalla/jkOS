@@ -104,6 +104,75 @@ fun rememberPosition(controller: MediaController?, playing: Boolean): Long {
     return position
 }
 
+/** One row of the queue, as the player holds it. */
+data class QueueEntry(
+    val trackId: Long,
+    val title: String,
+    val artist: String,
+    val hasArtwork: Boolean,
+    val durationMs: Long,
+)
+
+/** The queue in the player's own order, and which entry is current (-1: none). */
+data class QueueState(val entries: List<QueueEntry>, val current: Int) {
+    val upNext: Int get() = if (current < 0) entries.size else entries.size - current - 1
+    /** What is left to hear, from the current entry on. */
+    val remainingMs: Long get() = entries.drop(current.coerceAtLeast(0)).sumOf { it.durationMs }
+
+    companion object { val Empty = QueueState(emptyList(), -1) }
+}
+
+private fun Player.queueSnapshot(): QueueState {
+    val entries = (0 until mediaItemCount).mapNotNull { i ->
+        val item = getMediaItemAt(i)
+        val md = item.mediaMetadata
+        QueueEntry(
+            trackId = item.mediaId.toLongOrNull() ?: return@mapNotNull null,
+            title = md.title?.toString() ?: "",
+            artist = (md.artist ?: md.albumArtist)?.toString() ?: "",
+            hasArtwork = md.artworkUri != null,
+            durationMs = md.extras?.getLong(EXTRA_DURATION_MS) ?: 0L,
+        )
+    }
+    return QueueState(entries, if (entries.isEmpty()) -1 else currentMediaItemIndex)
+}
+
+/** The queue, kept current by the player's own events. */
+@Composable
+fun rememberQueue(controller: MediaController?): QueueState {
+    var queue by remember(controller) { mutableStateOf(controller?.queueSnapshot() ?: QueueState.Empty) }
+    DisposableEffect(controller) {
+        val c = controller ?: return@DisposableEffect onDispose { }
+        val listener = object : Player.Listener {
+            override fun onEvents(player: Player, events: Player.Events) {
+                if (events.containsAny(Player.EVENT_TIMELINE_CHANGED, Player.EVENT_MEDIA_ITEM_TRANSITION)) {
+                    queue = player.queueSnapshot()
+                }
+            }
+        }
+        c.addListener(listener)
+        queue = c.queueSnapshot()
+        onDispose { c.removeListener(listener) }
+    }
+    return queue
+}
+
+/**
+ * Put [tracks] in the queue without interrupting it: right after the current track ([next]),
+ * or at the end. With nothing queued, they simply play.
+ */
+fun MediaController.enqueue(tracks: List<Track>, next: Boolean, context: String?) {
+    if (tracks.isEmpty()) return
+    if (mediaItemCount == 0) return playQueue(tracks, 0, context)
+    val items = tracks.map { it.toMediaItem(context) }
+    if (next) addMediaItems(currentMediaItemIndex + 1, items) else addMediaItems(items)
+}
+
+/** Play a station around [seed]: the seed first, then the station. */
+fun MediaController.playStation(seed: Track, station: List<Track>) {
+    playQueue(listOf(seed) + station.filter { it.id != seed.id }, 0, PlayContext.station(seed.id))
+}
+
 /** Replace the queue with [tracks] and play from [start]. */
 fun MediaController.playQueue(tracks: List<Track>, start: Int, context: String?) {
     if (tracks.isEmpty()) return

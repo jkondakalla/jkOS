@@ -37,6 +37,10 @@ import java.util.concurrent.Executors
 /** The MediaMetadata extra a queued track carries its play context in (PlayContext). */
 const val EXTRA_CONTEXT = "net.jkos.app.alpha.kouros.context"
 
+/** The MediaMetadata extra a queued track carries its catalog duration in, so the queue can
+ *  show every row's length before the player has opened it. */
+const val EXTRA_DURATION_MS = "net.jkos.app.alpha.kouros.duration_ms"
+
 /** A track as a queue entry. The URI is rebuilt by the service from the id (onAddMediaItems). */
 fun Track.toMediaItem(context: String?): MediaItem = MediaItem.Builder()
     .setMediaId(id.toString())
@@ -48,7 +52,10 @@ fun Track.toMediaItem(context: String?): MediaItem = MediaItem.Builder()
             .setAlbumTitle(album)
             .setAlbumArtist(albumArtist)
             .setArtworkUri(if (hasCover) Uri.parse(KourosApi.coverUrl(id)) else null)
-            .setExtras(Bundle().apply { putString(EXTRA_CONTEXT, context) })
+            .setExtras(Bundle().apply {
+                putString(EXTRA_CONTEXT, context)
+                putLong(EXTRA_DURATION_MS, (durationSec * 1000).toLong())
+            })
             .build(),
     )
     .build()

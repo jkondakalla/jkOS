@@ -515,6 +515,13 @@ const policy = require(resolve(root, 'native/desktop/src/policy.js'));
       if (declared.some((d) => pathMatches(e.path, d))) problems.push(`${app} ${e.path} is declared now — take it off the named list`);
     }
   }
+  // A reader by id asks in pieces no bigger than the server reads: a larger piece would be
+  // cut short by the server, and those rows would be missing with nothing saying so.
+  const { IN_MAX } = require(resolve(root, 'packages/weave/src/server/filters.js'));
+  const idsMax = Number(/const val IDS_MAX = (\d+)/.exec(read(`${SRC}/kouros/KourosApi.kt`))?.[1]);
+  check(idsMax === IN_MAX,
+    `KourosApi asks for tracks by id ${IN_MAX} at a time, the most Weave's 'in' filter reads (IN_MAX)`,
+    `KourosApi.IDS_MAX is ${idsMax} but Weave's IN_MAX is ${IN_MAX}: rows past ${IN_MAX} in a piece would be silently missing`);
   check(literalCount >= 8 && problems.length === 0,
     `every /api/… path in an app's Kotlin client is declared by that app or on the named list (${literalCount} literals; undeclared by design: ${apiApps.flatMap((a) => UNDECLARED_BY_DESIGN[a].map((e) => `${a} ${e.path}`)).join(', ')})`,
     `the native app calls a route its app doesn't declare:\n    ${problems.join('\n    ') || `only ${literalCount} /api/ literals found — the scan is not seeing the clients`}`);

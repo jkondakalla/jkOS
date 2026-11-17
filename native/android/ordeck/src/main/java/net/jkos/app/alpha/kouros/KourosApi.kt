@@ -12,6 +12,9 @@ import java.net.URLEncoder
  * The transport, the token and the "only under this app's base" rule are [AppApi]'s.
  */
 object KourosApi {
+    /** The most ids the tracks dataset reads in one request (packages/weave filters.js IN_MAX). */
+    const val IDS_MAX = 200
+
     private val api = AppApi("kouros")
     private fun enc(v: String) = URLEncoder.encode(v, "UTF-8")
     private suspend fun get(path: String) = api.get(path)
@@ -34,6 +37,35 @@ object KourosApi {
     suspend fun artists(q: String = "", limit: Int = 300, offset: Int = 0): List<Artist> {
         val qs = "?limit=$limit&offset=$offset" + if (q.isNotBlank()) "&q=${enc(q.trim())}" else ""
         return Models.artists(get("/api/artists$qs"))
+    }
+
+    /** Tracks whose title starts with [title] (the dataset's prefix filter), as the web's Search asks. */
+    suspend fun searchTracks(title: String): List<Track> =
+        Models.tracks(get("/api/tracks?title=${enc(title.trim())}"))
+
+    /**
+     * The rows for [ids], in that order: a playlist's track_refs, or the session's queue. The
+     * dataset reads at most [IDS_MAX] ids a request (Weave's IN_MAX), so a long list is asked
+     * for in pieces.
+     */
+    suspend fun tracksByIds(ids: List<Long>): List<Track> {
+        val rows = ids.distinct().chunked(IDS_MAX).flatMap { part ->
+            Models.tracks(get("/api/tracks?ids=${part.joinToString(",")}"))
+        }
+        return Models.inOrder(ids, rows)
+    }
+
+    suspend fun playlists(): List<Playlist> = Models.playlists(get("/api/playlists"))
+
+    suspend fun createPlaylist(name: String, trackRefs: List<Long> = emptyList()): Playlist =
+        Models.playlist(api.call("POST", "/api/playlists", Models.playlistBody(name, trackRefs)).text)
+
+    /** Rename, or reorder by sending the whole list back: the collection has no other primitive. */
+    suspend fun updatePlaylist(id: Long, name: String? = null, trackRefs: List<Long>? = null): Playlist =
+        Models.playlist(api.call("PATCH", "/api/playlists/$id", Models.playlistBody(name, trackRefs)).text)
+
+    suspend fun deletePlaylist(id: Long) {
+        api.call("DELETE", "/api/playlists/$id")
     }
 
     suspend fun stats(): LibraryStats = Models.stats(get("/api/library/stats"))

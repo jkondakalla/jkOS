@@ -93,6 +93,14 @@ sealed interface KourosScreen : Screen {
     data class ArtistPage(val artist: String) : KourosScreen
     data class AlbumPage(val album: String, val artist: String) : KourosScreen
     data object NowPlayingPage : KourosScreen
+    data object QueuePage : KourosScreen
+    data object PlaylistsPage : KourosScreen
+    data class PlaylistPage(val id: Long, val name: String) : KourosScreen
+
+    /** A search keeps what was typed while an album or artist opened from it is on top. */
+    class Search : KourosScreen {
+        var query by mutableStateOf("")
+    }
 }
 
 /** The KourOS tab: whichever of its screens is on top of the tab's stack. */
@@ -100,8 +108,12 @@ sealed interface KourosScreen : Screen {
 fun KourosTab(screen: Screen, nav: Nav, controller: MediaController?, now: NowPlaying?) {
     when (screen) {
         is KourosScreen.ArtistPage -> ArtistScreen(screen.artist, nav::pop, nav::push)
-        is KourosScreen.AlbumPage -> AlbumScreen(screen.album, screen.artist, controller, nav::pop)
-        KourosScreen.NowPlayingPage -> NowPlayingScreen(controller, now, nav::pop)
+        is KourosScreen.AlbumPage -> AlbumScreen(screen.album, screen.artist, controller, now, nav::pop, nav::push)
+        KourosScreen.NowPlayingPage -> NowPlayingScreen(controller, now, nav::pop, nav::push)
+        KourosScreen.QueuePage -> QueueScreen(controller, nav::pop)
+        KourosScreen.PlaylistsPage -> PlaylistsScreen(nav::pop, nav::push)
+        is KourosScreen.PlaylistPage -> PlaylistScreen(screen, controller, now, nav::pop, nav::push)
+        is KourosScreen.Search -> SearchScreen(screen, controller, now, nav::pop, nav::push)
         else -> LibraryScreen(nav::push)
     }
 }
@@ -117,7 +129,11 @@ private fun LibraryScreen(push: (Screen) -> Unit) {
     var sort by remember { mutableStateOf("added") }
 
     Column(Modifier.fillMaxSize()) {
-        Header("KourOS", onBack = null)
+        Header("KourOS", onBack = null) {
+            IconButton(onClick = { push(KourosScreen.Search()) }) { Icon(Glyphs.Search, contentDescription = "Search") }
+            IconButton(onClick = { push(KourosScreen.PlaylistsPage) }) { Icon(Glyphs.Playlist, contentDescription = "Playlists") }
+            IconButton(onClick = { push(KourosScreen.QueuePage) }) { Icon(Glyphs.Queue, contentDescription = "Queue") }
+        }
         Row(Modifier.padding(horizontal = 8.dp)) {
             Choice("Albums", tab == 0) { tab = 0 }
             Choice("Artists", tab == 1) { tab = 1 }
@@ -242,13 +258,21 @@ private fun ArtistScreen(artist: String, onBack: () -> Unit, push: (Screen) -> U
 // ── Album: its tracks; a tap plays the album from there ────────────────────────
 
 @Composable
-private fun AlbumScreen(album: String, artist: String, controller: MediaController?, onBack: () -> Unit) {
+private fun AlbumScreen(album: String, artist: String, controller: MediaController?, now: NowPlaying?, onBack: () -> Unit, push: (Screen) -> Unit) {
     var attemptNo by remember { mutableIntStateOf(0) }
+    var menu by remember { mutableStateOf<TrackTarget?>(null) }
     val state by produceState<Load<List<Track>>>(Load.Loading, album, artist, attemptNo) {
         value = attempt { KourosApi.albumTracks(album, artist) }
     }
+    val context = PlayContext.album(artist, album)
     Column(Modifier.fillMaxSize()) {
-        Header(album, onBack)
+        Header(album, onBack) {
+            (state as? Load.Ready)?.value?.takeIf { it.isNotEmpty() }?.let { tracks ->
+                IconButton(onClick = { menu = TrackTarget(tracks, album, artist, context, artist, null) }) {
+                    Icon(Glyphs.More, contentDescription = "More for $album")
+                }
+            }
+        }
         Loaded(state, retry = { attemptNo++ }) { tracks ->
             LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 8.dp)) {
                 item {
@@ -265,29 +289,21 @@ private fun AlbumScreen(album: String, artist: String, controller: MediaControll
                     }
                 }
                 itemsIndexed(tracks, key = { _, t -> t.id }) { i, t ->
-                    Row(
-                        Modifier.fillMaxWidth()
-                            .clickable(enabled = controller != null) { controller?.playQueue(tracks, i, PlayContext.album(artist, album)) }
-                            .padding(horizontal = 16.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            t.trackNo?.toString() ?: "·", modifier = Modifier.width(32.dp),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall,
-                        )
-                        Column(Modifier.weight(1f)) {
-                            Text(t.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            if (t.artist != null && t.artist != artist) {
-                                Text(t.artist, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
-                            }
-                        }
-                        Text(formatTime((t.durationSec * 1000).toLong()), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
+                    TrackRow(
+                        title = t.title,
+                        subtitle = t.artist?.takeIf { it != artist },
+                        durationMs = t.durationMs,
+                        playing = now?.trackId == t.id,
+                        lead = t.trackNo?.toString(),
+                        onClick = controller?.let { c -> { c.playQueue(tracks, i, context) } },
+                        onMenu = { menu = TrackTarget(listOf(t), t.title, t.byline(), null, artist, null) },
+                    )
                     HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
                 }
             }
         }
     }
+    TrackActions(menu, controller, push) { menu = null }
 }
 
 // ── the player: a bar at the bottom, and a full screen ─────────────────────────
@@ -319,11 +335,13 @@ fun MiniPlayer(now: NowPlaying, controller: MediaController?, open: () -> Unit) 
 }
 
 @Composable
-private fun NowPlayingScreen(controller: MediaController?, now: NowPlaying?, onBack: () -> Unit) {
+private fun NowPlayingScreen(controller: MediaController?, now: NowPlaying?, onBack: () -> Unit, push: (Screen) -> Unit) {
     val scope = rememberCoroutineScope()
     var radioNote by remember { mutableStateOf<String?>(null) }
     Column(Modifier.fillMaxSize()) {
-        Header("Now playing", onBack)
+        Header("Now playing", onBack) {
+            IconButton(onClick = { push(KourosScreen.QueuePage) }) { Icon(Glyphs.Queue, contentDescription = "Queue") }
+        }
         if (now == null || controller == null) {
             Text("Nothing is playing.", Modifier.padding(24.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
             return@Column

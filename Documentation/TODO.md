@@ -590,9 +590,9 @@ out. Password and two-factor open jkAuth's own page in a Custom Tab.
 
 Each step ends in an APK and a device checklist.
 
-1. **Search, queue and playlists,** at parity with the web's
-   [Search.tsx](../apps/kouros/src/views/Search.tsx), [Queue.tsx](../apps/kouros/src/views/Queue.tsx)
-   and `apps/kouros/src/views/playlists/`.
+1. **Search, queue and playlists.** Built 2026-11-17, and not pushed (it needs the `ids`
+   filter, which ships with D and E). The staging APK is `~/Android/jkos-apks/jkos-alpha-0.1.0-staging-g1.apk`.
+   **You:** after the D and E deploy, run OPERATIONS § Native apps' G1 checks.
 2. **Audiobooks.**
    - The book library, a book's detail with its chapters, and playback with speed, sleep,
      bookmarks and resume, over `/api/books`, `/api/book/:bookId` and the `progress`,

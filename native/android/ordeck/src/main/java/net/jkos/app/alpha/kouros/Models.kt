@@ -7,7 +7,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 // KourOS's API shapes, as this app reads them. The server half is
-// apps/kouros/backend/src/routes/{browse,discover}.js. org.json is part of Android; the JVM
+// apps/kouros/backend/src/routes/{browse,discover,tracks}.js and the playlists collection. org.json is part of Android; the JVM
 // unit test uses the org.json artifact, so the parsing below is held there too.
 
 data class Album(
@@ -36,6 +36,9 @@ data class Track(
 )
 
 data class LibraryStats(val tracks: Int, val albums: Int, val artists: Int, val duration: Long)
+
+/** A `playlists` row (discovery.js PLAYLISTS): the person's own, in their order. */
+data class Playlist(val id: Long, val name: String, val description: String?, val trackRefs: List<Long>)
 
 object Models {
     /** A string field, with JSON null and absence both null. (optString turns null into "null".) */
@@ -85,6 +88,42 @@ object Models {
     )
 
     fun albumTracks(json: String): List<Track> = list(json, ::track)
+
+    /** GET /api/tracks: the `tracks` dataset's bare array. */
+    fun tracks(json: String): List<Track> = list(json, ::track)
+
+    /**
+     * The rows for [ids], in [ids]' order (the dataset answers in catalog order). An id the
+     * catalog no longer has is skipped, the way the web's playlist view skips a vanished ref.
+     */
+    fun inOrder(ids: List<Long>, rows: List<Track>): List<Track> {
+        val byId = rows.associateBy { it.id }
+        return ids.mapNotNull { byId[it] }
+    }
+
+    private fun playlist(o: JSONObject): Playlist {
+        // track_refs is a list:true column: a JSON array, written by the web as numbers. A
+        // numeric string reads as its number; anything else isn't a track and is dropped.
+        val refs = o.optJSONArray("track_refs")
+        val ids = if (refs == null) emptyList() else (0 until refs.length()).mapNotNull { i ->
+            when (val v = refs.opt(i)) {
+                is Number -> v.toLong().takeIf { it >= 0 && v.toDouble() == it.toDouble() }
+                is String -> v.toLongOrNull()?.takeIf { it >= 0 }
+                else -> null
+            }
+        }
+        return Playlist(o.getLong("id"), o.str("name") ?: "", o.str("description"), ids)
+    }
+
+    fun playlists(json: String): List<Playlist> = list(json, ::playlist)
+
+    fun playlist(json: String): Playlist = playlist(JSONObject(json))
+
+    /** A POST or PATCH /api/playlists body: only the fields given. track_refs as numbers. */
+    fun playlistBody(name: String? = null, trackRefs: List<Long>? = null): String = JSONObject().apply {
+        if (name != null) put("name", name)
+        if (trackRefs != null) put("track_refs", JSONArray(trackRefs))
+    }.toString()
 
     /** GET /api/discover/radio → its `results`. */
     fun radio(json: String): List<Track> {

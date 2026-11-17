@@ -195,6 +195,10 @@ origin-scoped listeners gets no bridge at all (the page still works).
 >   jkAuth's own pages, opened in a Custom Tab.
 > - **One transport holds the token** (`BearerClient`): `AppApi` builds one for
 >   `${an app's base}/api/`, `AccountApi` one for `${auth_origin}/auth/`, and nothing else may.
+> - **KourOS's lists (phase G1):** search, the queue and playlists. A playlist's tracks are
+>   read by id (`/api/tracks?ids=`, in pieces of Weave's `IN_MAX`), never by pulling the
+>   catalog. The queue is Media3's own, so every edit is a player call. Reordering, in the
+>   queue and in a playlist, is one grip-bound `ReorderList` over pure `Reorder` arithmetic.
 > - **A tab exists only for an app in the token's `aud`** (`Tabs.forAud`). The audience is read
 >   from the access token and kept in the sealed session file, so the tabs are right at a cold
 >   start. Each tab has its own back stack; the mini player sits above the bar.

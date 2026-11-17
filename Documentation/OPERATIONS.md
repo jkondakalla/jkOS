@@ -346,6 +346,29 @@ exists.
   entry on `/auth/security` reads "signed out (logout)". Kill and reopen the app: it opens in
   the face you chose, before any network call.
 
+- **G1 · Search, queue and playlists** (needs KourOS with the `ids` filter deployed: it ships
+  with D and E). The KourOS header has Search, Playlists and Queue.
+  - **Search:** type an artist's name. Artists, Albums and Tracks fill in together, and an
+    unknown word says "Nothing matches". Open an album from the results, then go back: what you
+    typed is still there. Tapping a track plays the results from that track. Its listen is kept
+    with no context, so it isn't added as a place in recently played.
+  - **⋮ on any track** (and on an album's header): Play now, **Play next** and **Add to queue**
+    are separate rows. Play next goes in right after the current track; Add to queue goes at
+    the end; with nothing playing, either one just plays. Start a station plays the track,
+    then similar ones. Go to album and Go to artist open them in the KourOS tab.
+  - **Queue:** lists what the player holds, with "N up next · time left". Drag a grip to
+    reorder; the lock-screen and notification controls follow the new order. × removes a row.
+    Tapping a row plays it. Rows already played sit dimmed above the current one. With
+    TalkBack on, a grip offers "Move up" and "Move down".
+  - **Playlists:** make one with New. Rename and delete it from its ⋮ (delete asks first).
+    Add a track from any ⋮ → Add to playlist, and add it again: "Already in". Make a playlist
+    straight from the picker. Inside a playlist: Play, tap a row to play from there, drag to
+    reorder, × to remove. Reload the web's playlist page: same order. Turn on airplane mode and
+    reorder: the row snaps back, with "Couldn't save". A listen played from a playlist shows
+    the playlist in the web's recently played.
+  - Known limit: a drag doesn't scroll the list, so a row can only be dropped somewhere on the
+    screen. To move a row further, drop it at the edge, scroll, and drag it again.
+
 ### Android: jkOS Home on a panel device
 
 Install `home-*.apk`, press Home, and choose **jkOS Home**, then **Always**. To get out: **hold

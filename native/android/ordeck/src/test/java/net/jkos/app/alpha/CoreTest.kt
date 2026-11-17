@@ -15,6 +15,7 @@ import net.jkos.app.alpha.kouros.Listen
 import net.jkos.app.alpha.kouros.ListenLedger
 import net.jkos.app.alpha.kouros.Models
 import net.jkos.app.alpha.kouros.PlayContext
+import net.jkos.app.alpha.kouros.Playlist
 import java.util.Base64
 
 import org.json.JSONArray
@@ -173,6 +174,50 @@ class ModelsTest {
         val with = JSONObject(Models.listenBody(Listen(4, "2026-01-01T00:00:00.000Z", 1500, true, "station/4")))
         assertEquals("station/4", with.getString("context")); assertEquals(4L, with.getLong("item_ref")); assertTrue(with.getBoolean("completed"))
         assertFalse(JSONObject(Models.listenBody(Listen(4, "2026-01-01T00:00:00.000Z", 1500, false, null))).has("context"))
+    }
+
+    @Test fun aPlaylistReadsItsRefsWhateverTheyWereWrittenAs() {
+        // The web writes numbers; a numeric string reads as its number; anything else is dropped.
+        val p = Models.playlists("""[{"id":3,"name":"Run","description":null,"track_refs":[12,"7",1.5,"x",null,-2],"updated_at":"t"}]""").single()
+        assertEquals(Playlist(3, "Run", null, listOf(12L, 7L)), p)
+        assertEquals(emptyList<Long>(), Models.playlist("""{"id":4,"name":"Empty","track_refs":null}""").trackRefs)
+    }
+
+    @Test fun thePlaylistBodiesCarryOnlyWhatChanges() {
+        assertEquals("""{"name":"Run"}""", Models.playlistBody(name = "Run"))
+        assertEquals("""{"track_refs":[3,1,2]}""", Models.playlistBody(trackRefs = listOf(3L, 1L, 2L)))
+        val both = JSONObject(Models.playlistBody("New", emptyList()))   // org.json's key order is a HashMap's
+        assertEquals(2, both.length()); assertEquals("New", both.getString("name")); assertEquals(0, both.getJSONArray("track_refs").length())
+    }
+
+    @Test fun rowsReadByIdComeBackInTheIdsOrder() {
+        // The dataset answers in catalog order; the playlist's order is the ids'. A vanished id is skipped.
+        val rows = Models.tracks("""[{"id":1,"title":"A"},{"id":2,"title":"B"},{"id":3,"title":"C"}]""")
+        assertEquals(listOf(3L, 1L, 3L), Models.inOrder(listOf(3L, 9L, 1L, 3L), rows).map { it.id })
+    }
+}
+
+/** The arithmetic under drag-to-reorder: the queue and a playlist both use it. */
+class ReorderTest {
+    @Test fun theDropIsTheNearestWholeRowInsideTheList() {
+        assertEquals(2, Reorder.target(2, 20f, 56f, 5))    // under half a row: stays
+        assertEquals(3, Reorder.target(2, 30f, 56f, 5))    // over half: one down
+        assertEquals(0, Reorder.target(2, -500f, 56f, 5))  // past the top: first
+        assertEquals(4, Reorder.target(2, 500f, 56f, 5))   // past the bottom: last
+        assertEquals(1, Reorder.target(1, 80f, 0f, 3))     // rows not measured yet: nowhere
+    }
+
+    @Test fun theRowsBetweenSlideAsideTowardTheGap() {
+        // Row 1 held over row 3: rows 2 and 3 move up one; 0 and 4 stay.
+        assertEquals(listOf(0, 0, -1, -1, 0), (0..4).map { Reorder.shift(it, 1, 3) })
+        // Row 3 held over row 1: rows 1 and 2 move down one.
+        assertEquals(listOf(0, 1, 1, 0, 0), (0..4).map { Reorder.shift(it, 3, 1) })
+    }
+
+    @Test fun aMoveIsRemoveThenInsertAsMedia3Does() {
+        assertEquals(listOf("b", "c", "a", "d"), Reorder.move(listOf("a", "b", "c", "d"), 0, 2))
+        assertEquals(listOf("d", "a", "b", "c"), Reorder.move(listOf("a", "b", "c", "d"), 3, 0))
+        assertEquals(listOf("a", "b"), Reorder.move(listOf("a", "b"), 1, 5))
     }
 }
 
