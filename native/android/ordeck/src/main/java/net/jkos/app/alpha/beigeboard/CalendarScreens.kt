@@ -54,8 +54,8 @@ private val SHORT = DateTimeFormatter.ofPattern("MMM d", Locale.US)
 private val MONTH = DateTimeFormatter.ofPattern("MMMM yyyy", Locale.US)
 
 @Composable
-fun CalendarPane(board: Board, push: (Screen) -> Unit) {
-    var month by remember { mutableStateOf(false) }
+fun CalendarPane(board: Board, push: (Screen) -> Unit, startOnMonth: Boolean = false) {
+    var month by remember { mutableStateOf(startOnMonth) }
     var weekOf by remember { mutableStateOf(LocalDate.now().toString()) }
     var ym by remember { mutableStateOf(YearMonth.now()) }
     var day by remember { mutableStateOf(LocalDate.now().toString()) }
@@ -136,7 +136,7 @@ private fun MonthGrid(items: List<Item>, ym: YearMonth, day: String, today: Stri
                     Box(
                         Modifier.weight(1f).aspectRatio(1f).padding(2.dp)
                             .clip(CircleShape)
-                            .background(if (iso != null && iso == day) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.background)
+                            .background(if (iso != null && iso == day) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.background)
                             .then(if (iso != null) Modifier.clickable { onDay(iso) } else Modifier),
                         contentAlignment = Alignment.Center,
                     ) {
@@ -145,10 +145,14 @@ private fun MonthGrid(items: List<Item>, ym: YearMonth, day: String, today: Stri
                                 Text(
                                     iso.takeLast(2).trimStart('0'),
                                     fontWeight = if (iso == today) FontWeight.Bold else FontWeight.Normal,
-                                    color = if (iso == today) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground,
+                                    color = when {
+                                        iso == day -> MaterialTheme.colorScheme.onPrimary
+                                        iso == today -> MaterialTheme.colorScheme.primary
+                                        else -> MaterialTheme.colorScheme.onBackground
+                                    },
                                 )
                                 val n = Days.on(items, iso).count { !it.completed }
-                                if (n > 0) Box(Modifier.size(5.dp).clip(CircleShape).background(MaterialTheme.colorScheme.secondary))
+                                if (n > 0) Box(Modifier.size(5.dp).clip(CircleShape).background(if (iso == day) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.secondary))
                             }
                         }
                     }

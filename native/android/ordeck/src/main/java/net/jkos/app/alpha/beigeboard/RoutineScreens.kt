@@ -38,7 +38,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -59,22 +58,26 @@ import java.time.LocalDate
 // ── the section: Routines | Library ───────────────────────────────────────────
 
 @Composable
-fun RoutinesPane(board: Board, push: (Screen) -> Unit) {
-    var library by remember { mutableStateOf(false) }
+fun RoutinesPane(
+    board: Board, push: (Screen) -> Unit,
+    // Sample data for the screenshot renders; null loads from BeigeBoard, as the app always does.
+    routines: List<Routine>? = null, entries: List<LibraryEntry>? = null, startOnLibrary: Boolean = false,
+) {
+    var library by remember { mutableStateOf(startOnLibrary) }
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Choice("Routines", !library) { library = false }
             Choice("Library", library) { library = true }
         }
-        if (library) LibraryPane() else RoutineList(push)
+        if (library) LibraryPane(entries) else RoutineList(push, routines)
     }
 }
 
 @Composable
-private fun RoutineList(push: (Screen) -> Unit) {
+private fun RoutineList(push: (Screen) -> Unit, preloaded: List<Routine>?) {
     var attemptNo by remember { mutableIntStateOf(0) }
-    var state by remember { mutableStateOf<Load<List<Routine>>>(Load.Loading) }
-    LaunchedEffect(attemptNo) { state = attempt { BeigeBoardApi.routines() } }
+    var state by remember { mutableStateOf<Load<List<Routine>>>(preloaded?.let { Load.Ready(it) } ?: Load.Loading) }
+    LaunchedEffect(attemptNo) { if (preloaded == null || attemptNo > 0) state = attempt { BeigeBoardApi.routines() } }
     Loaded(state, retry = { attemptNo++ }) { routines ->
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
             item {
@@ -98,19 +101,23 @@ private fun RoutineList(push: (Screen) -> Unit) {
 
 // ── one routine ────────────────────────────────────────────────────────────────
 
-private class RoutineView(val doc: RoutineDoc, val metric: Metric?, val sessions: List<Session>, val revisions: List<Revision>)
+internal class RoutineView(val doc: RoutineDoc, val metric: Metric?, val sessions: List<Session>, val revisions: List<Revision>)
 
 private val MEASURES = listOf("load" to "Load", "target" to "Reps/target", "sets" to "Sets", "volume" to "Volume")
 
 /** A routine: where its metric stands, the sessions it will prescribe next, how it has gone, what's coming up, and its versions. */
 @Composable
-fun RoutineScreen(id: Long, board: Board, onBack: () -> Unit, push: (Screen) -> Unit) {
+internal fun RoutineScreen(
+    id: Long, board: Board, onBack: () -> Unit, push: (Screen) -> Unit,
+    preloaded: RoutineView? = null, preSeries: List<StepSeries>? = null,
+) {
     var attemptNo by remember { mutableIntStateOf(0) }
-    var state by remember { mutableStateOf<Load<RoutineView>>(Load.Loading) }
+    var state by remember { mutableStateOf<Load<RoutineView>>(preloaded?.let { Load.Ready(it) } ?: Load.Loading) }
     var measure by remember { mutableStateOf("target") }
-    var series by remember { mutableStateOf<Load<List<StepSeries>>>(Load.Loading) }
+    var series by remember { mutableStateOf<Load<List<StepSeries>>>(preSeries?.let { Load.Ready(it) } ?: Load.Loading) }
     var open by remember { mutableStateOf<Long?>(null) }
     LaunchedEffect(id, attemptNo) {
+        if (preloaded != null && attemptNo == 0) return@LaunchedEffect
         state = Load.Loading
         state = attempt {
             coroutineScope {
@@ -122,7 +129,7 @@ fun RoutineScreen(id: Long, board: Board, onBack: () -> Unit, push: (Screen) -> 
             }
         }
     }
-    LaunchedEffect(id, measure, attemptNo) { series = attempt { BeigeBoardApi.series(id, measure) } }
+    LaunchedEffect(id, measure, attemptNo) { if (preSeries == null || attemptNo > 0 || measure != "target") series = attempt { BeigeBoardApi.series(id, measure) } }
     val title = (state as? Load.Ready)?.value?.doc?.item?.title ?: "Routine"
     Column(Modifier.fillMaxSize()) {
         Header(title, onBack) {
@@ -150,7 +157,11 @@ fun RoutineScreen(id: Long, board: Board, onBack: () -> Unit, push: (Screen) -> 
                 item {
                     Box(Modifier.padding(top = 16.dp)) { Label("How it has gone") }
                     Row { for ((k, label) in MEASURES) Choice(label, measure == k) { measure = k } }
-                    Text("Prescribed —  Performed ●", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row {
+                        Text("— prescribed", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                        Text("   ● performed", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.tertiary)
+                        Text("   ● short of it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                    }
                 }
                 when (val s = series) {
                     Load.Loading -> item { Text("…") }
@@ -194,8 +205,11 @@ private fun SessionCard(s: Session) {
 /** Prescribed (a line) against performed (dots), per session. */
 @Composable
 private fun SeriesChart(s: StepSeries) {
+    // The face's primary and secondary are both the accent: performed is its "ok" green, and a
+    // session that fell short of what was prescribed its danger red.
     val prescribed = MaterialTheme.colorScheme.primary
-    val performed = MaterialTheme.colorScheme.secondary
+    val performed = MaterialTheme.colorScheme.tertiary
+    val missed = MaterialTheme.colorScheme.error
     val pts = s.points
     Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
         Text(s.title, style = MaterialTheme.typography.bodyMedium)
@@ -204,8 +218,10 @@ private fun SeriesChart(s: StepSeries) {
             Text("Not enough sessions yet.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             return@Column
         }
-        val lo = values.min()
-        val hi = values.max().let { if (it == lo) lo + 1 else it }
+        val flat = values.min() == values.max()
+        // A flat series is drawn through the middle, not along the floor.
+        val lo = values.min() - if (flat) 1 else 0
+        val hi = values.max() + if (flat) 1 else 0
         Canvas(Modifier.fillMaxWidth().height(72.dp)) {
             val dx = size.width / (pts.size - 1)
             fun y(v: Double) = (size.height - ((v - lo) / (hi - lo) * size.height)).toFloat()
@@ -213,9 +229,12 @@ private fun SeriesChart(s: StepSeries) {
                 val a = pts[i - 1].prescribed; val b = pts[i].prescribed
                 if (a != null && b != null) drawLine(prescribed, Offset((i - 1) * dx, y(a)), Offset(i * dx, y(b)), strokeWidth = 3f)
             }
-            pts.forEachIndexed { i, p -> p.performed?.let { drawCircle(if (p.met == false) Color.Gray else performed, 5f, Offset(i * dx, y(it))) } }
+            pts.forEachIndexed { i, p -> p.performed?.let { drawCircle(if (p.met == false) missed else performed, 7f, Offset(i * dx, y(it))) } }
         }
-        Text("${fmt(lo)} – ${fmt(hi)} over ${pts.size} sessions", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(
+            if (flat) "${fmt(values.min())} every session, over ${pts.size}" else "${fmt(values.min())} – ${fmt(values.max())} over ${pts.size} sessions",
+            style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
@@ -239,13 +258,13 @@ private const val NEW_DOC = """{
  * declares are sent; any other key is listed as not sent.
  */
 @Composable
-fun DocumentScreen(routineId: Long?, board: Board, onBack: () -> Unit) {
+internal fun DocumentScreen(routineId: Long?, board: Board, onBack: () -> Unit, preText: String? = null, preReport: ImportReport? = null) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var text by remember { mutableStateOf<String?>(if (routineId == null) NEW_DOC else null) }
+    var text by remember { mutableStateOf(preText ?: if (routineId == null) NEW_DOC else null) }
     var note by remember { mutableStateOf("") }
-    var checked by remember { mutableStateOf<String?>(null) }
-    var report by remember { mutableStateOf<ImportReport?>(null) }
+    var checked by remember { mutableStateOf<String?>(preText.takeIf { preReport?.dryRun == true }) }
+    var report by remember { mutableStateOf(preReport) }
     var notSent by remember { mutableStateOf<List<String>>(emptyList()) }
     var message by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }

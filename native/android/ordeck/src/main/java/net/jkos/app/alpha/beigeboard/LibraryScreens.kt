@@ -46,17 +46,17 @@ import kotlinx.coroutines.launch
 // capabilities), and imported in bulk from a pasted library document (importLibrary).
 
 @Composable
-fun LibraryPane() {
+fun LibraryPane(preloaded: List<LibraryEntry>? = null) {
     val scope = rememberCoroutineScope()
     var attemptNo by remember { mutableIntStateOf(0) }
-    var state by remember { mutableStateOf<Load<List<LibraryEntry>>>(Load.Loading) }
+    var state by remember { mutableStateOf<Load<List<LibraryEntry>>>(preloaded?.let { Load.Ready(it) } ?: Load.Loading) }
     var q by remember { mutableStateOf("") }
     var collection by remember { mutableStateOf<String?>(null) }
     var editing by remember { mutableStateOf<LibraryEntry?>(null) }
     var adding by remember { mutableStateOf(false) }
     var importing by remember { mutableStateOf(false) }
     var note by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(attemptNo) { state = attempt { BeigeBoardApi.library() } }
+    LaunchedEffect(attemptNo) { if (preloaded == null || attemptNo > 0) state = attempt { BeigeBoardApi.library() } }
     fun write(done: String, block: suspend () -> Unit) {
         note = null
         scope.launch {

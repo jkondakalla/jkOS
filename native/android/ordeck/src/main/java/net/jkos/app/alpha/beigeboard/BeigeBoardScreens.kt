@@ -98,6 +98,12 @@ class Board(private val scope: CoroutineScope) {
     val items: List<Item> get() = (state as? Load.Ready)?.value ?: emptyList()
     val byId: Map<Long, Item> get() = items.associateBy { it.id }
 
+    /** Draw [items] and [shelf] without asking the server (the screenshot renders' sample board). */
+    internal fun preload(items: List<Item>, shelf: Shelf = Shelf(emptyList(), null)) {
+        state = Load.Ready(items)
+        this.shelf = shelf
+    }
+
     fun load() {
         scope.launch {
             if (state !is Load.Ready) state = Load.Loading
@@ -175,6 +181,12 @@ fun BeigeBoardTab(screen: Screen, nav: Nav) {
     val scope = rememberCoroutineScope()
     val board = remember { Board(scope) }
     LaunchedEffect(Unit) { board.load() }
+    BoardScreen(screen, board, nav)
+}
+
+/** One screen of the tab, over [board]: a pushed page, or the first screen and its sections. */
+@Composable
+internal fun BoardScreen(screen: Screen, board: Board, nav: Nav) {
     when (screen) {
         is BeigeBoardScreen.GoalPage -> GoalScreen(screen.id, board, nav::pop, nav::push)
         is BeigeBoardScreen.RoutinePage -> RoutineScreen(screen.id, board, nav::pop, nav::push)
@@ -215,7 +227,7 @@ private fun greeting(): String = when (LocalTime.now().hour) {
  * quick add, and what's done.
  */
 @Composable
-private fun TodayScreen(board: Board, push: (Screen) -> Unit) {
+internal fun TodayScreen(board: Board, push: (Screen) -> Unit) {
     var open by remember { mutableStateOf<Item?>(null) }
     val today = todayIso()
     Column(Modifier.fillMaxSize()) {
@@ -351,7 +363,7 @@ private fun QuickAdd(board: Board, today: String) {
  * it, taking a routine's session easy, and putting it on ORDECK (focus, pin).
  */
 @Composable
-fun ItemSheet(item: Item, board: Board, push: (Screen) -> Unit, onDismiss: () -> Unit) {
+fun ItemSheet(item: Item, board: Board, push: (Screen) -> Unit, preDeps: Deps? = null, onDismiss: () -> Unit) {
     val byId = board.byId
     val focused = board.shelf.isFocused("beigeboard", item.id.toString())
     val pinned = board.shelf.isPinned("beigeboard", item.id.toString())
@@ -386,7 +398,7 @@ fun ItemSheet(item: Item, board: Board, push: (Screen) -> Unit, onDismiss: () ->
                     }
                 }
                 if (item.isOccurrence && !item.completed) DeloadRow(item, board)
-                if (item.kind != "routine") DepsSection(item, board)
+                if (item.kind != "routine") DepsSection(item, board, preDeps)
                 board.note?.let { Text(it, color = MaterialTheme.colorScheme.secondary) }
                 Row {
                     TextButton(onClick = { editing = true }) { Text("Edit") }

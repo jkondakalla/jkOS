@@ -298,6 +298,14 @@ pnpm android:build -- :ordeck:testDebugUnitTest :ordeck:assembleDebug
 adb install native/android/out/jkos-alpha-0.1.0-staging.apk
 ```
 
+**To look at the screens without a phone**, render them: the real Compose code, drawn on Robolectric
+from sample data (no sign-in, no network, no tab bar):
+
+```bash
+pnpm android:build -- :ordeck:testDebugUnitTest -Pjkos.screens
+ls native/android/ordeck/build/screens/        # 01-today.png … 12-goal-dark.png
+```
+
 **After bumping an Android dependency**, regenerate the checksums and **read the diff**: every new
 sha256 is something you're trusting.
 

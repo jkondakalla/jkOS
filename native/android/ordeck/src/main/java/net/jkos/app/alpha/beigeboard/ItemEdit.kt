@@ -140,13 +140,13 @@ fun DeloadRow(item: Item, board: Board) {
  * while anything it waits on is unfinished; the server derives that on every read.
  */
 @Composable
-fun DepsSection(item: Item, board: Board) {
+fun DepsSection(item: Item, board: Board, preloaded: Deps? = null) {
     val scope = rememberCoroutineScope()
     var attemptNo by remember { mutableIntStateOf(0) }
-    var deps by remember { mutableStateOf<Load<Deps>>(Load.Loading) }
+    var deps by remember { mutableStateOf<Load<Deps>>(preloaded?.let { Load.Ready(it) } ?: Load.Loading) }
     var picking by remember { mutableStateOf(false) }
     var note by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(item.id, attemptNo) { deps = attempt { BeigeBoardApi.deps(item.id) } }
+    LaunchedEffect(item.id, attemptNo) { if (preloaded == null || attemptNo > 0) deps = attempt { BeigeBoardApi.deps(item.id) } }
     fun change(block: suspend () -> Deps) {
         note = null
         scope.launch {

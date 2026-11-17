@@ -15,6 +15,14 @@ composeBom = "2026.09.00"
 media3 = "1.11.1"
 browser = "1.10.0"
 coroutines = "1.10.2"
+# Screenshot renders of the native app's screens (test-only: never in an APK). Robolectric's
+# Android runtime is resolved through Gradle (robolectricAndroidAll below), so it is held by
+# verification-metadata.xml like every other artifact, never fetched by Robolectric itself.
+robolectric = "4.17"
+# Exactly the build Robolectric 4.17's SDK table names for SDK 36 (DefaultSdkProvider). Lint
+# offers 13921718-2-i7, a rebuild published with 4.18; it moves with Robolectric, never alone.
+robolectricAndroidAll = "16-robolectric-13921718-i7"
+roborazzi = "1.77.0"
 
 [libraries]
 androidbrowserhelper = { module = "com.google.androidbrowserhelper:androidbrowserhelper", version.ref = "androidbrowserhelper" }
@@ -30,6 +38,11 @@ compose-material3 = { module = "androidx.compose.material3:material3" }
 media3-exoplayer = { module = "androidx.media3:media3-exoplayer", version.ref = "media3" }
 media3-session = { module = "androidx.media3:media3-session", version.ref = "media3" }
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
+robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
+robolectric-android-all = { module = "org.robolectric:android-all-instrumented", version.ref = "robolectricAndroidAll" }
+roborazzi = { module = "io.github.takahirom.roborazzi:roborazzi", version.ref = "roborazzi" }
+roborazzi-compose = { module = "io.github.takahirom.roborazzi:roborazzi-compose", version.ref = "roborazzi" }
+compose-ui-test-junit4 = { module = "androidx.compose.ui:ui-test-junit4" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

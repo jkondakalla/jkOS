@@ -106,8 +106,39 @@ android {
             test.systemProperty("jkos.hudShelfCases", hudShelfCases.absolutePath)
             test.inputs.file(beigeboardBodyCases)
             test.systemProperty("jkos.beigeboardBodyCases", beigeboardBodyCases.absolutePath)
+            // Robolectric runs offline, on the runtime jar Gradle resolved and verified.
+            test.dependsOn(robolectricJars)
+            test.systemProperty("robolectric.offline", "true")
+            test.systemProperty("robolectric.dependency.dir", robolectricJars.get().destinationDir.absolutePath)
+            // The screenshot renders run only when asked for (-Pjkos.screens), and write PNGs.
+            if (project.hasProperty("jkos.screens")) {
+                // Robolectric reaches into the JDK's internals, which JDK 21 closes by default.
+                test.jvmArgs(
+                    "--add-exports=java.base/jdk.internal.access=ALL-UNNAMED",
+                    "--add-opens=java.base/jdk.internal.access=ALL-UNNAMED",
+                    "--add-opens=java.base/java.io=ALL-UNNAMED",
+                    "--add-opens=java.base/java.lang=ALL-UNNAMED",
+                )
+                test.systemProperty("roborazzi.test.record", "true")
+                test.systemProperty("jkos.screensDir", layout.buildDirectory.dir("screens").get().asFile.absolutePath)
+                test.filter.includeTestsMatching("*ScreensTest*")
+            } else {
+                test.exclude("**/ScreensTest*")
+            }
         }
+        unitTests.isIncludeAndroidResources = true
     }
+}
+
+/**
+ * Robolectric's Android runtime, resolved here so its checksum is pinned (verification-metadata.xml).
+ * ⚠️ Copied OUT of the repo: Robolectric percent-encodes the path it loads the runtime from, and
+ * "The Forge" becomes "The%20Forge", a directory that doesn't exist (TRAPS.md: the space).
+ */
+val robolectricAndroidAll: Configuration by configurations.creating { isTransitive = false }
+val robolectricJars = tasks.register<Sync>("robolectricJars") {
+    from(robolectricAndroidAll)
+    into(File(System.getProperty("java.io.tmpdir"), "jkos-robolectric-jars"))
 }
 
 dependencies {
@@ -121,4 +152,11 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     testImplementation(libs.junit)
     testImplementation(libs.json)
+    // Screenshot renders (ScreensTest): test-only.
+    testImplementation(platform(libs.compose.bom))
+    testImplementation(libs.robolectric)
+    testImplementation(libs.roborazzi)
+    testImplementation(libs.roborazzi.compose)
+    testImplementation(libs.compose.ui.test.junit4)
+    robolectricAndroidAll(libs.robolectric.android.all)
 }
