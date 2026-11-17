@@ -385,9 +385,14 @@ const CAPABILITIES = {
      * the source — the exact surface an AI author most needs to find. */
     {
       id: 'importRoutineBundle', label: 'Import a routine bundle', method: 'POST', path: '/routines/bundle',
+      /* The bundle IS the body (readBundle): its keys at the top level, never wrapped. This
+         declared { bundle, dryRun } until 2026-11-17, and a peer that sent that got "nothing
+         to import"; dryRun was never a body field but the ?dryRun=1 query the web sends. */
       body: [
-        { name: 'bundle', type: 'json', label: 'A routine document plus the library entries it references', required: true , schema: 'beigeboard.routineVocabulary' },
-        { name: 'dryRun', type: 'boolean', label: 'Validate and report without writing' },
+        { name: 'kind',     type: 'string', label: "'jkos.beigeboard.bundle'" },
+        { name: 'library',  type: 'json',   label: 'Library entries, imported first so a routine here may ref them', schema: 'beigeboard.library' },
+        { name: 'routines', type: 'json',   label: 'Routine documents, each as importRoutine takes one', schema: 'beigeboard.routineVocabulary' },
+        { name: 'routine',  type: 'json',   label: 'One routine document, the same thing said a shorter way', schema: 'beigeboard.routineVocabulary' },
       ],
       returns: [
         { name: 'routine',  type: 'json',   label: 'The routine as stored' , schema: 'beigeboard.routineVocabulary' },
@@ -396,7 +401,7 @@ const CAPABILITIES = {
       ],
       invalidates: [ITEMS_KEY, LIBRARY_KEY], scopes: ['beigeboard:write'],
       doc: 'One document carrying a routine AND the library entries its steps reference, so an '
-        + 'author submits a complete unit rather than ordering two imports correctly. dryRun '
+        + 'author submits a complete unit rather than ordering two imports correctly. ?dryRun=1 '
         + 'returns the same report and writes nothing.',
     },
     {

@@ -501,6 +501,17 @@ try {
     }],
   };
 
+  // A body built from the DECLARED field names alone is a bundle the route takes: the
+  // declaration is how a peer learns the shape. (It declared { bundle, dryRun } until
+  // 2026-11-17, and a body built from that was "nothing to import".)
+  {
+    const { CAPABILITIES: CAPS } = createRequire(import.meta.url)(join(BACKEND, 'discovery.js'));
+    const names = CAPS.capabilities.find((c) => c.id === 'importRoutineBundle').body.map((f) => f.name);
+    const fromDecl = Object.fromEntries(names.filter((n) => n in BUNDLE).map((n) => [n, BUNDLE[n]]));
+    const r = await req('POST', '/api/routines/bundle?dryRun=1', fromDecl);
+    ok(r.status === 200 && r.json?.library?.created === 1 && r.json?.routines?.length === 1,
+      `Q: a bundle built from importRoutineBundle's declared fields is one the route takes (declared ${names.join(', ')}; got ${r.status})`);
+  }
   const bDry = await req('POST', '/api/routines/bundle?dryRun=1', BUNDLE);
   ok(bDry.status === 200 && bDry.json?.dryRun === true, `Q: the bundle dry-runs (got ${bDry.status})`);
   ok(bDry.json?.library?.created === 1 && bDry.json.library.entries[0].action === 'create',
