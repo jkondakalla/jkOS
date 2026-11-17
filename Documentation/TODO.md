@@ -170,6 +170,13 @@ Everything since 2026-07-30, when `main` was last merged. The staging *deploy* l
 - the 2026-11-04 controls work: CONTROLS.md, the root README, and jkDeploy's `PROD_BRANCH` default.
 - registration by invitation (jkAuth migration 025), and the edge's 403 on production's
   `/auth/register` until production runs it (§10 K11 removes that).
+- the alpha's server half (pushed 2026-11-17, no migrations):
+  - jkAuth's account routes take the app's Bearer token;
+  - native-clients.json now lists jkOS Alpha, not KourOS Alpha;
+  - Weave's `in` filter (KourOS tracks by id);
+  - BeigeBoard declares what the app calls: the tree on `createItem`, `calendarStatus`, the
+    library's entry writes, a routine's document round trip;
+  - BeigeBoard's corrected `syncCalendar` and `importRoutineBundle` declarations.
 
 **What each deploy migrates** (read from the live databases on 2026-11-16, read-only):
 
@@ -523,7 +530,7 @@ phase that changes the app ends in a staging APK you can install.
 
 1. **You:** §1 in order through "Deploy staging": the backup, the service-client secrets, the
    jkos-deploy rebuild, music-analysis delivery, then the deploy and the nginx restart. The Qobuz
-   rotation can happen any time. `origin/staging` holds everything (pushed 2026-11-16).
+   rotation can happen any time. `origin/staging` holds everything (pushed 2026-11-17, with §10 D–H).
 
    The NAS's `.env` files were compared with each `.env.example` (key names only, 2026-11-16).
    **Nothing the staging deploy needs to boot is missing.** What isn't set, on staging and
@@ -549,52 +556,49 @@ phase that changes the app ends in a staging APK you can install.
    then step 6, which deletes the importer.
 4. **You:** §1's listening-session checks on real devices.
 
-### C · First light: KourOS Alpha as it is, on your phone
+### C · First light, on your phone
 
-KourOS Alpha builds unchanged and its JVM tests pass. What's left needs the phone, and sign-in
-needs phase B's deploy.
+Superseded 2026-11-17, when `staging` was pushed with D–H. The next staging deploy removes KourOS
+Alpha's jkAuth client, so the old APK can't sign in after it. jkOS Alpha's KourOS tab is that
+app plus G.
 
-1. **You:** install `~/Android/jkos-apks/kouros-alpha-0.1.0-staging.apk` (KourOS Alpha as it
-   was before phase D, built 2026-11-16 from `a85c59c`) and run OPERATIONS § KourOS
-   Alpha's checks: sign-in, screen-off playback, lock-screen controls with covers, headphones
-   out, Start radio, listens in recently played, and sign-out shown as revoked on
-   `/auth/security`. Whatever breaks is fixed here. The app no longer has Media3's
-   `ACCESS_NETWORK_STATE`, so watch that playback starts and recovers after a network change.
-2. **You:** sign out of it, then uninstall it. Phase D removes its jkAuth client.
+1. **You:** after the deploy, install `~/Android/jkos-apks/jkos-alpha-0.1.0-staging-h4.apk` and
+   run OPERATIONS § Native apps. Start with the old KourOS Alpha checks, which hold for its KourOS
+   tab: sign-in, screen-off playback, lock-screen controls with covers, headphones out, Start
+   radio, listens in recently played, and sign-out shown as revoked on `/auth/security`. The app
+   has no `ACCESS_NETWORK_STATE`, so watch that playback starts and recovers after a network
+   change. Whatever breaks is fixed here.
+2. If KourOS Alpha is installed: sign out of it, then uninstall it.
 
 ### D · One app: KourOS Alpha becomes jkOS Alpha
 
-Ships with phase E in one staging deploy.
-
-Landed locally (the row, the derivation, the module and its packages, the tabbed shell, the
-tabs-by-`aud` rule and `check:native`'s declared-routes rule) and **not pushed**: phase C signs
-in with KourOS Alpha's client, which this phase removes from jkAuth's list.
+Pushed 2026-11-17, not deployed: the row, the derivation, the module and its packages, the
+tabbed shell, the tabs-by-`aud` rule and `check:native`'s declared-routes rule.
 
 ### E · jkAuth: the account routes take a Bearer token
 
-Landed locally with D, and not pushed for the same reason: the five account routes take the
-app's Bearer user token (`resolveCaller`), and the token endpoint names the app's own session
-(`family_id`), so the app can mark "this device".
+Pushed 2026-11-17, not deployed. The five account routes take the app's Bearer user token
+(`resolveCaller`). The token endpoint names the app's own session (`family_id`), so the app
+can mark "this device".
 
-1. **You:** deploy staging with D and E.
+1. **You:** the staging deploy (phase B's) carries D–H.
 
 ### F · Account and devices
 
-Built, and not pushed (it ships with D and E): who you are, the display name and the theme mode
+Pushed 2026-11-17, not deployed. It covers who you are, the display name and the theme mode
 through `/auth/profile`, your devices from `/auth/sessions` with sign-out, the build, and sign
 out. Password and two-factor open jkAuth's own page in a Custom Tab.
 
-1. **You:** after the D and E deploy, run OPERATIONS § Native apps' phase F checks.
+1. **You:** after the deploy, run OPERATIONS § Native apps' phase F checks.
 
 ### G · KourOS
 
-Each step ends in an APK and a device checklist.
+One APK carries all of D–H: `~/Android/jkos-apks/jkos-alpha-0.1.0-staging-h4.apk` (or build it:
+`pnpm android:build -- :ordeck:assembleDebug`). Each step below has its device checklist.
 
-1. **Search, queue and playlists.** Built 2026-11-17, and not pushed (it needs the `ids`
-   filter, which ships with D and E). The staging APK is `~/Android/jkos-apks/jkos-alpha-0.1.0-staging-g1.apk`.
-   **You:** after the D and E deploy, run OPERATIONS § Native apps' G1 checks.
-2. **Audiobooks.** Built 2026-11-17, and not pushed (it ships with G1, after the D and E
-   deploy). The APK is `~/Android/jkos-apks/jkos-alpha-0.1.0-staging-g2.apk`, which includes G1.
+1. **Search, queue and playlists.** Built and pushed 2026-11-17, not deployed.
+   **You:** after the deploy, run OPERATIONS § Native apps' G1 checks.
+2. **Audiobooks.** Built and pushed 2026-11-17, not deployed.
    - **No compat path.** `/api/books/stream` direct-plays the file, and every book in the
      library is a single `.m4b` (18 of 18, counted on the mount 2026-11-17), which ExoPlayer's
      MP4 extractor reads. The remux ladder is for Firefox's `mp4parse`. Add `?compat=1` only if
@@ -602,10 +606,9 @@ Each step ends in an APK and a device checklist.
    - Not in the app, on purpose: the web's offline copies, downloads, "Fix metadata" and the
      admin rescan and match.
    - **You:** after the deploy, run OPERATIONS § Native apps' G2 checks.
-3. **The listening session.** Built 2026-11-17, and not pushed (it ships with G1 and G2). The
+3. **The listening session.** Built and pushed 2026-11-17, not deployed. The
    phone is a device of the session, as the output or as a remote for another device, and edits
-   the output's queue from its Queue screen. The design is in NATIVE.md § 5. The APK is
-   `~/Android/jkos-apks/jkos-alpha-0.1.0-staging-g3.apk`, which includes G1 and G2.
+   the output's queue from its Queue screen. The design is in NATIVE.md § 5.
    - **You:** after the deploy, run OPERATIONS § Native apps' G3 checks.
    - Not done, on purpose: `shuffle` from a remote is ignored (this player doesn't shuffle,
      and reports shuffle off). The phone cues the session only when the session names this
@@ -618,24 +621,22 @@ Each step ends in an APK and a device checklist.
 Each step ends in an APK and a device checklist. Everything goes through a capability declared in
 [discovery.js](../apps/beigeboard/backend/discovery.js).
 
-1. **Today and quick actions.** Built 2026-11-17, and not pushed. Pin and focus are the
+1. **Today and quick actions.** Built and pushed 2026-11-17, not deployed. Pin and focus are the
    person's HUD shelf in jkAuth's preferences, read and written as the web's `hudPrefs.ts` does
    (`native/hud-shelf-cases.json`). Every body the app sends carries only its capability's
-   declared fields (`native/beigeboard-body-cases.json`, CONTROLS.md CF-4). The APK is
-   `~/Android/jkos-apks/jkos-alpha-0.1.0-staging-h1.apk`, which includes G.
+   declared fields (`native/beigeboard-body-cases.json`, CONTROLS.md CF-4).
    **You:** after the deploy, run OPERATIONS § Native apps' H1 checks.
-2. **Goals and milestones.** Built 2026-11-17, and not pushed. `createItem` now declares the
+2. **Goals and milestones.** Built and pushed 2026-11-17, not deployed. `createItem` now declares the
    tree (`parent_id`, `scope`, `accent`, kinds goal and milestone) it always took. That's a
    server change, in the same staging deploy. Moving an item to another parent isn't built:
    `updateItem` doesn't declare `parent_id`. Editing a goal's target and "done means" waits on
-   the same thing. The APK is `~/Android/jkos-apks/jkos-alpha-0.1.0-staging-h2.apk`.
+   the same thing.
    **You:** after the deploy, run OPERATIONS § Native apps' H2 checks.
-3. **The calendar.** Built 2026-11-17, and not pushed. BeigeBoard now declares
+3. **The calendar.** Built and pushed 2026-11-17, not deployed. BeigeBoard now declares
    `calendarStatus` (`GET /api/auth/:provider/status`), the read that says whether a sync
    applies. That's a server change, in the same deploy. Connecting a calendar stays on the web.
-   The APK is `~/Android/jkos-apks/jkos-alpha-0.1.0-staging-h3.apk`.
    **You:** after the deploy, run OPERATIONS § Native apps' H3 checks.
-4. **Routines and the library.** Built 2026-11-17, and not pushed.
+4. **Routines and the library.** Built and pushed 2026-11-17, not deployed.
    - BeigeBoard first declared what the app needed, and fixed what it found wrong. That's three
      server changes, in the same deploy:
      - the library's one-entry writes;
@@ -645,7 +646,6 @@ Each step ends in an APK and a device checklist. Everything goes through a capab
    - A pasted document's undeclared keys are named back as "not sent", never forwarded.
    - Not built: the web's RoutineForge (a form-based routine editor). On the phone a routine is
      its document, checked by dry run before it's imported.
-   - The APK is `~/Android/jkos-apks/jkos-alpha-0.1.0-staging-h4.apk`.
    - **You:** after the deploy, run OPERATIONS § Native apps' H4 checks.
 
 ### I · The HUD as home
