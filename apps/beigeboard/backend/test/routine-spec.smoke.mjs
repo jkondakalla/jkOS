@@ -616,6 +616,25 @@ try {
   ok(lb?.steps?.length === 5 && lb.steps.every((s) => s.line && s.line !== '—'),
     `R: …and every step of a rendered session carries real numbers (${JSON.stringify(lb?.steps?.map((s) => s.line))})`);
 
+  /* ── R2. a routine's document goes back through the declared import ──────────
+     How a routine is changed: read its document (the `routine` dataset), edit it, and
+     re-import it. Every key the document carries is one importRoutine declares, so the
+     round trip writes nothing past the contract; and re-importing it unchanged is an
+     update of the same routine, not a second one. */
+  {
+    const { CAPABILITIES: CAPS } = createRequire(import.meta.url)(join(BACKEND, 'discovery.js'));
+    const importBody = new Set(CAPS.capabilities.find((c) => c.id === 'importRoutine').body.map((f) => f.name));
+    const rid = worked.json.routines[0].id;
+    const one = await req('GET', `/api/routines/${rid}`);
+    const doc = one.json?.document;
+    const past = doc ? Object.keys(doc).filter((k) => !importBody.has(k)) : ['(no document)'];
+    ok(one.status === 200 && past.length === 0,
+      `R2: a routine's document carries only fields importRoutine declares (past it: ${past.join(', ') || 'none'})`);
+    const back = await req('POST', '/api/routines/import', doc);
+    ok(back.status === 200 && back.json?.created === false && back.json?.routine?.id === rid,
+      `R2: …and re-importing it updates that routine (got ${back.status}, created ${back.json?.created})`);
+  }
+
   /* ── S. every dataset BeigeBoard DECLARES answers what it declares ─────────────
      The run above leaves a board with items, routines and a seeded library — the
      real rows a widget, weaveClient or an AI composer would read against discovery.js. */

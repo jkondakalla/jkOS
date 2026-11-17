@@ -246,6 +246,16 @@ const CAPABILITIES = {
         { name: 'cadence_count', type: 'number', label: 'Times per week (surplus over `days` floats to the week bench)' },
         { name: 'time',          type: 'time',   label: 'Time of day' },
         { name: 'spec',          type: 'json',   label: 'The step document — steps, progression, phases, vars', required: true , schema: 'beigeboard.routineVocabulary' },
+        // The rest of what a routine's own document carries (GET /routines/:id's `document`),
+        // so re-importing it, the way a routine is changed, is a declared write. The import
+        // has always read them (routes/routines.js prepareRoutine).
+        { name: 'notes',         type: 'text',   label: 'Notes (kept to 5000 characters)' },
+        { name: 'cadence_days',  type: 'string', label: 'Days as Monday offsets ("0,3"); `days` is read first' },
+        { name: 'cadence',       type: 'string', label: "Cadence beyond weekly ('every_n_days:3', 'monthly:15', 'rolling:3', 'rrule:…')" },
+        { name: 'end_time',      type: 'time',   label: 'End time' },
+        { name: 'accent',        type: 'string', label: 'Accent' },
+        { name: 'status',        type: 'enum',   label: 'Status (anything else is active)', enum: ['active', 'parked', 'done'] },
+        { name: 'revision_note', type: 'string', label: 'Why this version: kept beside it in the revision history (routineRevisions)' },
       ],
       returns: [
         { name: 'ok',       type: 'boolean' },
@@ -513,6 +523,20 @@ const DATASETS = {
      * `:id` paths are per-routine reads rather than filtered lists, so their
      * parameters are `computed` — there is no WHERE clause to map them to. */
     {
+      /* One routine as the document importRoutine takes back: how a routine is CHANGED
+         (read it, edit it, re-import it; the slug makes it an update). Mounted all along,
+         declared 2026-11-17 for the native app (TODO §10 H4). */
+      id: 'routine', label: 'One routine, with its document', path: '/routines/:id',
+      cardinality: 'one',
+      filters: [],
+      item: [
+        ...ITEM_SHAPE,
+        { name: 'document', type: 'json', label: 'What importRoutine accepts back: slug, title, days, cadence, time, spec…', schema: 'beigeboard.routineVocabulary' },
+        { name: 'warnings', type: 'json', label: 'The lint, as {path, code, message}', schema: 'beigeboard.routineVocabulary' },
+      ],
+      invalidates: [ITEMS_KEY],
+    },
+    {
       /* Whether a calendar is connected, and as whom. syncCalendar and disconnectCalendar
          were declared and the one read that says whether either applies was not: a peer (the
          native app, TODO §10 H3) had to try a sync to learn. Connecting stays an OAuth
@@ -546,7 +570,11 @@ const DATASETS = {
         { name: 'measure', type: 'string' },
         { name: 'steps',   type: 'json', label: 'Per step: {key, title, points[]}', schema: 'beigeboard.routineVocabulary' },
       ],
-      filters: [{ name: 'weeks', type: 'number', label: 'How many weeks back', computed: true }],
+      filters: [
+        { name: 'weeks',   type: 'number', label: 'How many weeks back', computed: true },
+        { name: 'measure', type: 'enum',   label: 'What each point measures (default load)', enum: ['load', 'target', 'sets', 'volume'], computed: true },
+        { name: 'step',    type: 'string', label: 'One step, by its key (default: every step)', computed: true },
+      ],
       doc: 'Prescribed against performed over time — the series the charts read, and the '
         + 'same shape the variance analysis consumes.',
     },
@@ -562,7 +590,11 @@ const DATASETS = {
         { name: 'warnings', type: 'json', label: 'The lint, as {path, code, message}', schema: 'beigeboard.routineVocabulary' },
         { name: 'sessions', type: 'json', label: 'One rendered prescription per occurrence', schema: 'beigeboard.routineVocabulary' },
       ],
-      filters: [{ name: 'today', type: 'date', label: "The caller's local day", computed: true }],
+      filters: [
+        { name: 'today',  type: 'date',   label: "The caller's local day", computed: true },
+        { name: 'cycles', type: 'number', label: 'How many sessions (1–52; default 8)', computed: true },
+        { name: 'from',   type: 'number', label: 'The first cycle (default: the one after the last completed)', computed: true },
+      ],
       doc: 'The occurrences the current rules WOULD mint, without minting them — how an '
         + 'author checks a cadence before committing to it.',
     },
