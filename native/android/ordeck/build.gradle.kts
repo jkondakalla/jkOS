@@ -75,6 +75,7 @@ val playContextCases: File = rootProject.file("../play-context-cases.json")
 // are held to as well (test/native.mjs).
 val sessionModeCases: File = rootProject.file("../session-mode-cases.json")
 val sessionStateCases: File = rootProject.file("../session-state-cases.json")
+val sessionCommandCases: File = rootProject.file("../session-command-cases.json")
 
 android {
     namespace = "net.jkos.app.alpha"
@@ -97,6 +98,8 @@ android {
             test.systemProperty("jkos.sessionModeCases", sessionModeCases.absolutePath)
             test.inputs.file(sessionStateCases)
             test.systemProperty("jkos.sessionStateCases", sessionStateCases.absolutePath)
+            test.inputs.file(sessionCommandCases)
+            test.systemProperty("jkos.sessionCommandCases", sessionCommandCases.absolutePath)
         }
     }
 }

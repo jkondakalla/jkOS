@@ -20,7 +20,11 @@ import androidx.media3.common.C
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
 import java.util.concurrent.Executor
 
 /** What the UI shows of the player, as one immutable snapshot. */
@@ -174,18 +178,43 @@ fun rememberQueue(controller: MediaController?): QueueState {
     return queue
 }
 
+// ── where a play goes ──
+// While this phone is a REMOTE (another device is the session's output, and online), what a
+// screen plays is a command to that device (the web's setPlayRouter). Refused with 409
+// NO_ACTIVE_DEVICE (the output went in the meantime), it plays here instead.
+
+private fun remote(): Boolean = SessionLink.role.value == SessionMode.REMOTE
+
+private fun MediaController.toOutput(op: String, args: JSONObject, orHere: MediaController.() -> Unit) {
+    val here = this
+    JkosApp.scope.launch {
+        if (SessionLink.command(op, args) == 409) withContext(Dispatchers.Main) { here.orHere() }
+    }
+}
+
+private fun loadArgs(items: List<String>, start: Int, positionMs: Long?, context: String?) =
+    SessionCore.Commands.load(items, start, positionMs, context)
+
 /**
  * Put [tracks] in the queue without interrupting it: right after the current track ([next]),
  * or at the end. With nothing queued, they simply play.
  */
 fun MediaController.enqueue(tracks: List<Track>, next: Boolean, context: String?) {
     if (tracks.isEmpty()) return
-    if (mediaItemCount == 0) return playQueue(tracks, 0, context)
+    if (remote()) {
+        val args = SessionCore.Commands.enqueue(tracks.map { "kouros:${it.id}" }, next)
+        return toOutput("enqueue", args) { enqueueHere(tracks, next, context) }
+    }
+    enqueueHere(tracks, next, context)
+}
+
+private fun MediaController.enqueueHere(tracks: List<Track>, next: Boolean, context: String?) {
+    if (mediaItemCount == 0) return playQueueHere(tracks, 0, context)
     val items = tracks.map { it.toMediaItem(context) }
     if (next) addMediaItems(currentMediaItemIndex + 1, items) else addMediaItems(items)
 }
 
-/** Play a station around [seed]: the seed first, then the station. */
+/** Play a station around [seed]: the seed first, then the station (playQueue routes it). */
 fun MediaController.playStation(seed: Track, station: List<Track>) {
     playQueue(listOf(seed) + station.filter { it.id != seed.id }, 0, PlayContext.station(seed.id))
 }
@@ -195,6 +224,13 @@ fun MediaController.playStation(seed: Track, station: List<Track>) {
  * player starts in the one that position falls in, and the device's book rate applies.
  */
 fun MediaController.playBook(book: BookDetail, globalMs: Long, rate: Float) {
+    if (remote()) {
+        return toOutput("load", loadArgs(listOf("book:${book.book.id}"), 0, globalMs, PlayContext.book(book.book.id))) { playBookHere(book, globalMs, rate) }
+    }
+    playBookHere(book, globalMs, rate)
+}
+
+private fun MediaController.playBookHere(book: BookDetail, globalMs: Long, rate: Float) {
     val items = book.toMediaItems()
     if (items.isEmpty()) return
     val (pos, offset) = BookLayout(book.files, book.chapters).locate(globalMs)
@@ -221,6 +257,13 @@ fun MediaController.seekInBook(book: BookInfo, globalMs: Long) {
 /** Replace the queue with [tracks] and play from [start]. */
 fun MediaController.playQueue(tracks: List<Track>, start: Int, context: String?) {
     if (tracks.isEmpty()) return
+    if (remote()) {
+        return toOutput("load", loadArgs(tracks.map { "kouros:${it.id}" }, start, null, context)) { playQueueHere(tracks, start, context) }
+    }
+    playQueueHere(tracks, start, context)
+}
+
+private fun MediaController.playQueueHere(tracks: List<Track>, start: Int, context: String?) {
     setMediaItems(tracks.map { it.toMediaItem(context) }, start.coerceIn(0, tracks.lastIndex), 0L)
     prepare()
     play()

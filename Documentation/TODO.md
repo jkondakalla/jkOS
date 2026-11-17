@@ -628,13 +628,22 @@ Each step ends in an APK and a device checklist.
        15 s while playing, claims the output when playback starts here, pauses when another
        device takes it, applies remotes' commands, takes over on a transfer, and cues the
        session after the app was killed.
-     - The APK is `~/Android/jkos-apks/jkos-alpha-0.1.0-staging-g3-output.apk`.
-   - **Next: the remote role.** The phone drawing another device's session on the server's
-     clock, its plays and queue edits sent as commands, and a device picker with transfer.
-     Until then, playing anything on the phone makes the phone the output.
+     - The remote role: while another device is the output, the mini player and Now Playing
+       draw its session on the server's clock, and every verb is a command. Every play and
+       Play next / Add to queue goes to the output as `load` or `enqueue`, and plays here if
+       the output has gone (409). Devices on Now Playing moves playback anywhere, this phone
+       included, and sets another device's volume.
+     - A third case file, `native/session-command-cases.json`: validate.js accepts every
+       command the app builds.
+     - The APK is `~/Android/jkos-apks/jkos-alpha-0.1.0-staging-g3.apk`, which includes G1
+       and G2.
+     - **You:** after the deploy, run OPERATIONS § Native apps' G3 checks.
+   - **Left in G3:** editing the output's queue from the phone. Today the Queue screen says the
+     queue is edited on the output, though plays and Play next still reach it.
    - Not done, on purpose: `shuffle` from a remote is ignored (this player doesn't shuffle,
      and reports shuffle off). The phone cues the session only when the session names this
-     phone; the web cues on every idle device.
+     phone; the web cues on every idle device. The phone's own volume isn't on its picker:
+     its volume buttons set it.
 
 ### H · BeigeBoard
 

@@ -407,6 +407,20 @@ exists.
     shows it paused. Turn it off: the phone reconnects.
   - Swipe the app away while paused: the web shows the phone offline.
 
+- **G3 · The phone as a remote** (the web playing on a computer).
+  - The mini player reads "On <the computer>" with what it plays. Its play/pause and next
+    land on the computer.
+  - Now Playing shows "Playing on <the computer>", its scrubber on the computer's clock (it
+    moves while the computer plays and stops when it pauses). Seek, previous, next. With a
+    book: ±30 s, chapters, the rate, and the sleep timer it reports.
+  - Play an album, a playlist, a search result and a book on the phone: each plays on the
+    computer. Play next and Add to queue from a ⋮ land in the computer's queue.
+  - Devices: lists every device, online first, the output marked. Tap the phone: it takes
+    over at the same second and the computer pauses. Tap the computer: back again. Drag the
+    computer's volume: it changes there.
+  - Close the computer's tab mid-song, then play an album on the phone: it plays on the
+    phone (the command is refused, so it plays here).
+
 ### Android: jkOS Home on a panel device
 
 Install `home-*.apk`, press Home, and choose **jkOS Home**, then **Always**. To get out: **hold

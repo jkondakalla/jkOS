@@ -154,6 +154,10 @@ object SessionLink {
     /** Commands addressed to this device (the server sends them to the output only, and volume by name). */
     val commands: SharedFlow<SessionCommand> = _commands
 
+    /** This device's part, as the playback service's SessionOutput last decided it. The screens
+     *  read it: as a REMOTE, what they play is sent to the output as a command. */
+    internal val role = MutableStateFlow(SessionMode.SOLO)
+
     private var job: Job? = null
     private var scope: CoroutineScope? = null
     private var clockRtt = Long.MAX_VALUE
@@ -175,6 +179,7 @@ object SessionLink {
         job?.cancel()
         job = null
         _state.value = LinkState()
+        role.value = SessionMode.SOLO
     }
 
     private fun emit(f: (LinkState) -> LinkState) { _state.value = f(_state.value) }
@@ -293,7 +298,7 @@ object SessionLink {
 
     /** A command to the output, with the suite's idempotency key so a retry is one command. */
     suspend fun command(op: String, args: JSONObject = JSONObject()): Int {
-        val body = JSONObject().put("op", op).put("args", args).put("from", deviceId).put("idempotency_key", UUID.randomUUID().toString())
+        val body = SessionCore.commandBody(op, args, deviceId, UUID.randomUUID().toString())
         return try { api.call("POST", "/api/session/commands", body.toString()).code } catch (e: ApiException) { e.code }
     }
 

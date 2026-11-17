@@ -74,6 +74,7 @@ internal class SessionOutput(private val player: Player, private val scope: Coro
         )
         val was = _mode.value
         _mode.value = next
+        SessionLink.role.value = next
         when {
             next == SessionMode.REMOTE && was != SessionMode.REMOTE -> player.pause()   // another device plays
             next == SessionMode.LOCAL && was != SessionMode.LOCAL -> scheduleReport()

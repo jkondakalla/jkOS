@@ -26,8 +26,18 @@ import androidx.media3.session.MediaController
 @Composable
 fun QueueScreen(controller: MediaController?, onBack: () -> Unit) {
     val queue = rememberQueue(controller)
+    val remote = rememberIsRemote()
     Column(Modifier.fillMaxSize()) {
         Header("Queue", onBack)
+        if (remote) {
+            // Not built yet: the output's queue, edited from here. Its plays and "Play next"
+            // still go to it (Player.kt routes them).
+            Text(
+                "Another device is playing. Its queue is edited there for now; Play next and Add to queue on any track still go to it.",
+                Modifier.padding(24.dp), color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            return@Column
+        }
         Text(
             if (queue.upNext > 0) "${queue.upNext} up next · ${formatTime(queue.remainingMs)} left" else "Nothing up next",
             Modifier.padding(start = 16.dp, bottom = 8.dp),

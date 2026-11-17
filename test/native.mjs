@@ -595,10 +595,16 @@ const policy = require(resolve(root, 'native/desktop/src/policy.js'));
   check(states.cases.length >= 6 && refused.length === 0,
     `session reports: all ${states.cases.length} bodies the app builds are accepted by validate.js stateReport`,
     `validate.js refuses a body the app would report:\n    ${refused.map(([n, r]) => `${n}: ${r.error}`).join('\n    ')}`);
-  check(/System\.getProperty\(prop\)/.test(pcTest) && ['sessionModeCases', 'sessionStateCases'].every((k) => pcTest.includes(`cases("jkos.${k}")`)
+  const cmds = JSON.parse(read('native/session-command-cases.json'));
+  const cmdRefused = cmds.cases.map((c) => [c.name, V.command({ op: c.op, args: c.args, from: cmds.from })])
+    .filter(([, r]) => !r.ok);
+  check(cmds.cases.length >= 10 && cmdRefused.length === 0,
+    `session commands: all ${cmds.cases.length} the app sends are accepted by validate.js command`,
+    `validate.js refuses a command the app would send:\n    ${cmdRefused.map(([n, r]) => `${n}: ${r.error}`).join('\n    ')}`);
+  check(/System\.getProperty\(prop\)/.test(pcTest) && ['sessionModeCases', 'sessionStateCases', 'sessionCommandCases'].every((k) => pcTest.includes(`cases("jkos.${k}")`)
       && new RegExp(`systemProperty\\("jkos\\.${k}", ${k}\\.absolutePath\\)`).test(gradle)),
-    'the Kotlin session tests read the same two case files',
-    'CoreTest.kt or the Gradle wiring no longer reads native/session-{mode,state}-cases.json — the app and the server can drift apart');
+    'the Kotlin session tests read the same three case files',
+    'CoreTest.kt or the Gradle wiring no longer reads native/session-{mode,state,command}-cases.json — the app and the server can drift apart');
 }
 
 // ── 8. Native sign-in reaches the right jkAuth, through the edge ─────────────

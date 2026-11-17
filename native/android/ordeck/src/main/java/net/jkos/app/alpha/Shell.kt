@@ -52,6 +52,8 @@ import net.jkos.app.alpha.beigeboard.BeigeBoardTab
 import net.jkos.app.alpha.kouros.KourosScreen
 import net.jkos.app.alpha.kouros.KourosTab
 import net.jkos.app.alpha.kouros.MiniPlayer
+import net.jkos.app.alpha.kouros.RemoteMiniPlayer
+import net.jkos.app.alpha.kouros.rememberIsRemote
 import net.jkos.app.alpha.kouros.rememberController
 import net.jkos.app.alpha.kouros.rememberNowPlaying
 import net.jkos.app.alpha.ordeck.HomeRoot
@@ -167,12 +169,20 @@ private fun SignedIn(user: User, aud: Set<String>) {
                 }
             }
         }
-        if (kouros != null && now != null && !(current == kouros && nav.top == KourosScreen.NowPlayingPage)) {
-            MiniPlayer(now, controller) {
+        val openNowPlaying = {
+            if (kouros != null) {
                 selected = kouros
                 val k = navOf(kouros)
                 if (k.top != KourosScreen.NowPlayingPage) k.push(KourosScreen.NowPlayingPage)
             }
+        }
+        val onNowPlaying = current == kouros && nav.top == KourosScreen.NowPlayingPage
+        // As a remote the bar shows what the session's output plays; otherwise this player.
+        val remote = kouros != null && rememberIsRemote()
+        if (remote && !onNowPlaying) {
+            RemoteMiniPlayer(openNowPlaying)
+        } else if (!remote && kouros != null && now != null && !onNowPlaying) {
+            MiniPlayer(now, controller, openNowPlaying)
         }
         HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
         Row(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface)) {

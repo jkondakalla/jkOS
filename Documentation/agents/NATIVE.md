@@ -214,8 +214,9 @@ origin-scoped listeners gets no bridge at all (the page still works).
 >   `BearerClient.stream`, the same one token holder. A cancel closes the connection,
 >   since a blocked read notices nothing else. It reconnects with the web's backoff and
 >   reopens on `reauth`. `SessionOutput`, in the service, is the output role; `SessionCore`
->   is its pure half, held to `native/session-{mode,state}-cases.json`. The remote role
->   isn't built yet.
+>   is its pure half, held to `native/session-{mode,state,command}-cases.json`. As a
+>   remote, `SessionLink.role` routes the screens' plays (Player.kt) to the output as
+>   commands, and `RemoteUi` draws the output's session on the server's clock.
 > - **A tab exists only for an app in the token's `aud`** (`Tabs.forAud`). The audience is read
 >   from the access token and kept in the sealed session file, so the tabs are right at a cold
 >   start. Each tab has its own back stack; the mini player sits above the bar.

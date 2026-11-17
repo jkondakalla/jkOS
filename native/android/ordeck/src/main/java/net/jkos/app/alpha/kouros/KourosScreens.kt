@@ -344,9 +344,17 @@ fun MiniPlayer(now: NowPlaying, controller: MediaController?, open: () -> Unit) 
 private fun NowPlayingScreen(controller: MediaController?, now: NowPlaying?, onBack: () -> Unit, push: (Screen) -> Unit) {
     val scope = rememberCoroutineScope()
     var radioNote by remember { mutableStateOf<String?>(null) }
+    var devices by remember { mutableStateOf(false) }
+    val remote = rememberIsRemote()
+    if (devices) DevicesDialog { devices = false }
     Column(Modifier.fillMaxSize()) {
         Header("Now playing", onBack) {
+            TextButton(onClick = { devices = true }) { Text("Devices") }
             IconButton(onClick = { push(KourosScreen.QueuePage) }) { Icon(Glyphs.Queue, contentDescription = "Queue") }
+        }
+        if (remote) {
+            RemoteNowPlaying()
+            return@Column
         }
         if (now == null || controller == null) {
             Text("Nothing is playing.", Modifier.padding(24.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)

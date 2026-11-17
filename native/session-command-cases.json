@@ -1,0 +1,206 @@
+{
+  "_comment": "The commands a remote sends (POST /api/session/commands). SessionCore.Commands must build `args` from `build` (the JVM test), and validate.js command must accept every {op, args, from} (check:native). The idempotency key is the suite's, outside the shape validate.js reads.",
+  "from": "0f8fad5b-d9cb-469f-a165-70867728950e",
+  "cases": [
+    {
+      "name": "play",
+      "op": "play",
+      "build": {
+        "kind": "simple"
+      },
+      "args": {}
+    },
+    {
+      "name": "pause",
+      "op": "pause",
+      "build": {
+        "kind": "simple"
+      },
+      "args": {}
+    },
+    {
+      "name": "next",
+      "op": "next",
+      "build": {
+        "kind": "simple"
+      },
+      "args": {}
+    },
+    {
+      "name": "the book rate, one preset on",
+      "op": "rate",
+      "build": {
+        "kind": "simple"
+      },
+      "args": {}
+    },
+    {
+      "name": "an album from its third track",
+      "op": "load",
+      "build": {
+        "kind": "load",
+        "items": [
+          "kouros:12",
+          "kouros:13",
+          "kouros:14"
+        ],
+        "start": 2,
+        "context": "album/Radiohead/Kid%20A"
+      },
+      "args": {
+        "items": [
+          "kouros:12",
+          "kouros:13",
+          "kouros:14"
+        ],
+        "startIndex": 2,
+        "context": "album/Radiohead/Kid%20A"
+      }
+    },
+    {
+      "name": "a book from where it was left",
+      "op": "load",
+      "build": {
+        "kind": "load",
+        "items": [
+          "book:7"
+        ],
+        "start": 0,
+        "positionMs": 4000000,
+        "context": "book/7"
+      },
+      "args": {
+        "items": [
+          "book:7"
+        ],
+        "startIndex": 0,
+        "position_ms": 4000000,
+        "context": "book/7"
+      }
+    },
+    {
+      "name": "search results: no context, a start past the end held inside",
+      "op": "load",
+      "build": {
+        "kind": "load",
+        "items": [
+          "kouros:5"
+        ],
+        "start": 9
+      },
+      "args": {
+        "items": [
+          "kouros:5"
+        ],
+        "startIndex": 0,
+        "context": null
+      }
+    },
+    {
+      "name": "play next",
+      "op": "enqueue",
+      "build": {
+        "kind": "enqueue",
+        "items": [
+          "kouros:5",
+          "kouros:6"
+        ],
+        "next": true
+      },
+      "args": {
+        "items": [
+          "kouros:5",
+          "kouros:6"
+        ],
+        "where": "next"
+      }
+    },
+    {
+      "name": "add to queue",
+      "op": "enqueue",
+      "build": {
+        "kind": "enqueue",
+        "items": [
+          "kouros:5"
+        ],
+        "next": false
+      },
+      "args": {
+        "items": [
+          "kouros:5"
+        ],
+        "where": "end"
+      }
+    },
+    {
+      "name": "seek, a negative held at zero",
+      "op": "seek",
+      "build": {
+        "kind": "seek",
+        "ms": -20
+      },
+      "args": {
+        "position_ms": 0
+      }
+    },
+    {
+      "name": "back 30 s",
+      "op": "skip",
+      "build": {
+        "kind": "skip",
+        "deltaMs": -30000
+      },
+      "args": {
+        "delta_ms": -30000
+      }
+    },
+    {
+      "name": "a skip past an hour held to one",
+      "op": "skip",
+      "build": {
+        "kind": "skip",
+        "deltaMs": 99999999
+      },
+      "args": {
+        "delta_ms": 3600000
+      }
+    },
+    {
+      "name": "the next chapter",
+      "op": "segment",
+      "build": {
+        "kind": "segment",
+        "next": true
+      },
+      "args": {
+        "dir": "next"
+      }
+    },
+    {
+      "name": "another device's volume",
+      "op": "volume",
+      "build": {
+        "kind": "volume",
+        "device": "1b4e28ba-2fa1-41d2-883f-0016d3cca427",
+        "level": 0.5
+      },
+      "args": {
+        "device": "1b4e28ba-2fa1-41d2-883f-0016d3cca427",
+        "level": 0.5
+      }
+    },
+    {
+      "name": "a volume past full held at full",
+      "op": "volume",
+      "build": {
+        "kind": "volume",
+        "device": "1b4e28ba-2fa1-41d2-883f-0016d3cca427",
+        "level": 3
+      },
+      "args": {
+        "device": "1b4e28ba-2fa1-41d2-883f-0016d3cca427",
+        "level": 1
+      }
+    }
+  ]
+}

@@ -427,7 +427,7 @@ class BooksTest {
 class SessionTest {
     private fun cases(prop: String) = JSONObject(File(System.getProperty(prop) ?: error("$prop not set")).readText())
 
-    private fun JSONObject.strOrNull(k: String) = if (isNull(k)) null else getString(k)
+    private fun JSONObject.strOrNull(k: String) = if (!has(k) || isNull(k)) null else getString(k)
 
     /** JSON as plain values, numbers as doubles, so two bodies compare by content, not key order. */
     private fun canon(v: Any?): Any? = when (v) {
@@ -475,6 +475,30 @@ class SessionTest {
             if (canon(got) == canon(c.getJSONObject("expect"))) null else "${c.getString("name")}:\n  expected ${c.getJSONObject("expect")}\n  got      $got"
         }
         assertTrue(wrong.joinToString("\n"), all.length() >= 6 && wrong.isEmpty())
+    }
+
+    @Test fun everyCommandIsTheArgsTheServerReads() {
+        val doc = cases("jkos.sessionCommandCases")
+        val all = doc.getJSONArray("cases")
+        val wrong = (0 until all.length()).mapNotNull { i ->
+            val c = all.getJSONObject(i)
+            val b = c.getJSONObject("build")
+            fun items() = b.getJSONArray("items").let { a -> (0 until a.length()).map { a.getString(it) } }
+            val got = when (b.getString("kind")) {
+                "simple" -> SessionCore.Commands.simple()
+                "load" -> SessionCore.Commands.load(items(), b.getInt("start"), if (b.has("positionMs")) b.getLong("positionMs") else null, b.strOrNull("context"))
+                "enqueue" -> SessionCore.Commands.enqueue(items(), b.getBoolean("next"))
+                "seek" -> SessionCore.Commands.seek(b.getLong("ms"))
+                "skip" -> SessionCore.Commands.skip(b.getLong("deltaMs"))
+                "segment" -> SessionCore.Commands.segment(b.getBoolean("next"))
+                "volume" -> SessionCore.Commands.volume(b.getString("device"), b.getDouble("level").toFloat())
+                else -> error("unknown kind")
+            }
+            if (canon(got) == canon(c.getJSONObject("args"))) null else "${c.getString("name")}: expected ${c.getJSONObject("args")}, got $got"
+        }
+        assertTrue(wrong.joinToString("\n"), all.length() >= 10 && wrong.isEmpty())
+        val body = SessionCore.commandBody("pause", SessionCore.Commands.simple(), doc.getString("from"), "k-1")
+        assertEquals(setOf("op", "args", "from", "idempotency_key"), body.keys().asSequence().toSet())
     }
 
     @Test fun aRemotesReorderMovesABookWithAllItsFiles() {

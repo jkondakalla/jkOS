@@ -113,6 +113,39 @@ object SessionCore {
 
     const val MAX_POSITION_MS = 7L * 24 * 3600 * 1000
 
+    /** validate.js MAX_QUEUE: a load or an enqueue carries at most this many items. */
+    const val MAX_QUEUE = 5000
+
+    // ── the commands a remote sends (validate.js `command`); native/session-command-cases.json ──
+
+    /** A command's `args`, as the server's COMMANDS table reads them. */
+    object Commands {
+        fun simple(): JSONObject = JSONObject()
+
+        fun load(items: List<String>, start: Int, positionMs: Long?, context: String?): JSONObject = JSONObject().apply {
+            val kept = items.take(MAX_QUEUE)
+            put("items", JSONArray(kept))
+            put("startIndex", start.coerceIn(0, (kept.size - 1).coerceAtLeast(0)))
+            if (positionMs != null) put("position_ms", positionMs.coerceIn(0, MAX_POSITION_MS))
+            put("context", context ?: JSONObject.NULL)
+        }
+
+        fun enqueue(items: List<String>, next: Boolean): JSONObject =
+            JSONObject().put("items", JSONArray(items.take(MAX_QUEUE))).put("where", if (next) "next" else "end")
+
+        fun seek(ms: Long): JSONObject = JSONObject().put("position_ms", ms.coerceIn(0, MAX_POSITION_MS))
+
+        fun skip(deltaMs: Long): JSONObject = JSONObject().put("delta_ms", deltaMs.coerceIn(-3_600_000, 3_600_000))
+
+        fun segment(next: Boolean): JSONObject = JSONObject().put("dir", if (next) "next" else "prev")
+
+        fun volume(device: String, level: Float): JSONObject = JSONObject().put("device", device).put("level", level.coerceIn(0f, 1f).toDouble())
+    }
+
+    /** The POST /api/session/commands body: the op, its args, the sender, and the suite's idempotency key. */
+    fun commandBody(op: String, args: JSONObject, from: String, idempotencyKey: String): JSONObject =
+        JSONObject().put("op", op).put("args", args).put("from", from).put("idempotency_key", idempotencyKey)
+
     /**
      * The POST /api/session/state body (validate.js stateReport). The queue is @jkos/player's
      * Queue: this player doesn't shuffle, so its policy is shuffle off with no order.
