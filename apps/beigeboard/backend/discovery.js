@@ -63,7 +63,7 @@ if (extRefsErr) throw new Error(`beigeboard ext_ref schemes: ${extRefsErr}`);
 // a peer cannot be told a collection exists that a write would then reject.
 // routine-spec.js is zero-dep, pure, side-effect-free data + functions, so requiring
 // it keeps this file offline-safe for the prober exactly as item-fields.js does.
-const { COLLECTIONS: LIBRARY_COLLECTIONS } = require('@jkos/routine-spec');
+const { COLLECTIONS: LIBRARY_COLLECTIONS, UNITS: LIBRARY_UNITS, LOAD_UNITS: LIBRARY_LOAD_UNITS } = require('@jkos/routine-spec');
 
 /** This app's polled resources. Writers bump them; the datasets read them. */
 const ITEMS_KEY = resourceKey('beigeboard', 'items');     // 'beigeboard.items'
@@ -82,6 +82,27 @@ const LIBRARY_KEY = resourceKey('beigeboard', 'library'); // 'beigeboard.library
    work to do should read `kind=task` and ignore routines entirely: their
    occurrences ARE tasks (minted under them by src/routines.js) and carry an
    `ext_ref` of `routine:<id>:<date>`, so `?ext_ref_prefix=routine:` lists them. */
+
+/* ONE library row: what the `library` dataset reads, and what saving or editing an entry
+   returns, declared once so the two are provably the same shape. */
+const LIBRARY_ENTRY = [
+    { name: 'id',         type: 'number' },
+    { name: 'user_id',    type: 'number' },
+    { name: 'collection', type: 'enum',   enum: LIBRARY_COLLECTIONS },
+    { name: 'slug',       type: 'string', label: 'What a step\'s `ref` names' },
+    { name: 'title',      type: 'string' },
+    { name: 'notes',      type: 'string' },
+    { name: 'unit',       type: 'string' },
+    { name: 'load_unit',  type: 'string' },
+    { name: 'tags',       type: 'json',   of: 'string' },
+    /* Their shape is the routine document's (a step's variants and defaults), which
+       the vocabulary declares — not this dataset, which is what they used to point at. */
+    { name: 'variants',   type: 'json',   label: 'The difficulty ladder, easiest → hardest', schema: 'beigeboard.routineVocabulary' },
+    { name: 'defaults',   type: 'json',   label: 'Step defaults: sets, target, load, rest, progression', schema: 'beigeboard.routineVocabulary' },
+    { name: 'source',     type: 'string', label: 'Where the entry came from (the starter set, or you)' },
+    { name: 'created_at', type: 'string' },
+    { name: 'updated_at', type: 'string' },
+];
 
 /* ── What can be DONE to BeigeBoard (the write contract) ─────────────────────── */
 const CAPABILITIES = {
@@ -253,6 +274,51 @@ const CAPABILITIES = {
       ],
       invalidates: [LIBRARY_KEY], scopes: ['beigeboard:write'],
       doc: 'Bulk upsert by (collection, slug) — safe to resend. Teaches the app a whole domain in one call. GET /api/library/export returns the same document back.',
+    },
+    /* One entry at a time: the library browser's add, edit and delete. Mounted all along
+       (routes/routines.js) and declared 2026-11-17, when a second client (the native app,
+       TODO §10 H4) needed them: only the bulk import had been. The write CLEANS rather than
+       refuses (src/library.js cleanEntry): text is trimmed to its limit and an unknown
+       collection or unit is filed as custom or none, so no field here declares a `max`. */
+    {
+      id: 'saveLibraryEntry', label: 'Add a library entry (or replace one)', method: 'POST', path: '/library',
+      body: [
+        { name: 'slug',       type: 'string', label: "What a step's ref names: with the collection, the key a save replaces (made from the title when absent)" },
+        { name: 'collection', type: 'enum',   label: 'Collection (anything else is filed as custom)', enum: LIBRARY_COLLECTIONS },
+        { name: 'title',      type: 'string', label: 'Title (kept to 200 characters)' },
+        { name: 'notes',      type: 'text',   label: 'Notes (kept to 2000 characters)' },
+        { name: 'unit',       type: 'enum',   label: 'What a set counts (anything else is none)', enum: LIBRARY_UNITS },
+        { name: 'load_unit',  type: 'enum',   label: 'What a load is measured in (anything else is none)', enum: LIBRARY_LOAD_UNITS },
+        { name: 'tags',       type: 'json',   label: 'Tags: up to 12, of 40 characters each', of: 'string' },
+        { name: 'variants',   type: 'json',   label: 'The difficulty ladder, easiest → hardest (up to 12)', schema: 'beigeboard.routineVocabulary' },
+        { name: 'defaults',   type: 'json',   label: 'Step defaults: sets, target, load, rest, progression', schema: 'beigeboard.routineVocabulary' },
+      ],
+      returns: LIBRARY_ENTRY,
+      invalidates: [LIBRARY_KEY], scopes: ['beigeboard:write'],
+      doc: 'Upserts by (collection, slug): 201 when it made one, 200 when it replaced one. Needs a slug or a title.',
+    },
+    {
+      id: 'updateLibraryEntry', label: 'Edit a library entry', method: 'PATCH', path: '/library/:id',
+      body: [
+        { name: 'id',         type: 'number', label: 'Entry id', required: true },
+        { name: 'collection', type: 'enum',   label: 'Collection (anything else is filed as custom)', enum: LIBRARY_COLLECTIONS },
+        { name: 'title',      type: 'string', label: 'Title (kept to 200 characters)' },
+        { name: 'notes',      type: 'text',   label: 'Notes (kept to 2000 characters)' },
+        { name: 'unit',       type: 'enum',   label: 'What a set counts (anything else is none)', enum: LIBRARY_UNITS },
+        { name: 'load_unit',  type: 'enum',   label: 'What a load is measured in (anything else is none)', enum: LIBRARY_LOAD_UNITS },
+        { name: 'tags',       type: 'json',   label: 'Tags: up to 12, of 40 characters each', of: 'string' },
+        { name: 'variants',   type: 'json',   label: 'The difficulty ladder, easiest → hardest (up to 12)', schema: 'beigeboard.routineVocabulary' },
+        { name: 'defaults',   type: 'json',   label: 'Step defaults: sets, target, load, rest, progression', schema: 'beigeboard.routineVocabulary' },
+      ],
+      returns: LIBRARY_ENTRY,
+      invalidates: [LIBRARY_KEY], scopes: ['beigeboard:write'],
+      doc: 'Patches only the fields given. Routines that ref the entry pick the change up on their next render.',
+    },
+    {
+      id: 'deleteLibraryEntry', label: 'Delete a library entry', method: 'DELETE', path: '/library/:id',
+      body: [{ name: 'id', type: 'number', label: 'Entry id', required: true }],
+      returns: [{ name: 'ok', type: 'boolean' }],
+      invalidates: [LIBRARY_KEY], scopes: ['beigeboard:write'],
     },
     {
       /* "Take this one easy." Its own capability rather than a `deload_override`
@@ -431,24 +497,7 @@ const DATASETS = {
         { name: 'q',          type: 'string', label: 'Search title, slug or tags',
           op: 'search', columns: ['title', 'slug', 'tags'] },
       ],
-      item: [
-        { name: 'id',         type: 'number' },
-        { name: 'user_id',    type: 'number' },
-        { name: 'collection', type: 'enum',   enum: LIBRARY_COLLECTIONS },
-        { name: 'slug',       type: 'string', label: 'What a step\'s `ref` names' },
-        { name: 'title',      type: 'string' },
-        { name: 'notes',      type: 'string' },
-        { name: 'unit',       type: 'string' },
-        { name: 'load_unit',  type: 'string' },
-        { name: 'tags',       type: 'json',   of: 'string' },
-        /* Their shape is the routine document's (a step's variants and defaults), which
-           the vocabulary declares — not this dataset, which is what they used to point at. */
-        { name: 'variants',   type: 'json',   label: 'The difficulty ladder, easiest → hardest', schema: 'beigeboard.routineVocabulary' },
-        { name: 'defaults',   type: 'json',   label: 'Step defaults: sets, target, load, rest, progression', schema: 'beigeboard.routineVocabulary' },
-        { name: 'source',     type: 'string', label: 'Where the entry came from (the starter set, or you)' },
-        { name: 'created_at', type: 'string' },
-        { name: 'updated_at', type: 'string' },
-      ],
+      item: LIBRARY_ENTRY,
       invalidates: [LIBRARY_KEY],
     },
 

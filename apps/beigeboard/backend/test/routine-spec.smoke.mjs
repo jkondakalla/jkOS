@@ -448,6 +448,33 @@ try {
   ok(back.status === 200 && back.json.created === 0 && back.json.updated === exported.count,
     `P: re-importing its own export UPDATES and never duplicates (created ${back.json.created})`);
 
+  // ── P2. the declared one-entry writes: save, edit, delete ───────────────────
+  //     Declared 2026-11-17 (saveLibraryEntry, updateLibraryEntry, deleteLibraryEntry).
+  //     Each answers what it declares: an entry in the library dataset's own row shape.
+  {
+    const { CAPABILITIES: CAPS, DATASETS: DS } = createRequire(import.meta.url)(join(BACKEND, 'discovery.js'));
+    const capOf = (id) => CAPS.capabilities.find((c) => c.id === id);
+    const rowNames = new Set(DS.datasets.find((d) => d.id === 'library').item.map((f) => f.name));
+    const shaped = (e) => e && typeof e === 'object' && Object.keys(e).every((k) => rowNames.has(k));
+    ok(['saveLibraryEntry', 'updateLibraryEntry', 'deleteLibraryEntry'].every((id) => capOf(id)),
+      'P2: the one-entry library writes are declared');
+    ok(capOf('saveLibraryEntry').body.every((f) => rowNames.has(f.name)),
+      "P2: every field saveLibraryEntry takes is a field of the library's row");
+    const made = await req('POST', '/api/library', { collection: 'exercise', title: 'Landmine Press', unit: 'reps', load_unit: 'kg' });
+    ok(made.status === 201 && shaped(made.json) && made.json.slug === 'landmine-press',
+      `P2: saveLibraryEntry makes one, in the row's shape, its slug from the title (got ${made.status} ${made.json?.slug})`);
+    const again = await req('POST', '/api/library', { collection: 'exercise', slug: 'landmine-press', title: 'Landmine Press', notes: 'half-kneeling' });
+    ok(again.status === 200 && again.json?.id === made.json.id && again.json.notes === 'half-kneeling',
+      `P2: …and saving the same (collection, slug) replaces it, keeping its id (got ${again.status})`);
+    const edited = await req('PATCH', `/api/library/${made.json.id}`, { title: 'Landmine Press (kneeling)' });
+    ok(edited.status === 200 && shaped(edited.json) && edited.json.title === 'Landmine Press (kneeling)' && edited.json.notes === 'half-kneeling',
+      `P2: updateLibraryEntry patches only what it is given (got ${edited.status})`);
+    const gone = await req('DELETE', `/api/library/${made.json.id}`);
+    ok(gone.status === 200 && gone.json?.ok === true && !(await req('GET', '/api/library?q=landmine')).json.some((e) => e.id === made.json.id),
+      `P2: deleteLibraryEntry removes it (got ${gone.status})`);
+    ok((await req('DELETE', `/api/library/${made.json.id}`)).status === 404, 'P2: …and a second delete is a 404');
+  }
+
   // ── Q. WAVE 3 — the BUNDLE: a library and the routines that use it, one paste ─
   //     The case a written-by-AI programme actually produces: a routine that needs
   //     a movement the library does not have yet. What is being tested is the
