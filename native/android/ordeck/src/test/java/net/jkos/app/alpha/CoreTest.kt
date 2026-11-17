@@ -26,6 +26,8 @@ import net.jkos.app.alpha.kouros.SleepState
 import net.jkos.app.alpha.kouros.SleepTimer
 import net.jkos.app.alpha.kouros.ModeFacts
 import net.jkos.app.alpha.kouros.SessionCore
+import net.jkos.app.alpha.kouros.SessionWire
+import net.jkos.app.alpha.kouros.SseParser
 import java.util.Base64
 
 import org.json.JSONArray
@@ -473,6 +475,34 @@ class SessionTest {
             if (canon(got) == canon(c.getJSONObject("expect"))) null else "${c.getString("name")}:\n  expected ${c.getJSONObject("expect")}\n  got      $got"
         }
         assertTrue(wrong.joinToString("\n"), all.length() >= 6 && wrong.isEmpty())
+    }
+
+    @Test fun aRemotesReorderMovesABookWithAllItsFiles() {
+        val v = SessionCore.collapse(listOf("book:7:0", "book:7:1", "12", "13"), 0)   // [book:7, kouros:12, kouros:13]
+        assertEquals(Triple(0, 2, 2), v.move(0, 2))    // the book to the end: [12, 13, b0, b1]
+        assertEquals(Triple(3, 4, 0), v.move(2, 0))    // 13 to the front: [13, b0, b1, 12]
+        assertEquals(Triple(0, 2, 1), v.move(0, 1))    // the book after 12: [12, b0, b1, 13]
+        assertNull(v.move(1, 1)); assertNull(v.move(5, 0)); assertNull(v.move(0, 9))
+    }
+
+    @Test fun theStreamsFraming() {
+        val p = SseParser()
+        val got = listOf(": ping", "", "event: session", "data: {\"a\":", "data: 1}", "", "data: x\r", "", "event: empty", "").mapNotNull(p::feed)
+        assertEquals(listOf("session" to "{\"a\":\n1}", "message" to "x"), got)
+    }
+
+    @Test fun aSessionAndWhereItIsNow() {
+        val s = SessionWire.session(JSONObject("""{"rev":4,"active_device":"d","queue":{"items":["kouros:12","book:7"],"cursor":1},"context":null,"item_ref":"book:7","position_ms":1000,"playing":true,"rate":1.5,"sleep_mode":null,"sleep_remaining_ms":null,"reported_at":"2026-11-17T00:00:00.000Z"}"""))!!
+        assertEquals(listOf("kouros:12", "book:7"), s.items); assertEquals(1, s.cursor); assertNull(s.context); assertNull(s.sleepMode)
+        val at = java.time.Instant.parse("2026-11-17T00:00:00.000Z").toEpochMilli()
+        assertEquals(1000 + 3000, s.positionAt(at + 2000))               // 2 s at 1.5×
+        assertEquals(1000, s.copy(playing = false).positionAt(at + 2000))
+        assertEquals(1000, s.positionAt(at - 5000))                        // a clock behind the report never goes back
+    }
+
+    @Test fun reconnectsBackOffAndDeviceIdsAreTheServers() {
+        assertEquals(3000, SessionWire.backoffMs(0, 0.5)); assertEquals(30000, SessionWire.backoffMs(9, 0.5)); assertEquals(2400, SessionWire.backoffMs(0, 0.0))
+        assertTrue(SessionWire.isDeviceId(SessionWire.newDeviceId())); assertFalse(SessionWire.isDeviceId("not-a-uuid"))
     }
 
     @Test fun aSessionItemMapsBackToItsFirstFile() {

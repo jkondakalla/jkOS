@@ -44,4 +44,33 @@ internal object Http {
             c.disconnect()
         }
     }
+
+    /**
+     * A GET whose body is read line by line as it arrives (an event stream), under the same
+     * rules: https only, no redirects followed. [onOpen] gets the status; a 2xx then feeds
+     * [onLine] until the server closes or [readTimeoutMs] passes with nothing (the server pings
+     * every 20 s). [connected] is handed the connection first, so a caller can close it from
+     * another thread: a blocked read notices nothing else.
+     */
+    fun stream(
+        url: String, headers: Map<String, String>, readTimeoutMs: Int,
+        connected: (HttpURLConnection) -> Unit, onOpen: (Int) -> Boolean, onLine: (String) -> Unit,
+    ) {
+        if (!url.startsWith("https://")) throw IOException("refusing a non-https URL")
+        val c = URI(url).toURL().openConnection() as HttpURLConnection
+        connected(c)
+        try {
+            c.instanceFollowRedirects = false
+            c.connectTimeout = 15_000
+            c.readTimeout = readTimeoutMs
+            c.useCaches = false
+            for ((k, v) in headers) c.setRequestProperty(k, v)
+            if (!onOpen(c.responseCode)) return
+            c.inputStream.bufferedReader(Charsets.UTF_8).use { r ->
+                while (true) onLine(r.readLine() ?: return)
+            }
+        } finally {
+            c.disconnect()
+        }
+    }
 }

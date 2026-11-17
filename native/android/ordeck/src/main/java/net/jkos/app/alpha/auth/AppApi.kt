@@ -19,4 +19,7 @@ class AppApi(val app: String) {
     internal suspend fun call(method: String, path: String, json: String? = null): HttpResult = client.call(method, url(path), json)
 
     suspend fun get(path: String): String = call("GET", path).text
+
+    /** Read `${base}[path]` as an event stream; returns the status it opened with. */
+    internal suspend fun stream(path: String, onLine: (String) -> Unit): Int = client.stream(url(path), onLine)
 }

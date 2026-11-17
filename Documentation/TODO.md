@@ -617,12 +617,24 @@ Each step ends in an APK and a device checklist.
      (`apps/kouros/backend/src/session/validate.js`) get shared case files that the TypeScript
      and the Kotlin both pass.
    - If remotes need presence, §4's "silent remote" ping comes in here, in the next server batch.
-   - **Landed (2026-11-17, not pushed):** the pure half, `SessionCore` (the role, the queue
-     as the session's, with a book's files as one `book:<id>` item, and the report body), and
-     both case files: `native/session-mode-cases.json` (route.ts passes it) and
-     `native/session-state-cases.json` (validate.js accepts every body). **Next:** the
-     transport (device registration, the event stream with reconnect and `reauth`), then the
-     output role (report, heartbeat, apply commands), then the remote role.
+   - **Landed (2026-11-17, not pushed):**
+     - The pure half, `SessionCore`: the role, the queue as the session's (a book's files are
+       one `book:<id>` item) and the report body. Both case files are in place:
+       `native/session-mode-cases.json` (route.ts passes it) and
+       `native/session-state-cases.json` (validate.js accepts every body).
+     - The transport, `SessionLink`: one device per install, the event stream with backoff
+       and `reauth`, and the clock sample.
+     - The output role, `SessionOutput`, in the service: it reports on every change and every
+       15 s while playing, claims the output when playback starts here, pauses when another
+       device takes it, applies remotes' commands, takes over on a transfer, and cues the
+       session after the app was killed.
+     - The APK is `~/Android/jkos-apks/jkos-alpha-0.1.0-staging-g3-output.apk`.
+   - **Next: the remote role.** The phone drawing another device's session on the server's
+     clock, its plays and queue edits sent as commands, and a device picker with transfer.
+     Until then, playing anything on the phone makes the phone the output.
+   - Not done, on purpose: `shuffle` from a remote is ignored (this player doesn't shuffle,
+     and reports shuffle off). The phone cues the session only when the session names this
+     phone; the web cues on every idle device.
 
 ### H · BeigeBoard
 

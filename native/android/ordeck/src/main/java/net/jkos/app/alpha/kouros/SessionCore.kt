@@ -54,6 +54,21 @@ object SessionCore {
 
         /** The first player entry of session item [index], or -1. */
         fun entryOf(index: Int): Int = ranges.getOrNull(index)?.first ?: -1
+
+        /**
+         * A remote's "reorder from → to" (session items, remove-then-insert) as Media3's
+         * moveMediaItems(first, lastExclusive, newIndex) over the entries, or null when it moves
+         * nothing. A book moves with all its files.
+         */
+        fun move(from: Int, to: Int): Triple<Int, Int, Int>? {
+            val a = ranges.getOrNull(from) ?: return null
+            if (to !in items.indices || to == from) return null
+            val len = a.last - a.first + 1
+            val total = ranges.last().last + 1
+            val rest = ranges.filterIndexed { i, _ -> i != from }
+            val newIndex = if (to < rest.size) rest[to].first.let { if (it > a.last) it - len else it } else total - len
+            return Triple(a.first, a.last + 1, newIndex)
+        }
     }
 
     fun collapse(mediaIds: List<String>, current: Int): View {

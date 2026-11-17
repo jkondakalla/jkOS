@@ -209,6 +209,13 @@ origin-scoped listeners gets no bridge at all (the page still works).
 >   and 1× on anything else; and fires the `SleepTimer`. A book's listen goes to `book_history`,
 >   one stretch across its files. The rate is a device preference in the sealed `prefs.bin`
 >   (`Auth.pref`), since `check:native` allows no SharedPreferences.
+> - **The listening session (phase G3):** `SessionLink` is the transport: a device id per
+>   install in the sealed prefs, registration, and `/api/session/events` read through
+>   `BearerClient.stream`, the same one token holder. A cancel closes the connection,
+>   since a blocked read notices nothing else. It reconnects with the web's backoff and
+>   reopens on `reauth`. `SessionOutput`, in the service, is the output role; `SessionCore`
+>   is its pure half, held to `native/session-{mode,state}-cases.json`. The remote role
+>   isn't built yet.
 > - **A tab exists only for an app in the token's `aud`** (`Tabs.forAud`). The audience is read
 >   from the access token and kept in the sealed session file, so the tabs are right at a cold
 >   start. Each tab has its own back stack; the mini player sits above the bar.

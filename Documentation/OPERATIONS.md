@@ -387,6 +387,26 @@ exists.
   - **Ledger:** a book's listen appears in the web's recently played as the book, never as a
     track. The lock screen and notification show the book's cover and title.
 
+- **G3 · The listening session, the phone as the output** (the web open on a computer as
+  the remote).
+  - Open KourOS on the phone: the web's device picker lists it as "<model> (jkOS Alpha)",
+    online. Rename it on the web; the name is kept after the app restarts.
+  - Play an album on the phone: the web shows it playing on the phone, its scrubber moving.
+    From the web: pause, play, seek, next, previous, jump to a queue row, remove a row,
+    reorder, play next, add to queue, and play another album. Each lands on the phone, and
+    the web shows what the phone did. Set the phone's volume from the web's picker.
+  - Play a book on the phone: the web shows the book, at its position in the whole book.
+    From the web: ±30 s, next and previous chapter, the rate and the sleep timer all land on
+    the phone.
+  - Transfer from the web to the browser: the phone pauses, and the browser carries on at
+    the same second. Transfer back: the phone takes over there.
+  - With the web as the output, press play on the phone: the phone becomes the output and the
+    web pauses.
+  - Lock the phone for 20 minutes while it plays: the web still shows it playing (the stream
+    reopens at token expiry, with `reauth`). Turn airplane mode on: within ~45 s the web
+    shows it paused. Turn it off: the phone reconnects.
+  - Swipe the app away while paused: the web shows the phone offline.
+
 ### Android: jkOS Home on a panel device
 
 Install `home-*.apk`, press Home, and choose **jkOS Home**, then **Always**. To get out: **hold

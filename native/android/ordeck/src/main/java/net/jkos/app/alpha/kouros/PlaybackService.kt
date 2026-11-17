@@ -136,12 +136,15 @@ fun Track.toMediaItem(context: String?): MediaItem = MediaItem.Builder()
  *    listen counts whether the app's UI is open or not.
  *  · So is a book's progress, its rate and its sleep timer (BookKeeper): a book is listened to
  *    with the screen off.
+ *  · And the listening session (SessionLink, SessionOutput): this phone reports as the output
+ *    and takes remotes' commands whether the UI is open or not.
  */
 @OptIn(UnstableApi::class)
 class PlaybackService : MediaSessionService() {
     private var session: MediaSession? = null
     private var recorder: HistoryRecorder? = null
     private var keeper: BookKeeper? = null
+    private var output: SessionOutput? = null
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     override fun onCreate() {
@@ -173,6 +176,12 @@ class PlaybackService : MediaSessionService() {
         val books = BookKeeper(player) { BookRate.get() }
         player.addListener(books)
         keeper = books
+        // The listening session: this phone registered, its stream open, and the output role.
+        val out = SessionOutput(player, scope)
+        player.addListener(out)
+        output = out
+        SessionLink.start(scope)
+        out.start()
         scope.launch {
             while (true) {
                 delay(1000)
@@ -203,6 +212,7 @@ class PlaybackService : MediaSessionService() {
                 if (s is AuthState.SignedOut) {
                     rec.flush()
                     SleepTimer.clear()
+                    SessionLink.stop()
                     player.stop()
                     player.clearMediaItems()
                 }
@@ -221,6 +231,8 @@ class PlaybackService : MediaSessionService() {
     override fun onDestroy() {
         recorder?.flush()
         keeper?.flush()
+        output?.goingAway()
+        SessionLink.stop()
         if (current === recorder) current = null
         session?.run {
             player.release()
