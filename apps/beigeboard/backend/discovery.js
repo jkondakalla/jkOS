@@ -96,7 +96,14 @@ const CAPABILITIES = {
         { name: 'due_date',       type: 'date',   label: 'Due date' },
         { name: 'scheduled_time', type: 'time',   label: 'Time' },
         { name: 'notes',          type: 'text',   label: 'Notes' },
-        { name: 'kind',           type: 'enum',   label: 'Kind', enum: ['task', 'event', 'routine'], default: 'task' },
+        { name: 'kind',           type: 'enum',   label: 'Kind', enum: ['task', 'event', 'goal', 'milestone', 'routine'], default: 'task' },
+        // The tree (decomposition): a goal holds milestones, a milestone holds tasks. The
+        // server has always taken these three, and the web's goal and list adds send them; a
+        // write the declaration didn't name was one a peer couldn't know it could make.
+        // parent_id must be one of the caller's own items (validParentId), or it is a 400.
+        { name: 'parent_id',      type: 'number', label: 'Under (a goal or milestone of yours)', ref: 'beigeboard.items' },
+        { name: 'scope',          type: 'string', label: "Scope: 'day', 'week', 'month', 'year' or 'project'", max: 20 },
+        { name: 'accent',         type: 'string', label: 'Accent (a colour)', max: 40 },
         { name: 'tags',           type: 'string', label: 'Tags (comma-separated)' },
         { name: 'ext_ref',        type: 'string', label: 'External ref' },
         // Routine cadence. Declared on the WRITE contract because a peer creating a
