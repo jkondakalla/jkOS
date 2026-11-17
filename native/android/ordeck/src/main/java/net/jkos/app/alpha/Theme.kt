@@ -3,6 +3,8 @@ package net.jkos.app.alpha
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
@@ -58,6 +60,8 @@ private fun schemeOf(f: Face, dark: Boolean): ColorScheme {
         primary = f.accent, onPrimary = f.onAccent,
         primaryContainer = KourosViolet, onPrimaryContainer = Color(0xFFEFE6C9),
         secondary = f.accent, onSecondary = f.onAccent,
+        // A progress bar's track (Material's default is lavender, which neither face has).
+        secondaryContainer = f.line, onSecondaryContainer = f.ink,
         tertiary = f.ok, onTertiary = f.ground,
         background = f.ground, onBackground = f.ink,
         surface = f.surface, onSurface = f.ink,
@@ -70,7 +74,13 @@ private fun schemeOf(f: Face, dark: Boolean): ColorScheme {
 @Composable
 fun JkosTheme(mode: ThemeMode, content: @Composable () -> Unit) {
     val dark = mode.isDark(isSystemInDarkTheme())
-    MaterialTheme(colorScheme = schemeOf(if (dark) DarkFace else PaperFace, dark), content = content)
+    val scheme = schemeOf(if (dark) DarkFace else PaperFace, dark)
+    // ⚠️ The app paints its ground with a Box, not a Surface, so nothing set the content colour
+    // and any Text without its own colour was BLACK: invisible on the dark face. Seen in the
+    // screenshot renders (2026-11-17). The ground's ink is the default now.
+    MaterialTheme(colorScheme = scheme) {
+        CompositionLocalProvider(LocalContentColor provides scheme.onBackground, content = content)
+    }
 }
 
 /** The few glyphs the app needs, drawn here on a 24-unit grid (no icon library). */

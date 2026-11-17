@@ -952,6 +952,20 @@ Every trap here was hit building `native/` on 2026-09-24; see [NATIVE.md](NATIVE
   it, with nothing saying "signed out". The native app sets `instanceFollowRedirects = false`
   and treats a 3xx as a 401 (`check:native` holds it).
 
+- **Text without its own colour was black on the native app's dark face.** The app paints its
+  ground with a `Box`, not a `Surface`, so nothing set `LocalContentColor`, and Compose's default
+  is black. Every `Text` that didn't name a colour (a greeting, an album title) was invisible in
+  dark mode, and nothing failed. Seen only when the screens were rendered (2026-11-17).
+  `JkosTheme` now provides the ground's ink. Likewise a `LinearProgressIndicator`'s track is
+  `secondaryContainer`, which neither face set, so it drew Material's lavender.
+
+- **Robolectric can't load from a path with a space.** It percent-encodes the path it loads its
+  Android runtime from, so `The Forge` becomes `The%20Forge`, a directory that doesn't exist,
+  and every render fails with `NoSuchFileException`. `:ordeck:robolectricJars` copies the
+  (Gradle-verified) runtime jar out of the repo, into the system temp directory. Robolectric on
+  JDK 21 also needs `--add-exports`/`--add-opens` for `jdk.internal.access`: the screenshot run
+  passes them.
+
 ## This repo's shape
 
 - **A JWT `sub` claim must be a string, and this suite's tokens weren't always one.**
