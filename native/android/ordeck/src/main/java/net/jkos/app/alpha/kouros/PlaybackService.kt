@@ -1,4 +1,7 @@
-package net.jkos.kouros
+package net.jkos.app.alpha.kouros
+
+import net.jkos.app.alpha.*
+import net.jkos.app.alpha.auth.*
 
 import android.app.PendingIntent
 import android.content.Intent
@@ -32,19 +35,19 @@ import kotlinx.coroutines.runBlocking
 import java.util.concurrent.Executors
 
 /** The MediaMetadata extra a queued track carries its play context in (PlayContext). */
-const val EXTRA_CONTEXT = "net.jkos.kouros.context"
+const val EXTRA_CONTEXT = "net.jkos.app.alpha.kouros.context"
 
 /** A track as a queue entry. The URI is rebuilt by the service from the id (onAddMediaItems). */
 fun Track.toMediaItem(context: String?): MediaItem = MediaItem.Builder()
     .setMediaId(id.toString())
-    .setUri(Api.streamUrl(id))
+    .setUri(KourosApi.streamUrl(id))
     .setMediaMetadata(
         MediaMetadata.Builder()
             .setTitle(title)
             .setArtist(artist)
             .setAlbumTitle(album)
             .setAlbumArtist(albumArtist)
-            .setArtworkUri(if (hasCover) Uri.parse(Api.coverUrl(id)) else null)
+            .setArtworkUri(if (hasCover) Uri.parse(KourosApi.coverUrl(id)) else null)
             .setExtras(Bundle().apply { putString(EXTRA_CONTEXT, context) })
             .build(),
     )
@@ -59,7 +62,7 @@ fun Track.toMediaItem(context: String?): MediaItem = MediaItem.Builder()
  *    stream doesn't stall when the screen goes off.
  *  · Every HTTP request — the stream's range requests AND the artwork the notification and
  *    lock screen draw — goes through one ResolvingDataSource that adds `Authorization: Bearer`
- *    per request, and only to URLs under apiBase (Api.authorized).
+ *    per request, and only to URLs under apiBase (KourosApi.authorized).
  *  · The history ledger is recorded HERE (HistoryRecorder), from the player's own events, so a
  *    listen counts whether the app's UI is open or not.
  */
@@ -72,7 +75,7 @@ class PlaybackService : MediaSessionService() {
     override fun onCreate() {
         super.onCreate()
         val http = DefaultHttpDataSource.Factory()
-            .setUserAgent("KourOS-Alpha")
+            .setUserAgent("jkOS-Alpha")
             .setConnectTimeoutMs(15_000)
             .setReadTimeoutMs(30_000)
             .setAllowCrossProtocolRedirects(false)
@@ -158,7 +161,7 @@ class PlaybackService : MediaSessionService() {
         ): ListenableFuture<MutableList<MediaItem>> {
             val resolved = mediaItems.mapNotNull { item ->
                 val id = item.mediaId.toLongOrNull() ?: return@mapNotNull null
-                item.buildUpon().setUri(Api.streamUrl(id)).build()
+                item.buildUpon().setUri(KourosApi.streamUrl(id)).build()
             }
             return Futures.immediateFuture(resolved.toMutableList())
         }
@@ -177,7 +180,7 @@ class PlaybackService : MediaSessionService() {
 
         /** Runs on a loader thread, once per request — so each range request gets a fresh token. */
         private fun withBearer(spec: DataSpec): DataSpec {
-            if (!Api.authorized(spec.uri.toString())) return spec
+            if (!KourosApi.authorized(spec.uri.toString())) return spec
             val token = try {
                 runBlocking { Auth.accessToken() }
             } catch (e: Exception) {
@@ -224,9 +227,9 @@ internal class HistoryRecorder(private val player: Player) : Player.Listener {
     private fun close(forced: Boolean) {
         val duration = player.duration.takeIf { it != C.TIME_UNSET } ?: 0L
         val row = ledger.close(player.currentPosition, duration, forced) ?: return
-        KourosApp.scope.launch {
+        JkosApp.scope.launch {
             try {
-                Api.recordListen(row)
+                KourosApi.recordListen(row)
             } catch (e: Exception) {
                 Log.w("KourOS", "failed to record a listen: ${e.message}")
             }

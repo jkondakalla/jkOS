@@ -1,4 +1,7 @@
-package net.jkos.kouros
+package net.jkos.app.alpha
+
+import net.jkos.app.alpha.auth.Auth
+import net.jkos.app.alpha.kouros.PlaybackService
 
 import android.app.Activity
 import android.app.Application
@@ -13,7 +16,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
 /** Process start: read this build's config and any stored session. */
-class KourosApp : Application() {
+class JkosApp : Application() {
     override fun onCreate() {
         super.onCreate()
         Auth.init(this)
@@ -30,8 +33,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            KourosTheme {
-                KourosRoot()
+            JkosTheme {
+                JkosRoot()
             }
         }
     }
@@ -50,7 +53,7 @@ class MainActivity : ComponentActivity() {
 class RedirectActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        intent?.dataString?.let { raw -> KourosApp.scope.launch { Auth.completeSignIn(raw) } }
+        intent?.dataString?.let { raw -> JkosApp.scope.launch { Auth.completeSignIn(raw) } }
         startActivity(
             Intent(this, MainActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP),

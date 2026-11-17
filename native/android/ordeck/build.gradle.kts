@@ -73,7 +73,7 @@ val shell = ((JsonSlurper().parse(rootProject.file("shells.json")) as Map<String
 val playContextCases: File = rootProject.file("../play-context-cases.json")
 
 android {
-    namespace = "net.jkos.kouros"
+    namespace = "net.jkos.app.alpha"
 
     defaultConfig {
         applicationId = shell["package"] as String

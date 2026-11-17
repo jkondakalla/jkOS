@@ -1,4 +1,7 @@
-package net.jkos.kouros
+package net.jkos.app.alpha.kouros
+
+import net.jkos.app.alpha.*
+import net.jkos.app.alpha.auth.*
 
 import android.content.ComponentName
 import android.content.Context

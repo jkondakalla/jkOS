@@ -1,4 +1,4 @@
-package net.jkos.kouros
+package net.jkos.app.alpha.auth
 
 import java.io.IOException
 import java.net.HttpURLConnection

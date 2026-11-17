@@ -1,4 +1,7 @@
-package net.jkos.kouros
+package net.jkos.app.alpha.kouros
+
+import net.jkos.app.alpha.*
+import net.jkos.app.alpha.auth.*
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -7,7 +10,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * Cover art for the UI: fetched with the Bearer token (Api.coverBytes), decoded at the size it
+ * Cover art for the UI: fetched with the Bearer token (KourosApi.coverBytes), decoded at the size it
  * is drawn (BitmapFactory's inSampleSize), and kept in a memory LruCache bounded to an eighth
  * of the heap. No image library — this is the whole of what one would do here.
  */
@@ -21,7 +24,7 @@ object Covers {
         cache.get(key)?.let { return it }
         return withContext(Dispatchers.IO) {
             val bytes = try {
-                Api.coverBytes(trackId)
+                KourosApi.coverBytes(trackId)
             } catch (_: Exception) {
                 null
             } ?: return@withContext null

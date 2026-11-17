@@ -1,4 +1,7 @@
-package net.jkos.kouros
+package net.jkos.app.alpha.kouros
+
+import net.jkos.app.alpha.*
+import net.jkos.app.alpha.auth.*
 
 import android.app.Activity
 import android.content.Context
@@ -71,160 +74,6 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-/** The app's own back stack: a list of screens, Back pops it (no navigation library). */
-sealed interface Screen {
-    data object Library : Screen
-    data class ArtistPage(val artist: String) : Screen
-    data class AlbumPage(val album: String, val artist: String) : Screen
-    data object NowPlayingPage : Screen
-    data object Account : Screen
-}
-
-private fun Context.activity(): Activity? = when (this) {
-    is Activity -> this
-    is ContextWrapper -> baseContext.activity()
-    else -> null
-}
-
-/** "ALPHA · staging · 0.1.0-alpha-staging" — always visible, so a tester knows what they hold. */
-private fun buildLabel() = with(Auth.config) { "${channel.uppercase()} · $environment · $versionName" }
-
-@Composable
-fun KourosRoot() {
-    val auth by Auth.state.collectAsState()
-    Box(
-        Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .windowInsetsPadding(WindowInsets.safeDrawing),
-    ) {
-        when (val a = auth) {
-            is AuthState.SignedIn -> SignedIn(a.user)
-            AuthState.SignedOut -> SignInScreen()
-        }
-    }
-}
-
-// ── sign-in ────────────────────────────────────────────────────────────────────
-
-@Composable
-private fun SignInScreen() {
-    val context = LocalContext.current
-    val message by Auth.message.collectAsState()
-    Column(
-        Modifier.fillMaxSize().padding(32.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text("KourOS", style = MaterialTheme.typography.displayMedium, color = MaterialTheme.colorScheme.onBackground)
-        Spacer(Modifier.height(8.dp))
-        BuildBadge()
-        Spacer(Modifier.height(40.dp))
-        Button(onClick = { context.activity()?.let { Auth.beginSignIn(it) } }) {
-            Text("Sign in with jkOS")
-        }
-        Spacer(Modifier.height(16.dp))
-        Text(
-            "Opens ${Auth.config.authOrigin} in your browser. Your password never enters this app.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        message?.let {
-            Spacer(Modifier.height(16.dp))
-            Text(it, color = MaterialTheme.colorScheme.secondary)
-        }
-    }
-}
-
-@Composable
-private fun BuildBadge() {
-    Text(
-        buildLabel(),
-        style = MaterialTheme.typography.labelMedium,
-        color = MaterialTheme.colorScheme.onSecondary,
-        modifier = Modifier
-            .clip(RoundedCornerShape(4.dp))
-            .background(MaterialTheme.colorScheme.secondary)
-            .padding(horizontal = 8.dp, vertical = 2.dp),
-    )
-}
-
-// ── signed in: the back stack, the screens, the mini player ────────────────────
-
-@Composable
-private fun SignedIn(user: User) {
-    val stack = remember { mutableStateListOf<Screen>(Screen.Library) }
-    val push = { s: Screen -> stack.add(s); Unit }
-    val pop = { if (stack.size > 1) stack.removeAt(stack.lastIndex); Unit }
-    BackHandler(enabled = stack.size > 1) { pop() }
-
-    val controller = rememberController()
-    val now = rememberNowPlaying(controller)
-
-    Column(Modifier.fillMaxSize()) {
-        Box(Modifier.weight(1f)) {
-            when (val s = stack.last()) {
-                Screen.Library -> LibraryScreen(push)
-                is Screen.ArtistPage -> ArtistScreen(s.artist, pop, push)
-                is Screen.AlbumPage -> AlbumScreen(s.album, s.artist, controller, pop)
-                Screen.NowPlayingPage -> NowPlayingScreen(controller, now, pop)
-                Screen.Account -> AccountScreen(user, pop)
-            }
-        }
-        if (now != null && stack.last() != Screen.NowPlayingPage) {
-            MiniPlayer(now, controller) { push(Screen.NowPlayingPage) }
-        }
-    }
-}
-
-@Composable
-private fun Header(title: String, onBack: (() -> Unit)?, actions: @Composable () -> Unit = {}) {
-    Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        if (onBack != null) {
-            IconButton(onClick = onBack) { Icon(Glyphs.Back, contentDescription = "Back") }
-        } else {
-            Spacer(Modifier.width(12.dp))
-        }
-        Text(
-            title, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onBackground,
-            maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
-        )
-        actions()
-    }
-}
-
-/** Something to load, with its loading and failed states drawn the same way everywhere. */
-private sealed interface Load<out T> {
-    data object Loading : Load<Nothing>
-    data class Ready<T>(val value: T) : Load<T>
-    data class Failed(val message: String) : Load<Nothing>
-}
-
-private suspend fun <T> attempt(block: suspend () -> T): Load<T> = try {
-    Load.Ready(block())
-} catch (e: CancellationException) {
-    throw e
-} catch (e: SignedOutException) {
-    Load.Failed("Signed out.")
-} catch (e: Exception) {
-    Load.Failed(e.message ?: "Something went wrong.")
-}
-
-@Composable
-private fun <T> Loaded(state: Load<T>, retry: () -> Unit, content: @Composable (T) -> Unit) {
-    when (state) {
-        Load.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-        is Load.Failed -> Column(
-            Modifier.fillMaxSize().padding(24.dp),
-            verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text(state.message, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            TextButton(onClick = retry) { Text("Retry") }
-        }
-        is Load.Ready -> content(state.value)
-    }
-}
-
 @Composable
 fun Cover(trackId: Long?, size: Dp, modifier: Modifier = Modifier) {
     val px = with(LocalDensity.current) { size.roundToPx() }
@@ -238,14 +87,22 @@ fun Cover(trackId: Long?, size: Dp, modifier: Modifier = Modifier) {
     }
 }
 
+/** KourOS's screens, as entries of its tab's back stack. */
+sealed interface KourosScreen : Screen {
+    data object Library : KourosScreen
+    data class ArtistPage(val artist: String) : KourosScreen
+    data class AlbumPage(val album: String, val artist: String) : KourosScreen
+    data object NowPlayingPage : KourosScreen
+}
+
+/** The KourOS tab: whichever of its screens is on top of the tab's stack. */
 @Composable
-private fun Choice(label: String, selected: Boolean, onClick: () -> Unit) {
-    TextButton(onClick = onClick) {
-        Text(
-            label,
-            color = if (selected) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-        )
+fun KourosTab(screen: Screen, nav: Nav, controller: MediaController?, now: NowPlaying?) {
+    when (screen) {
+        is KourosScreen.ArtistPage -> ArtistScreen(screen.artist, nav::pop, nav::push)
+        is KourosScreen.AlbumPage -> AlbumScreen(screen.album, screen.artist, controller, nav::pop)
+        KourosScreen.NowPlayingPage -> NowPlayingScreen(controller, now, nav::pop)
+        else -> LibraryScreen(nav::push)
     }
 }
 
@@ -260,10 +117,7 @@ private fun LibraryScreen(push: (Screen) -> Unit) {
     var sort by remember { mutableStateOf("added") }
 
     Column(Modifier.fillMaxSize()) {
-        Header("KourOS", onBack = null) {
-            IconButton(onClick = { push(Screen.Account) }) { Icon(Glyphs.Account, contentDescription = "Account") }
-        }
-        Row(Modifier.padding(horizontal = 16.dp)) { BuildBadge() }
+        Header("KourOS", onBack = null)
         Row(Modifier.padding(horizontal = 8.dp)) {
             Choice("Albums", tab == 0) { tab = 0 }
             Choice("Artists", tab == 1) { tab = 1 }
@@ -298,7 +152,7 @@ private fun AlbumGrid(query: String, artist: String?, sort: String, push: (Scree
         if (query.isNotEmpty()) delay(300) // typing: wait for a pause
         state = Load.Loading
         state = attempt {
-            val page = Api.albums(q = query, artist = artist, sort = sort, limit = PAGE)
+            val page = KourosApi.albums(q = query, artist = artist, sort = sort, limit = PAGE)
             albums.clear()
             albums.addAll(page)
             more = page.size == PAGE
@@ -317,7 +171,7 @@ private fun AlbumGrid(query: String, artist: String?, sort: String, push: (Scree
             modifier = Modifier.fillMaxSize(),
         ) {
             items(albums, key = { "${it.artist}\u0000${it.album}" }) { a ->
-                Column(Modifier.clickable { push(Screen.AlbumPage(a.album, a.artist)) }) {
+                Column(Modifier.clickable { push(KourosScreen.AlbumPage(a.album, a.artist)) }) {
                     Cover(a.coverId, 150.dp, Modifier.fillMaxWidth().aspectRatio(1f))
                     Spacer(Modifier.height(6.dp))
                     Text(a.album, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -332,7 +186,7 @@ private fun AlbumGrid(query: String, artist: String?, sort: String, push: (Scree
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     TextButton(onClick = {
                         scope.launch {
-                            val next = attempt { Api.albums(q = query, artist = artist, sort = sort, limit = PAGE, offset = albums.size) }
+                            val next = attempt { KourosApi.albums(q = query, artist = artist, sort = sort, limit = PAGE, offset = albums.size) }
                             if (next is Load.Ready) {
                                 albums.addAll(next.value)
                                 more = next.value.size == PAGE
@@ -351,13 +205,13 @@ private fun ArtistList(query: String, push: (Screen) -> Unit) {
     val state by produceState<Load<List<Artist>>>(Load.Loading, query, attemptNo) {
         if (query.isNotEmpty()) delay(300)
         value = Load.Loading
-        value = attempt { Api.artists(q = query) }
+        value = attempt { KourosApi.artists(q = query) }
     }
     Loaded(state, retry = { attemptNo++ }) { artists ->
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = 8.dp)) {
             items(artists, key = { it.artist }) { a ->
                 Row(
-                    Modifier.fillMaxWidth().clickable { push(Screen.ArtistPage(a.artist)) }.padding(horizontal = 16.dp, vertical = 8.dp),
+                    Modifier.fillMaxWidth().clickable { push(KourosScreen.ArtistPage(a.artist)) }.padding(horizontal = 16.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Cover(a.coverId, 48.dp, Modifier.size(48.dp))
@@ -391,7 +245,7 @@ private fun ArtistScreen(artist: String, onBack: () -> Unit, push: (Screen) -> U
 private fun AlbumScreen(album: String, artist: String, controller: MediaController?, onBack: () -> Unit) {
     var attemptNo by remember { mutableIntStateOf(0) }
     val state by produceState<Load<List<Track>>>(Load.Loading, album, artist, attemptNo) {
-        value = attempt { Api.albumTracks(album, artist) }
+        value = attempt { KourosApi.albumTracks(album, artist) }
     }
     Column(Modifier.fillMaxSize()) {
         Header(album, onBack)
@@ -446,7 +300,7 @@ private fun TransportButton(glyph: ImageVector, label: String, enabled: Boolean 
 }
 
 @Composable
-private fun MiniPlayer(now: NowPlaying, controller: MediaController?, open: () -> Unit) {
+fun MiniPlayer(now: NowPlaying, controller: MediaController?, open: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).clickable(onClick = open).padding(8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -517,7 +371,7 @@ private fun NowPlayingScreen(controller: MediaController?, now: NowPlaying?, onB
                 val seed = now.trackId
                 radioNote = "Building a station…"
                 scope.launch {
-                    when (val r = attempt { Api.radio(seed) }) {
+                    when (val r = attempt { KourosApi.radio(seed) }) {
                         is Load.Ready -> {
                             controller.continueAsStation(seed, r.value)
                             radioNote = if (r.value.isEmpty()) "No station for this track yet." else "Station: ${r.value.size} tracks queued."
@@ -536,35 +390,3 @@ private fun NowPlayingScreen(controller: MediaController?, now: NowPlaying?, onB
     }
 }
 
-// ── Account ────────────────────────────────────────────────────────────────────
-
-@Composable
-private fun AccountScreen(user: User, onBack: () -> Unit) {
-    val scope = rememberCoroutineScope()
-    var signingOut by remember { mutableStateOf(false) }
-    Column(Modifier.fillMaxSize()) {
-        Header("Account", onBack)
-        Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(user.name ?: user.email, style = MaterialTheme.typography.titleLarge)
-            Text(user.email, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text("Role: ${user.role}", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(8.dp))
-            Text("Environment: ${Auth.config.environment}")
-            for ((app, base) in Auth.config.apiBases) {
-                Text("$app: $base", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            Text("Signed in by: ${Auth.config.authOrigin}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(4.dp))
-            BuildBadge()
-            Spacer(Modifier.height(24.dp))
-            Button(enabled = !signingOut, onClick = {
-                signingOut = true
-                scope.launch { Auth.signOut() }
-            }) { Text(if (signingOut) "Signing out…" else "Sign out") }
-            Text(
-                "Signing out also ends this phone's session on jkOS.",
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
-}

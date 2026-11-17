@@ -1,5 +1,6 @@
-package net.jkos.kouros
+package net.jkos.app.alpha.auth
 
+import net.jkos.app.alpha.R
 import android.app.Activity
 import android.content.Context
 import android.net.Uri
@@ -44,7 +45,10 @@ class ShellConfig(
 
 sealed interface AuthState {
     data object SignedOut : AuthState
-    data class SignedIn(val user: User) : AuthState
+
+    /** [aud] is the access token's audience: the apps this person's role may enter. It decides
+     *  which tabs exist (Tabs.kt). Empty until a token has been seen on this install. */
+    data class SignedIn(val user: User, val aud: Set<String>) : AuthState
 }
 
 /** Thrown when the session is gone — the UI is already on its way to the sign-in screen. */
@@ -87,7 +91,7 @@ object Auth {
     fun init(context: Context) {
         config = ShellConfig.load(context)
         store = SessionStore(context)
-        _state.value = store.readSession()?.let { AuthState.SignedIn(it.user) } ?: AuthState.SignedOut
+        _state.value = store.readSession()?.let { AuthState.SignedIn(it.user, it.aud) } ?: AuthState.SignedOut
     }
 
     /** Open jkAuth's authorize page in a Custom Tab (the system browser's engine, not ours). */
@@ -137,7 +141,7 @@ object Auth {
                 message.value = "jkOS refused the sign-in (${res.code})."
                 return@withLock
             }
-            adopt(Models.tokenGrant(res.text))
+            adopt(AuthModels.tokenGrant(res.text))
             message.value = null
         }
     }
@@ -148,6 +152,11 @@ object Auth {
             val a = access
             if (a != null && System.currentTimeMillis() < accessExpiresAtMs - RENEW_BEFORE_MS) a else refreshLocked()
         }
+    }
+
+    /** Ask jkAuth for a fresh token now and return its audience (the shell, when it has none). */
+    suspend fun renewAudience(): Set<String> = withContext(Dispatchers.IO) {
+        mutex.withLock { Claims.audOf(refreshLocked()) }
     }
 
     /** The API answered 401 to [rejected]: renew once — unless another caller already did. */
@@ -188,7 +197,7 @@ object Auth {
             .put("client_id", config.clientId)
         val res = Http.request("POST", "${config.authOrigin}/auth/native/token", json = body.toString())
         when {
-            res.ok -> return adopt(Models.tokenGrant(res.text))
+            res.ok -> return adopt(AuthModels.tokenGrant(res.text))
             res.code == 400 || res.code == 401 -> {
                 // invalid_grant (expired, revoked, reused) or invalid_client: this session is over.
                 forgetLocked()
@@ -200,10 +209,11 @@ object Auth {
     }
 
     private fun adopt(grant: TokenGrant): String {
-        store.writeSession(grant.refreshToken, grant.user) // FIRST: the old token is already spent
+        val aud = Claims.audOf(grant.accessToken)
+        store.writeSession(grant.refreshToken, grant.user, aud) // FIRST: the old token is already spent
         access = grant.accessToken
         accessExpiresAtMs = System.currentTimeMillis() + grant.expiresInSec * 1000
-        _state.value = AuthState.SignedIn(grant.user)
+        _state.value = AuthState.SignedIn(grant.user, aud)
         return grant.accessToken
     }
 

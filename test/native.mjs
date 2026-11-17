@@ -350,17 +350,17 @@ const policy = require(resolve(root, 'native/desktop/src/policy.js'));
     kind, name: (/android:name="([^"]+)"/.exec(attrs) || [])[1], exported: /android:exported="true"/.test(attrs),
   }));
   const exported = comps.filter((c) => c.exported).map((c) => c.name).sort();
-  check(JSON.stringify(exported) === JSON.stringify(['.MainActivity', '.PlaybackService', '.RedirectActivity']),
+  check(JSON.stringify(exported) === JSON.stringify(['.MainActivity', '.RedirectActivity', '.kouros.PlaybackService']),
     'jkOS Alpha exports only the launcher, the sign-in redirect and the media service',
-    `jkOS Alpha exports ${JSON.stringify(exported)} — expected exactly .MainActivity, .PlaybackService, .RedirectActivity`);
-  const block = (name) => (new RegExp(`<(?:activity|service)\\s+android:name="\\${name}"[\\s\\S]*?</(?:activity|service)>`).exec(man) || [''])[0];
+    `jkOS Alpha exports ${JSON.stringify(exported)} — expected exactly .MainActivity, .RedirectActivity, .kouros.PlaybackService`);
+  const block = (name) => (new RegExp(`<(?:activity|service)\\s+android:name="${name.replace(/\./g, '\\.')}"[\\s\\S]*?</(?:activity|service)>`).exec(man) || [''])[0];
   const redirect = block('.RedirectActivity');
   const datas = [...redirect.matchAll(/<data\b[^>]*>/g)].map((x) => x[0]);
   check(/android\.intent\.action\.VIEW/.test(redirect) && /android\.intent\.category\.BROWSABLE/.test(redirect)
       && datas.length === 1 && /^<data android:scheme="\$\{applicationId\}" \/>$/.test(datas[0]),
     "the sign-in redirect's only filter is VIEW/BROWSABLE on the scheme ${applicationId} (the client id jkAuth knows)",
     `the RedirectActivity filter changed: ${datas.join(' ') || 'no <data>'} — it must be exactly the applicationId scheme`);
-  const service = block('.PlaybackService');
+  const service = block('.kouros.PlaybackService');
   check(/android:foregroundServiceType="mediaPlayback"/.test(service)
       && /<action android:name="androidx\.media3\.session\.MediaSessionService" \/>/.test(service)
       && [...service.matchAll(/<action\b/g)].length === 1,
@@ -396,8 +396,8 @@ const policy = require(resolve(root, 'native/desktop/src/policy.js'));
     'every byte SessionStore writes is sealed by the Android Keystore (AES-GCM) into noBackupFilesDir',
     'SessionStore writes something not passed through box.seal, or its key is no longer a Keystore AES-GCM key, or it left noBackupFilesDir');
   const tokenMentions = hits(/refresh_token|refreshToken/).sort();
-  check(JSON.stringify(tokenMentions) === JSON.stringify(['Auth.kt', 'Models.kt', 'SessionStore.kt']),
-    'the refresh token is handled in Auth.kt, Models.kt and SessionStore.kt only',
+  check(JSON.stringify(tokenMentions) === JSON.stringify(['Auth.kt', 'AuthModels.kt', 'SessionStore.kt']),
+    'the refresh token is handled in Auth.kt, AuthModels.kt and SessionStore.kt only',
     `the refresh token is touched in ${JSON.stringify(tokenMentions)} — a new place that holds it needs review here`);
 
   const auth = kt['Auth.kt'] || '';
@@ -406,7 +406,7 @@ const policy = require(resolve(root, 'native/desktop/src/policy.js'));
   check(calls >= 2 && calls === locked && !/private val mutex = Mutex\(\)[\s\S]*private val mutex/.test(auth),
     `every token refresh runs under the one Mutex (${locked} call site(s)) — a rotated token is never spent twice`,
     `refreshLocked() is called ${calls} time(s) but only ${locked} under mutex.withLock`);
-  check(/private fun adopt\(grant: TokenGrant\): String \{\s*store\.writeSession\(/.test(auth),
+  check(/private fun adopt\(grant: TokenGrant\): String \{\s*val aud = Claims\.audOf\(grant\.accessToken\)\s*store\.writeSession\(/.test(auth),
     'a new refresh token is stored before the new access token is used',
     'Auth.adopt no longer writes the session first — a crash after a refresh would leave only the spent token');
   check(/constantTimeEquals\(state, pending\.state\)/.test(auth) && /store\.clearPending\(\)/.test(auth),
@@ -414,18 +414,102 @@ const policy = require(resolve(root, 'native/desktop/src/policy.js'));
   const http = kt['Http.kt'] || '';
   check(/instanceFollowRedirects = false/.test(http) && /startsWith\("https:\/\/"\)/.test(http),
     'HTTP never follows a redirect and refuses http:', 'Http.kt follows redirects or accepts non-https URLs');
-  const api = kt['Api.kt'] || '';
+  // ── The Bearer token goes only to a derived base ──────────────────────────────────────
+  // One generic client (AppApi) attaches it, to URLs under ITS app's base and nowhere else;
+  // the player's data source asks KourOS's client the same question. An app's base comes
+  // from shell.xml's generated list, so an app outside native/shells.js's derivation has no
+  // base to call.
+  const appApi = kt['AppApi.kt'] || '';
   const svc = kt['PlaybackService.kt'] || '';
-  check(/fun authorized\(url: String\): Boolean = url\.startsWith\("\$base\/api\/"\)/.test(api)
-      && /private val base: String get\(\) = Auth\.config\.apiBases\.getValue\("kouros"\)/.test(api)
-      && /check\(authorized\(target\)\)/.test(api)
-      && /if \(!Api\.authorized\(spec\.uri\.toString\(\)\)\) return spec/.test(svc),
-    'a Bearer token is attached only to URLs under apiBase — by the API client and the player alike',
-    'Api.authorized changed, or the API client / the player data source attaches the token without asking it');
+  check(/val base: String get\(\) = Auth\.config\.apiBases\.getValue\(app\)/.test(appApi)
+      && /fun authorized\(url: String\): Boolean = url\.startsWith\("\$base\/api\/"\)/.test(appApi)
+      && /val target = url\(path\)\s*check\(authorized\(target\)\)/.test(appApi)
+      && /fun authorized\(url: String\): Boolean = api\.authorized\(url\)/.test(kt['KourosApi.kt'] || '')
+      && /if \(!KourosApi\.authorized\(spec\.uri\.toString\(\)\)\) return spec/.test(svc),
+    "a Bearer token is attached only to URLs under its app's derived base — by the API client and the player alike",
+    'AppApi.authorized changed, or the API client / the player data source attaches the token without asking it');
   const bearerFiles = hits(/"Bearer /).sort();
-  check(JSON.stringify(bearerFiles) === JSON.stringify(['Api.kt', 'PlaybackService.kt']),
+  check(JSON.stringify(bearerFiles) === JSON.stringify(['AppApi.kt', 'PlaybackService.kt']),
     'the Authorization header is built in exactly two places (the API client and the player)',
     `"Bearer " appears in ${JSON.stringify(bearerFiles)}`);
+  const shellXml = read(`${MOD}/src/debug/res/values/shell.xml`);
+  check(/apiBases = context\.resources\.getStringArray\(R\.array\.api_apps\)\s*\.zip\(context\.resources\.getStringArray\(R\.array\.api_bases\)\)\.toMap\(\)/.test(auth)
+      && /<string-array name="api_apps">/.test(shellXml) && /<string-array name="api_bases">/.test(shellXml)
+      && hits(/https?:\/\/[a-z0-9.-]*jkos\.net/i).length === 0,
+    'every base the app calls comes from the generated shell.xml (no jkos.net URL is typed in the Kotlin)',
+    `the app's API bases no longer come from shell.xml alone, or a jkos.net URL is typed in ${hits(/https?:\/\/[a-z0-9.-]*jkos\.net/i).join(', ')}`);
+
+  // ── The app calls only declared routes ────────────────────────────────────────────────
+  // Each app's client lives in its own Kotlin package, named after the app. Every "/api/…"
+  // literal there is a dataset or capability that app declares (its discovery.js, by the same
+  // rule the surface-coverage probe holds the backend to), or is on the short list below of
+  // routes the app's own web client also uses undeclared. A route the native app needs that
+  // isn't declared gets declared first.
+  const { declaredPaths, pathMatches } = await import(resolve(root, 'packages/suite-prober/src/probes/98-surface-coverage.mjs'));
+  const UNDECLARED_BY_DESIGN = {
+    kouros: [
+      { path: '/stream', web: 'apps/kouros/src/api.ts', why: 'the track stream: bytes, mounted by the @jkos/weave media brick' },
+      { path: '/cover', web: 'apps/kouros/src/api.ts', why: 'a track\'s cover art: bytes, from the same brick' },
+    ],
+    beigeboard: [],
+  };
+  const DISCOVERY = { kouros: 'apps/kouros/backend/discovery.js', beigeboard: 'apps/beigeboard/backend/discovery.js' };
+  const SRC = `${MOD}/src/main/java/net/jkos/app/alpha`;
+  const nativeShell = shells.SHELLS.find((s) => s.android === 'native');
+  const apiApps = shells.nativeConfig(nativeShell, 'debug').apiBases.map((b) => b.app);
+  check(JSON.stringify(apiApps.slice().sort()) === JSON.stringify(Object.keys(DISCOVERY).sort())
+      && apiApps.every((a) => Array.isArray(UNDECLARED_BY_DESIGN[a])),
+    `the app reaches ${apiApps.join(' and ')}, and each has a declaration to be held to`,
+    `the native app's derived API list is ${JSON.stringify(apiApps)} but this check knows ${JSON.stringify(Object.keys(DISCOVERY))} — add the app's discovery module here`);
+  /** "/api/albums/tracks?album=${enc(a)}" → "/albums/tracks"; "/api/cover/$id" → "/cover/:p". */
+  const routeOf = (literal) => {
+    const path = literal.split('?')[0].replace(/\$qs\b/g, '').replace(/^\/api/, '');
+    const segs = path.split('/').filter(Boolean).map((seg) => (/^\$(\w+|\{[^}]*\})$/.test(seg) ? ':p' : seg));
+    return segs.some((seg) => seg.includes('$')) ? null : '/' + segs.join('/');
+  };
+  const problems = [];
+  const used = Object.fromEntries(apiApps.map((a) => [a, new Set()]));
+  let literalCount = 0;
+  for (const app of apiApps) {
+    const declared = [...declaredPaths(DISCOVERY[app])];
+    for (const file of walk(`${SRC}/${app}`, /\.kt$/)) {
+      for (const [, literal] of stripCode(read(file)).matchAll(/"(\/api\/[^"]*)"/g)) {
+        literalCount++;
+        const route = routeOf(literal);
+        if (!route) { problems.push(`${file}: "${literal}" can't be read as a route — make each segment a literal or one variable`); continue; }
+        const exempt = UNDECLARED_BY_DESIGN[app].find((e) => route === e.path || route.startsWith(e.path + '/'));
+        if (exempt) { used[app].add(exempt.path); continue; }
+        if (!declared.some((d) => pathMatches(route, d))) problems.push(`${file}: "${literal}" (${route}) is not declared in ${DISCOVERY[app]}`);
+      }
+    }
+    for (const e of UNDECLARED_BY_DESIGN[app]) {
+      if (!used[app].has(e.path)) problems.push(`the named list exempts ${app} ${e.path}, which the app no longer calls — remove it`);
+      if (!read(e.web).includes(`/api${e.path}/`)) problems.push(`the named list exempts ${app} ${e.path} as a route its web client uses, but ${e.web} has no /api${e.path}/`);
+      if (declared.some((d) => pathMatches(e.path, d))) problems.push(`${app} ${e.path} is declared now — take it off the named list`);
+    }
+  }
+  check(literalCount >= 8 && problems.length === 0,
+    `every /api/… path in an app's Kotlin client is declared by that app or on the named list (${literalCount} literals; undeclared by design: ${apiApps.flatMap((a) => UNDECLARED_BY_DESIGN[a].map((e) => `${a} ${e.path}`)).join(', ')})`,
+    `the native app calls a route its app doesn't declare:\n    ${problems.join('\n    ') || `only ${literalCount} /api/ literals found — the scan is not seeing the clients`}`);
+  // A client is built for one app, inside that app's package, and no path is typed anywhere else.
+  const stray = walk(SRC, /\.kt$/).filter((f) => !apiApps.some((a) => f.startsWith(`${SRC}/${a}/`)))
+    .filter((f) => /"[^"]*\/api\/[a-z]/.test(stripCode(read(f))));
+  const clients = walk(SRC, /\.kt$/).flatMap((f) => [...stripCode(read(f)).matchAll(/AppApi\("([^"]*)"\)/g)].map((m) => ({ f, app: m[1] })));
+  const misplaced = clients.filter((c) => !apiApps.includes(c.app) || !c.f.startsWith(`${SRC}/${c.app}/`));
+  check(stray.length === 0 && clients.length >= 1 && misplaced.length === 0
+      && walk(SRC, /\.kt$/).every((f) => !/AppApi\((?!")/.test(stripCode(read(f)).replace(/class AppApi\(/, ''))),
+    `an app's client is built in that app's own package (${clients.map((c) => c.app).join(', ')}), and no API path is typed outside one`,
+    `an API path or client is in the wrong place: ${[...stray, ...misplaced.map((c) => `${c.f} builds AppApi("${c.app}")`)].join(', ') || 'AppApi is built from a non-literal app id'}`);
+
+  // ── A tab exists only for an app in the token's `aud` ─────────────────────────────────
+  const tabs = kt['Tabs.kt'] || '';
+  const shellKt = kt['Shell.kt'] || '';
+  check(/fun forAud\(aud: Set<String>, apiApps: List<String>\): List<Tab> =\s*\(listOf\(Tab\.Home\) \+ apiApps\.map \{ Tab\.App\(it\) \} \+ Tab\.Account\)\.filter \{ it\.app in aud \}/.test(tabs)
+      && /val tabs = remember\(aud\) \{ Tabs\.forAud\(aud, Auth\.config\.apiBases\.keys\.toList\(\)\)/.test(shellKt)
+      && [...shellKt.matchAll(/Tabs\.forAud\(/g)].length === 1 && !/Tab\.App\("/.test(shellKt)
+      && /val aud = Claims\.audOf\(grant\.accessToken\)/.test(auth),
+    "the tabs are the token's aud: the shell draws only what Tabs.forAud returns, from the audience Auth read out of the access token",
+    'Tabs.forAud no longer filters by aud, or Shell.kt builds a tab without it, or Auth no longer reads the audience from the token');
 
   // One play-context grammar: the Kotlin encoder's vectors pass the SERVER's parser here,
   // with JavaScript's own encodeURIComponent; the Kotlin test runs the same file under Gradle.
@@ -447,7 +531,7 @@ const policy = require(resolve(root, 'native/desktop/src/policy.js'));
   check(pc.maxLen === PLAY_CONTEXT_MAX && pc.cases.length >= 20 && wrong.length === 0,
     `play contexts: all ${pc.cases.length} vectors agree with encodeURIComponent and the server's parsePlayContext`,
     `play-context-cases.json disagrees with the server (maxLen ${pc.maxLen} vs ${PLAY_CONTEXT_MAX}):\n    ${wrong.map((c) => JSON.stringify(c).slice(0, 140)).join('\n    ')}`);
-  const pcTest = read(`${MOD}/src/test/java/net/jkos/kouros/CoreTest.kt`);
+  const pcTest = read(`${MOD}/src/test/java/net/jkos/app/alpha/CoreTest.kt`);
   check(/System\.getProperty\("jkos\.playContextCases"\)/.test(pcTest) && /systemProperty\("jkos\.playContextCases", playContextCases\.absolutePath\)/.test(gradle)
       && /rootProject\.file\("\.\.\/play-context-cases\.json"\)/.test(gradle),
     'the Kotlin PlayContext test reads the same play-context-cases.json',

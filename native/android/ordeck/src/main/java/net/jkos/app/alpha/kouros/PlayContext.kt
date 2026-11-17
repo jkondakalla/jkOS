@@ -1,4 +1,7 @@
-package net.jkos.kouros
+package net.jkos.app.alpha.kouros
+
+import net.jkos.app.alpha.*
+import net.jkos.app.alpha.auth.*
 
 // WHERE a listen was played from, as the one string KourOS's history ledger keeps.
 // The grammar is apps/kouros/backend/src/playContext.js (and the server refuses anything

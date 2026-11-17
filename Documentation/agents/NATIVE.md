@@ -19,7 +19,7 @@ For the operator's runbook (build, sign, install, verify), see
 | **jkOS** | `net.jkos.app` | Android, Linux | TWA / Electron | ORDECK | every suite app with its own origin |
 | **KourOS** | `net.jkos.kouros` | Android, Linux | TWA / Electron | KourOS | KourOS + jkAuth |
 | **jkOS Home** | `net.jkos.home` | Android | home-screen launcher | ORDECK | every suite app with its own origin |
-| **KourOS Alpha** | `net.jkos.app.alpha` | Android | native (Compose + Media3) | KourOS | its API + jkAuth, by Bearer token |
+| **jkOS Alpha** | `net.jkos.app.alpha` | Android | native (Compose + Media3) | ORDECK | BeigeBoard's and KourOS's APIs + jkAuth, by Bearer token |
 
 KourOS is part of jkOS **and** its own app (Plex and Plexamp): its own icon, its own entry in
 recents, and `kouros.jkos.net` links open in it. jkOS Home is ORDECK as a home panel on a
@@ -51,8 +51,10 @@ native/
 │   │   └── src/<shell><Debug|Release>/res/   GENERATED per variant
 │   ├── home/              :home — the launcher (Kotlin)
 │   │   └── src/<debug|release>/res/          GENERATED per build type
-│   └── kouros/            :kouros — KourOS Alpha, a native app (Kotlin + Compose + Media3)
-│       └── src/<debug|release>/res/          GENERATED: api_base, auth_origin, client_id, redirect_uri
+│   └── ordeck/            :ordeck — jkOS Alpha, the native app (Kotlin + Compose + Media3)
+│       ├── src/<debug|release>/res/          GENERATED: api_apps + api_bases, auth_origin, client_id, redirect_uri
+│       └── src/main/java/net/jkos/app/alpha/ the shell; one package per app beneath it:
+│           auth/ (jkAuth: sign-in, the session, the one API client), kouros/, beigeboard/, ordeck/
 ├── play-context-cases.json  what a listen's `context` must be, as vectors the app and the server pass
 └── desktop/               Electron — OUTSIDE the pnpm workspace (own lockfile)
     ├── src/policy.js      every security decision, pure (the gate requires it)
@@ -171,6 +173,23 @@ origin-scoped listeners gets no bridge at all (the page still works).
   KourOS app.
 
 ## 5 · KourOS Alpha — the native app
+
+> **Being rebuilt as jkOS Alpha (TODO §10).** This section still describes the KourOS screens
+> and the sign-in, which are unchanged, and is rewritten from the code at phase J. What has
+> changed since it was written:
+>
+> - **One app for the suite.** Package `net.jkos.app.alpha`, module `native/android/ordeck`
+>   (named after its start app), jkAuth client `app: 'ordeck'`. Consent rests on ORDECK being
+>   in the person's `aud`: a user or an admin, not a guest.
+> - **One API base per reached app**, derived by `nativeConfig()` and generated into `shell.xml`
+>   as `api_apps` / `api_bases`. `AppApi` (in `auth/`) is the one client: it attaches the token
+>   only to URLs under its own app's base. Where this section says `api_base`, read "KourOS's
+>   base".
+> - **One Kotlin package per app** under `net.jkos.app.alpha`, and every `/api/…` path an app's
+>   package types is a route that app declares, or is on `check:native`'s named list.
+> - **A tab exists only for an app in the token's `aud`** (`Tabs.forAud`). The audience is read
+>   from the access token and kept in the sealed session file, so the tabs are right at a cold
+>   start. Each tab has its own back stack; the mini player sits above the bar.
 
 KourOS as a real Android app: Compose UI, Media3 playback, no WebView, no bundled frontend.
 Package `net.jkos.app.alpha` (a debug build is `….staging`, against `staging.jkos.net`), so

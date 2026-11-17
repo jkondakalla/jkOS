@@ -1,4 +1,19 @@
-package net.jkos.kouros
+package net.jkos.app.alpha
+
+import net.jkos.app.alpha.auth.AuthModels
+import net.jkos.app.alpha.auth.Claims
+import net.jkos.app.alpha.auth.Pkce
+import net.jkos.app.alpha.auth.TokenGrant
+import net.jkos.app.alpha.auth.User
+import net.jkos.app.alpha.auth.authorizeUrl
+import net.jkos.app.alpha.auth.constantTimeEquals
+import net.jkos.app.alpha.auth.parseRedirect
+import net.jkos.app.alpha.kouros.Album
+import net.jkos.app.alpha.kouros.Listen
+import net.jkos.app.alpha.kouros.ListenLedger
+import net.jkos.app.alpha.kouros.Models
+import net.jkos.app.alpha.kouros.PlayContext
+import java.util.Base64
 
 import org.json.JSONArray
 import org.json.JSONObject
@@ -10,7 +25,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 
-/** The pure half of KourOS Alpha — everything here runs on the JVM, no device. */
+/** The pure half of jkOS Alpha — everything here runs on the JVM, no device. */
 class PkceTest {
     @Test fun rfc7636AppendixBVector() {
         // RFC 7636 Appendix B: the published verifier → challenge pair.
@@ -31,20 +46,20 @@ class PkceTest {
 
     @Test fun authorizeUrlCarriesS256AndEveryParameter() {
         val p = Pkce.restore("dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk", "abcdefgh12345678")
-        val url = authorizeUrl("https://staging.jkos.net", "net.jkos.kouros.alpha.staging", "net.jkos.kouros.alpha.staging:/oauth2redirect", p)
+        val url = authorizeUrl("https://staging.jkos.net", "net.jkos.app.alpha.staging", "net.jkos.app.alpha.staging:/oauth2redirect", p)
         assertEquals(
-            "https://staging.jkos.net/auth/native/authorize?response_type=code&client_id=net.jkos.kouros.alpha.staging" +
-                "&redirect_uri=net.jkos.kouros.alpha.staging%3A%2Foauth2redirect&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM" +
+            "https://staging.jkos.net/auth/native/authorize?response_type=code&client_id=net.jkos.app.alpha.staging" +
+                "&redirect_uri=net.jkos.app.alpha.staging%3A%2Foauth2redirect&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM" +
                 "&code_challenge_method=S256&state=abcdefgh12345678",
             url,
         )
     }
 
     @Test fun onlyTheRegisteredRedirectParses() {
-        val r = "net.jkos.kouros.alpha.staging:/oauth2redirect"
+        val r = "net.jkos.app.alpha.staging:/oauth2redirect"
         assertEquals(mapOf("code" to "c0de", "state" to "s+t/a"), parseRedirect("$r?code=c0de&state=s%2Bt%2Fa", r))
         assertEquals(mapOf("error" to "access_denied", "state" to "x"), parseRedirect("$r?error=access_denied&state=x", r))
-        assertNull(parseRedirect("net.jkos.kouros.alpha.staging:/elsewhere?code=c&state=s", r)) // the filter matched the scheme only
+        assertNull(parseRedirect("net.jkos.app.alpha.staging:/elsewhere?code=c&state=s", r)) // the filter matched the scheme only
         assertNull(parseRedirect("net.jkos.kouros.alpha:/oauth2redirect?code=c&state=s", r)) // the other environment's app
         assertNull(parseRedirect("$r#code=c", r))
         assertNull(parseRedirect(r, r)) // no query at all
@@ -147,7 +162,7 @@ class ModelsTest {
     }
 
     @Test fun tokenGrant() {
-        val g = Models.tokenGrant("""{"access_token":"a.b.c","token_type":"Bearer","expires_in":900,"refresh_token":"ff","user":{"id":1,"email":"e@x","name":null,"avatar_url":null,"role":"admin"}}""")
+        val g = AuthModels.tokenGrant("""{"access_token":"a.b.c","token_type":"Bearer","expires_in":900,"refresh_token":"ff","user":{"id":1,"email":"e@x","name":null,"avatar_url":null,"role":"admin"}}""")
         assertEquals(TokenGrant("a.b.c", 900, "ff", User(1, "e@x", null, "admin")), g)
     }
 
@@ -155,5 +170,44 @@ class ModelsTest {
         val with = JSONObject(Models.listenBody(Listen(4, "2026-01-01T00:00:00.000Z", 1500, true, "station/4")))
         assertEquals("station/4", with.getString("context")); assertEquals(4L, with.getLong("item_ref")); assertTrue(with.getBoolean("completed"))
         assertFalse(JSONObject(Models.listenBody(Listen(4, "2026-01-01T00:00:00.000Z", 1500, false, null))).has("context"))
+    }
+}
+
+/** The audience claim, and the tabs it allows. */
+class AudienceTest {
+    private fun token(payload: String) =
+        "eyJhbGciOiJSUzI1NiJ9." + Base64.getUrlEncoder().withoutPadding().encodeToString(payload.toByteArray()) + ".sig"
+
+    private val apiApps = listOf("beigeboard", "kouros")
+
+    @Test fun audIsReadFromTheTokensPayload() {
+        assertEquals(setOf("auth", "ordeck", "kouros"), Claims.audOf(token("""{"sub":"7","aud":["auth","ordeck","kouros"]}""")))
+        assertEquals(setOf("auth"), Claims.audOf(token("""{"aud":"auth"}""")))
+    }
+
+    @Test fun anythingThatIsNotATokenHasNoAudience() {
+        assertEquals(emptySet<String>(), Claims.audOf(""))
+        assertEquals(emptySet<String>(), Claims.audOf("not.a.token"))
+        assertEquals(emptySet<String>(), Claims.audOf("only.two"))
+        assertEquals(emptySet<String>(), Claims.audOf(token("""{"sub":"7"}""")))
+        assertEquals(emptySet<String>(), Claims.audOf(token("""{"aud":7}""")))
+        assertEquals(setOf("auth"), Claims.audOf(token("""{"aud":["auth",7,null]}"""))) // only strings count
+    }
+
+    @Test fun aUserGetsEveryTabInOrder() {
+        val aud = setOf("auth", "beigeboard", "ordeck", "lazuros", "kouros")
+        assertEquals(listOf(Tab.Home, Tab.App("beigeboard"), Tab.App("kouros"), Tab.Account), Tabs.forAud(aud, apiApps))
+    }
+
+    @Test fun aTabExistsOnlyForAnAppInTheAudience() {
+        // A guest's token: jkAuth and BeigeBoard, neither ORDECK nor KourOS.
+        assertEquals(listOf(Tab.App("beigeboard"), Tab.Account), Tabs.forAud(setOf("auth", "beigeboard"), apiApps))
+        assertEquals(listOf(Tab.Home, Tab.Account), Tabs.forAud(setOf("auth", "ordeck"), apiApps))
+        assertEquals(emptyList<Tab>(), Tabs.forAud(emptySet(), apiApps))
+    }
+
+    @Test fun anAppTheBuildHasNoBaseForGetsNoTab() {
+        // LazurOS is in a user's aud but this build has no API base for it.
+        assertEquals(listOf(Tab.Home, Tab.Account), Tabs.forAud(setOf("auth", "ordeck", "lazuros"), emptyList()))
     }
 }

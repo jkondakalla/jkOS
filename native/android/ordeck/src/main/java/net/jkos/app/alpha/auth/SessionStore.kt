@@ -1,4 +1,4 @@
-package net.jkos.kouros
+package net.jkos.app.alpha.auth
 
 import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
@@ -66,8 +66,10 @@ internal class KeystoreBox(private val alias: String) {
     }
 }
 
-/** What survives a restart: the refresh token and who it belongs to. Never the access token. */
-internal data class StoredSession(val refreshToken: String, val user: User)
+/** What survives a restart: the refresh token, who it belongs to, and the audience the last
+ *  access token carried (so the tabs are right before the first refresh). Never the access
+ *  token itself. */
+internal data class StoredSession(val refreshToken: String, val user: User, val aud: Set<String>)
 
 /** A sign-in in flight: the PKCE verifier and state, kept across the app being killed while
  *  the Custom Tab is in front (the redirect then starts a fresh process). */
@@ -81,7 +83,7 @@ internal data class PendingSignIn(val verifier: String, val state: String, val c
  */
 internal class SessionStore(context: Context) {
     private val dir = context.noBackupFilesDir
-    private val box = KeystoreBox("net.jkos.kouros.session")
+    private val box = KeystoreBox("net.jkos.app.alpha.session")
 
     private fun write(name: String, json: JSONObject) {
         val f = AtomicFile(File(dir, name))
@@ -115,17 +117,22 @@ internal class SessionStore(context: Context) {
 
     fun readSession(): StoredSession? = read(SESSION)?.let {
         try {
-            StoredSession(it.getString("refresh_token"), Models.user(it.getJSONObject("user")))
+            val aud = it.optJSONArray("aud")
+            StoredSession(
+                it.getString("refresh_token"), AuthModels.user(it.getJSONObject("user")),
+                if (aud == null) emptySet() else List(aud.length()) { i -> aud.getString(i) }.toSet(),
+            )
         } catch (_: org.json.JSONException) {
             null
         }
     }
 
-    fun writeSession(refreshToken: String, user: User) = write(
+    fun writeSession(refreshToken: String, user: User, aud: Set<String>) = write(
         SESSION,
         JSONObject()
             .put("refresh_token", refreshToken)
-            .put("user", JSONObject().put("id", user.id).put("email", user.email).put("name", user.name ?: JSONObject.NULL).put("role", user.role)),
+            .put("user", JSONObject().put("id", user.id).put("email", user.email).put("name", user.name ?: JSONObject.NULL).put("role", user.role))
+            .put("aud", org.json.JSONArray(aud.toList())),
     )
 
     fun clearSession() = AtomicFile(File(dir, SESSION)).delete()

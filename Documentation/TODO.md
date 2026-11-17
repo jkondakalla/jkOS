@@ -566,20 +566,9 @@ needs phase B's deploy.
 
 Ships with phase E in one staging deploy.
 
-1. **A tab exists only for an app in the token's `aud`.** That is least privilege in the UI, read
-   from a claim the token already carries.
-2. **The module's packages and shell.** The module is `native/android/ordeck` now, still one
-   Kotlin package. Split it: one Kotlin package per app. Pure cores stay free of Android
-   imports, so the JVM tests can hold them. The shell: a bottom bar (Home, one tab per app,
-   Account), one back stack per tab, and the mini player above the bar. The icon derives from
-   ORDECK's web manifest.
-3. **`check:native`.** § 7–8 of `test/native.mjs` already read the moved module (the four
-   permissions, the three exported components, the merged-manifest allow-list). Still to add:
-   - the Bearer token only under a derived base, for every app's client;
-   - and the new rule: every `/api/…` literal in an app's Kotlin client is declared in that app's
-     `discovery.js`, or is on the named list.
-
-   Show each new assertion failing on a mutated copy.
+Landed locally (the row, the derivation, the module and its packages, the tabbed shell, the
+tabs-by-`aud` rule and `check:native`'s declared-routes rule) and **not pushed**: phase C signs
+in with KourOS Alpha's client, which this phase removes from jkAuth's list.
 
 ### E · jkAuth: the account routes take a Bearer token
 

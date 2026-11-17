@@ -76,8 +76,9 @@ function mountedRoutes(appDir) {
   return served;
 }
 
-/** The paths an app DECLARES, from its discovery module (capabilities + datasets). */
-function declaredPaths(modulePath) {
+/** The paths an app DECLARES, from its discovery module (capabilities + datasets).
+ *  Exported: check:native holds the native app's API calls to the same declaration. */
+export function declaredPaths(modulePath) {
   const doc = require(join(REPO_ROOT, modulePath));
   const caps = doc.CAPABILITIES?.capabilities ?? doc.CAPABILITIES_DOC?.capabilities ?? [];
   const sets = doc.DATASETS?.datasets ?? doc.DATASETS_DOC?.datasets ?? [];
@@ -116,7 +117,7 @@ const MAX_COVER_DEPTH = 1;
 /** Does a mounted route path fall under a declared path? A `:param` on either
  *  side matches exactly one segment on the other, and a declared path covers
  *  what sits at most `MAX_COVER_DEPTH` segments beneath it. */
-function pathMatches(routePath, declaredPath) {
+export function pathMatches(routePath, declaredPath) {
   const r = routePath.split('/').filter(Boolean);
   const d = declaredPath.split('/').filter(Boolean);
   if (r.length < d.length) return false;

@@ -202,7 +202,7 @@ a Bearer token. How they're built and why they're shaped this way is in
 | **jkOS** | `net.jkos.app` | The suite on your phone (Android) or desktop (Linux). Long-press the Android icon for KourOS / BeigeBoard shortcuts. |
 | **KourOS** | `net.jkos.kouros` | Music and audiobooks as their own app (Plexamp to jkOS's Plex). |
 | **jkOS Home** | `net.jkos.home` | ORDECK as the home screen of a dedicated tablet or phone. |
-| **KourOS Alpha** | `net.jkos.app.alpha` | KourOS as a truly native app (Compose UI, Media3 playback), for testing. Installs beside the KourOS TWA. |
+| **jkOS Alpha** | `net.jkos.app.alpha` | The suite as one truly native app (Compose UI, Media3 playback), for testing. Installs beside the TWAs. |
 
 A **staging build** (`pnpm android:build`) is named "… (staging)", opens `staging.jkos.net`,
 and installs beside the real app. A **release build** opens production.
@@ -269,7 +269,11 @@ A staging build needs no key: `pnpm android:build`, then
 `adb install native/android/out/jkos-0.1.0-staging.apk`. It shows a URL bar (staging serves no
 asset links), and that's expected.
 
-### Android: KourOS Alpha (the native app)
+### Android: jkOS Alpha (the native app)
+
+One native app for the suite, grown from KourOS Alpha (TODO §10). It is being built phase by
+phase; this section is rewritten from the code at phase J, and each phase adds its device
+checks to the list at the end.
 
 It needs two things in place before it can sign in. Do them in order:
 
@@ -305,8 +309,8 @@ git diff --stat gradle/verification-metadata.xml
 
 On the phone: **Sign in with jkOS** opens a Custom Tab on `staging.jkos.net`. Sign in (an
 **admin** account: the staging gate admits nobody else) and press **Allow**, and the app comes
-back signed in. "ALPHA · staging · 0.1.0-alpha-staging" sits under the title. Things to try, none
-of which has been seen on a device yet: playback with the screen off; the lock-screen and
+back signed in. "ALPHA · staging · 0.1.0-alpha-staging" is on the Home and Account tabs. Things
+to try in the KourOS tab, none of which has been seen on a device yet: playback with the screen off; the lock-screen and
 notification controls, with covers; pulling the headphones (it should pause); a call (it should
 duck or pause); **Start radio**; sign out, then confirm `/auth/security` on staging shows the
 app's session as signed out. Each listen should appear in KourOS's recently played. Their
@@ -319,6 +323,17 @@ INTERNET, FOREGROUND_SERVICE, FOREGROUND_SERVICE_MEDIA_PLAYBACK and WAKE_LOCK, p
 signature-level `net.jkos.app.alpha.staging.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`. A library
 that merges in anything else fails the build (`:ordeck:checkDebugPermissions`) before an APK
 exists.
+
+**Device checks, by phase.** Run the newest build through all of them.
+
+- **D · the shell.** The bottom bar shows Home, BeigeBoard, KourOS and Account (an admin or a
+  user: a tab exists only for an app in the token's `aud`). Each tab keeps its own place: open
+  an album in KourOS, switch to Account and back, and the album is still open. Back pops the
+  tab's screens, then returns to Home, then leaves the app. Tapping the tab you are on returns
+  it to its first screen. With music playing, the mini player sits above the bar on every tab,
+  and tapping it opens Now Playing in the KourOS tab. Kill the app and reopen it: the same tabs
+  appear at once, before any network call. The consent page names **jkOS Alpha (staging)**, and
+  `/auth/security` lists the session as app `net.jkos.app.alpha.staging`.
 
 ### Android: jkOS Home on a panel device
 
