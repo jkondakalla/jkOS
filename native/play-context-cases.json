@@ -168,6 +168,21 @@
       "kind": "station",
       "id": -1,
       "expect": null
+    },
+    {
+      "kind": "playlist",
+      "id": 12,
+      "expect": "playlist/12"
+    },
+    {
+      "kind": "playlist",
+      "id": 0,
+      "expect": "playlist/0"
+    },
+    {
+      "kind": "playlist",
+      "id": -3,
+      "expect": null
     }
   ]
 }

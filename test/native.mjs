@@ -551,8 +551,8 @@ const policy = require(resolve(root, 'native/desktop/src/policy.js'));
         const p = parsePlayContext(c.expect); return !p || p.artist !== c.artist || p.album !== c.album; }
       case 'artist': { if (c.expect === null) return c.artist !== '';
         const p = parsePlayContext(c.expect); return !p || p.artist !== c.artist; }
-      case 'station': { if (c.expect === null) return parsePlayContext(`station/${c.id}`) !== null;
-        const p = parsePlayContext(c.expect); return !p || p.id !== c.id; }
+      case 'station': case 'playlist': { if (c.expect === null) return parsePlayContext(`${c.kind}/${c.id}`) !== null;
+        const p = parsePlayContext(c.expect); return !p || p.kind !== c.kind || p.id !== c.id; }
       default: return true;
     }
   });

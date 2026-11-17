@@ -95,6 +95,7 @@ class PlayContextTest {
                 "album" -> PlayContext.album(c.getString("artist"), c.getString("album"))
                 "artist" -> PlayContext.artist(c.getString("artist"))
                 "station" -> PlayContext.station(c.getLong("id"))
+                "playlist" -> PlayContext.playlist(c.getLong("id"))
                 else -> error("unknown kind ${c.getString("kind")}")
             }
             if (got != c.expect()) wrong += "#$i ${c.getString("kind")}: expected ${c.expect()}, got $got"
