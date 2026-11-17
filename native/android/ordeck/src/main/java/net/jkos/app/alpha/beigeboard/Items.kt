@@ -88,15 +88,27 @@ object Items {
 
     // ── the bodies (each capability's declared fields only) ──
 
-    /** createItem: a quick add. Kind task or event; a date and a time when given. */
-    fun createBody(title: String, kind: String, dueDate: String?, time: String?, idempotencyKey: String): JSONObject =
-        JSONObject().apply {
-            put("title", title.trim().take(500))
-            put("kind", if (kind == "event") "event" else "task")
-            dueDate?.let { put("due_date", it) }
-            time?.let { put("scheduled_time", it) }
-            put("idempotency_key", idempotencyKey)
-        }
+    /** The kinds this app creates: a routine is authored as a document (H4), never by quick add. */
+    private val CREATE_KINDS = setOf("task", "event", "goal", "milestone")
+
+    /**
+     * createItem: a task or an event (a date and a time when given), or a goal or a milestone
+     * for the tree. [parentId] files it under a goal or milestone; a goal is `scope: year`, as
+     * the web's "+ Goal" makes one. Anything else is a task.
+     */
+    fun createBody(
+        title: String, kind: String, dueDate: String?, time: String?, idempotencyKey: String,
+        parentId: Long? = null,
+    ): JSONObject = JSONObject().apply {
+        val k = kind.takeIf { it in CREATE_KINDS } ?: "task"
+        put("title", title.trim().take(500))
+        put("kind", k)
+        dueDate?.let { put("due_date", it) }
+        time?.let { put("scheduled_time", it) }
+        parentId?.let { put("parent_id", it) }
+        if (k == "goal") put("scope", "year")
+        put("idempotency_key", idempotencyKey)
+    }
 
     /** completeItem. */
     fun completeBody(completed: Boolean): JSONObject = JSONObject().put("completed", completed)
@@ -123,6 +135,44 @@ object Items {
 
     /** deloadSession: take this occurrence easy, or clear it (the web's onDeload). */
     fun deloadBody(on: Boolean): JSONObject = if (on) JSONObject().put("deload", true) else JSONObject().put("clear", true)
+}
+
+/** Progress through a goal or a list: its leaf tasks done out of all. */
+data class Progress(val done: Int, val total: Int) {
+    val pct: Int get() = if (total == 0) 0 else Math.round(done * 100f / total)
+}
+
+/** The tree (decomposition, by parent_id), as the web's lib/seed.ts walks it. */
+class Tree(val items: List<Item>) {
+    private val kids: Map<Long?, List<Item>> = items.groupBy { it.parentId }
+    private val byId = items.associateBy { it.id }
+
+    fun children(id: Long): List<Item> = kids[id].orEmpty().sortedWith(compareBy<Item>({ it.position ?: Double.MAX_VALUE }, { it.id }))
+
+    /** The goals at the top of the tree. */
+    val goals: List<Item> get() = kids[null].orEmpty().filter { it.kind == "goal" }.sortedWith(compareBy<Item>({ it.position ?: Double.MAX_VALUE }, { it.id }))
+
+    /** Everything under [id], with a cycle guard (a parent cycle must not loop). */
+    fun descendants(id: Long): List<Item> {
+        val out = mutableListOf<Item>()
+        val seen = hashSetOf(id)
+        val stack = ArrayDeque(listOf(id))
+        while (stack.isNotEmpty()) for (k in kids[stack.removeLast()].orEmpty()) if (seen.add(k.id)) { out += k; stack.addLast(k.id) }
+        return out
+    }
+
+    private fun underRoutine(i: Item): Boolean {
+        val seen = HashSet<Long>()
+        var cur: Item? = i
+        while (cur != null && seen.add(cur.id)) { if (cur.kind == "routine") return true; cur = cur.parentId?.let(byId::get) }
+        return false
+    }
+
+    /** getProgress: the leaf tasks under [id], less a routine's sessions (they are a pattern, not a plan). */
+    fun progress(id: Long): Progress {
+        val leaves = descendants(id).filter { it.isTask && kids[it.id].isNullOrEmpty() && !underRoutine(it) }
+        return Progress(leaves.count { it.completed }, leaves.size)
+    }
 }
 
 /** Today, as the web's mobile Today view derives it from the items (MobileTodayView.tsx). */

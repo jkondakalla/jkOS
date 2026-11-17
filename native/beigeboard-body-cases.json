@@ -43,7 +43,7 @@
       "build": {
         "kind": "create",
         "title": "x",
-        "itemKind": "goal",
+        "itemKind": "nonsense",
         "key": "k-3"
       },
       "body": {
@@ -135,6 +135,71 @@
       },
       "body": {
         "clear": true
+      }
+    },
+    {
+      "capability": "createItem",
+      "name": "a goal: the year's scope",
+      "build": {
+        "kind": "create",
+        "title": "Run a half marathon",
+        "itemKind": "goal",
+        "key": "k-4"
+      },
+      "body": {
+        "title": "Run a half marathon",
+        "kind": "goal",
+        "scope": "year",
+        "idempotency_key": "k-4"
+      }
+    },
+    {
+      "capability": "createItem",
+      "name": "a list (milestone) under a goal",
+      "build": {
+        "kind": "create",
+        "title": "Base building",
+        "itemKind": "milestone",
+        "parentId": 12,
+        "key": "k-5"
+      },
+      "body": {
+        "title": "Base building",
+        "kind": "milestone",
+        "parent_id": 12,
+        "idempotency_key": "k-5"
+      }
+    },
+    {
+      "capability": "createItem",
+      "name": "a task under a list",
+      "build": {
+        "kind": "create",
+        "title": "Buy shoes",
+        "itemKind": "task",
+        "parentId": 13,
+        "key": "k-6"
+      },
+      "body": {
+        "title": "Buy shoes",
+        "kind": "task",
+        "parent_id": 13,
+        "idempotency_key": "k-6"
+      }
+    },
+    {
+      "capability": "createItem",
+      "name": "a routine is never quick-added",
+      "build": {
+        "kind": "create",
+        "title": "Lift",
+        "itemKind": "routine",
+        "key": "k-7"
+      },
+      "body": {
+        "title": "Lift",
+        "kind": "task",
+        "idempotency_key": "k-7"
       }
     }
   ]

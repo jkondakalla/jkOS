@@ -624,8 +624,12 @@ Each step ends in an APK and a device checklist. Everything goes through a capab
    declared fields (`native/beigeboard-body-cases.json`, CONTROLS.md CF-4). The APK is
    `~/Android/jkos-apks/jkos-alpha-0.1.0-staging-h1.apk`, which includes G.
    **You:** after the deploy, run OPERATIONS § Native apps' H1 checks.
-2. **Goals and milestones:** the tree, editing (`updateItem`, `deleteItem`), dependencies
-   (`addDependency`, `removeDependency`) and deload.
+2. **Goals and milestones.** Built 2026-11-17, and not pushed. `createItem` now declares the
+   tree (`parent_id`, `scope`, `accent`, kinds goal and milestone) it always took. That's a
+   server change, in the same staging deploy. Moving an item to another parent isn't built:
+   `updateItem` doesn't declare `parent_id`. Editing a goal's target and "done means" waits on
+   the same thing. The APK is `~/Android/jkos-apks/jkos-alpha-0.1.0-staging-h2.apk`.
+   **You:** after the deploy, run OPERATIONS § Native apps' H2 checks.
 3. **The calendar:** week and month views, `syncCalendar` and `disconnectCalendar`. Connecting an
    account stays on the web.
 4. **Routines and the library:**

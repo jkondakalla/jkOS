@@ -23,6 +23,8 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -68,7 +70,11 @@ import java.util.UUID
 /** BeigeBoard's screens, as entries of its tab's back stack. */
 sealed interface BeigeBoardScreen : Screen {
     data object Today : BeigeBoardScreen
+    data class GoalPage(val id: Long) : BeigeBoardScreen
 }
+
+/** The tab's first screen shows one of these; the rest are pushed. */
+enum class BoardSection(val label: String) { Today("Today"), Goals("Goals") }
 
 /** The BeigeBoard tab's first screen. */
 val BeigeBoardRoot: Screen = BeigeBoardScreen.Today
@@ -84,6 +90,7 @@ class Board(private val scope: CoroutineScope) {
     var shelf by mutableStateOf(Shelf(emptyList(), null))
         private set
     var note by mutableStateOf<String?>(null)
+    var section by mutableStateOf(BoardSection.Today)
 
     val items: List<Item> get() = (state as? Load.Ready)?.value ?: emptyList()
     val byId: Map<Long, Item> get() = items.associateBy { it.id }
@@ -119,11 +126,14 @@ class Board(private val scope: CoroutineScope) {
 
     fun update(item: Item, changes: Map<String, Any?>, optimistic: Item) = write(item, optimistic) { BeigeBoardApi.update(item.id, changes) }
 
-    fun add(title: String, kind: String, dueDate: String?, time: String?, done: (Item) -> Unit = {}) {
+    /** deloadSession: the server re-renders the routine's sessions after it, so this reloads. */
+    fun deload(item: Item, on: Boolean) = write(item, item.copy(deloadOverride = if (on) 1 else null)) { BeigeBoardApi.deload(item.id, on) }
+
+    fun add(title: String, kind: String, dueDate: String?, time: String?, parentId: Long? = null, done: (Item) -> Unit = {}) {
         note = null
         scope.launch {
             // One key per add: a retry after a timeout replays the first create, never a second row.
-            when (val r = attempt { BeigeBoardApi.create(Items.createBody(title, kind, dueDate, time, UUID.randomUUID().toString())) }) {
+            when (val r = attempt { BeigeBoardApi.create(Items.createBody(title, kind, dueDate, time, UUID.randomUUID().toString(), parentId)) }) {
                 is Load.Ready -> { state = Load.Ready(items + r.value); done(r.value) }
                 is Load.Failed -> note = "Couldn't add it: ${r.message}"
                 Load.Loading -> Unit
@@ -163,7 +173,19 @@ fun BeigeBoardTab(screen: Screen, nav: Nav) {
     val board = remember { Board(scope) }
     LaunchedEffect(Unit) { board.load() }
     when (screen) {
-        else -> TodayScreen(board)
+        is BeigeBoardScreen.GoalPage -> GoalScreen(screen.id, board, nav::pop, nav::push)
+        else -> Column(Modifier.fillMaxSize()) {
+            Header("BeigeBoard", onBack = null) {
+                TextButton(onClick = { board.load() }) { Text("Refresh") }
+            }
+            Row(Modifier.padding(horizontal = 8.dp)) {
+                for (s in BoardSection.entries) Choice(s.label, board.section == s) { board.section = s }
+            }
+            when (board.section) {
+                BoardSection.Today -> TodayScreen(board, nav::push)
+                BoardSection.Goals -> GoalsPane(board, nav::push)
+            }
+        }
     }
 }
 
@@ -186,13 +208,10 @@ private fun greeting(): String = when (LocalTime.now().hour) {
  * quick add, and what's done.
  */
 @Composable
-private fun TodayScreen(board: Board) {
+private fun TodayScreen(board: Board, push: (Screen) -> Unit) {
     var open by remember { mutableStateOf<Item?>(null) }
     val today = todayIso()
     Column(Modifier.fillMaxSize()) {
-        Header("BeigeBoard", onBack = null) {
-            TextButton(onClick = { board.load() }) { Text("Refresh") }
-        }
         Loaded(board.state, retry = { board.load() }) { items ->
             val t = Today.of(items, today)
             val byId = board.byId
@@ -238,11 +257,11 @@ private fun TodayScreen(board: Board) {
             }
         }
     }
-    open?.let { id -> board.byId[id.id]?.let { ItemSheet(it, board) { open = null } } ?: run { open = null } }
+    open?.let { id -> board.byId[id.id]?.let { ItemSheet(it, board, push) { open = null } } ?: run { open = null } }
 }
 
 @Composable
-private fun Label(text: String) {
+internal fun Label(text: String) {
     Text(text.uppercase(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
@@ -320,16 +339,21 @@ private fun QuickAdd(board: Board, today: String) {
 
 // ── one item ───────────────────────────────────────────────────────────────────
 
-/** An item's sheet: what it is, done or not, and putting it on ORDECK (focus, pin). */
+/**
+ * An item's sheet: what it is, done or not, editing it, what it waits on and what waits on
+ * it, taking a routine's session easy, and putting it on ORDECK (focus, pin).
+ */
 @Composable
-fun ItemSheet(item: Item, board: Board, onDismiss: () -> Unit) {
+fun ItemSheet(item: Item, board: Board, push: (Screen) -> Unit, onDismiss: () -> Unit) {
     val byId = board.byId
     val focused = board.shelf.isFocused("beigeboard", item.id.toString())
     val pinned = board.shelf.isPinned("beigeboard", item.id.toString())
     var confirmDelete by remember { mutableStateOf(false) }
+    var editing by remember { mutableStateOf(false) }
+    if (editing) { EditDialog(item, board) { editing = false }; return }
     Dialog(onDismissRequest = onDismiss) {
         Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surface) {
-            Column(Modifier.padding(20.dp).heightIn(max = 560.dp)) {
+            Column(Modifier.padding(20.dp).heightIn(max = 640.dp).verticalScroll(rememberScrollState())) {
                 Label(item.kind)
                 Text(item.title, style = MaterialTheme.typography.titleLarge)
                 val parent = item.parentId?.let(byId::get)
@@ -354,8 +378,12 @@ fun ItemSheet(item: Item, board: Board, onDismiss: () -> Unit) {
                         OutlinedButton(onClick = { board.togglePin(item) }, modifier = Modifier.weight(1f)) { Text(if (pinned) "Pinned — unpin" else "Pin") }
                     }
                 }
+                if (item.isOccurrence && !item.completed) DeloadRow(item, board)
+                if (item.kind != "routine") DepsSection(item, board)
                 board.note?.let { Text(it, color = MaterialTheme.colorScheme.secondary) }
                 Row {
+                    TextButton(onClick = { editing = true }) { Text("Edit") }
+                    if (item.kind == "goal") TextButton(onClick = { onDismiss(); push(BeigeBoardScreen.GoalPage(item.id)) }) { Text("Open") }
                     TextButton(onClick = { confirmDelete = true }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
                     Spacer(Modifier.weight(1f))
                     TextButton(onClick = onDismiss) { Text("Close") }

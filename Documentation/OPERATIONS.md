@@ -439,6 +439,20 @@ exists.
   - Delete a task (it asks first): it's gone here and on the web. Delete a goal with tasks
     under it: they go too.
 
+- **H2 · BeigeBoard: goals, lists, editing, dependencies, deload.**
+  - Goals: the year's meter over every task, then each goal with its progress (leaf tasks
+    done; a routine's sessions don't count). Compare with the web's mobile Goals.
+  - "+ Goal" adds one (on the web it is a year goal). Open it: add a task to it, "+ Add list"
+    adds a list, and each list takes its own tasks. Each shows on the web under the same goal.
+  - Edit a task: rename it, add notes, move its date, set and clear a time. Edit an event's
+    end time and end date. Each is on the web after a refresh, and nothing else changed.
+  - Dependencies: on a task, "+ Waits on…" and pick another: it reads "Blocked" until that
+    one is ticked. "Waiting on this" shows on the other one. × removes it. Try to make two
+    tasks wait on each other: the second is refused ("Couldn't change that").
+  - A routine's session (a task under a routine, today or later): "Take this one easy" on,
+    and the web shows it lighter; the sessions after it shift back. Off hands it back. A past
+    session refuses it.
+
 ### Android: jkOS Home on a panel device
 
 Install `home-*.apk`, press Home, and choose **jkOS Home**, then **Always**. To get out: **hold

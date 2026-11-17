@@ -597,7 +597,7 @@ class BeigeBoardTest {
             val b = c.getJSONObject("build")
             fun s(k: String) = if (b.has(k) && !b.isNull(k)) b.getString(k) else null
             val got = when (b.getString("kind")) {
-                "create" -> net.jkos.app.alpha.beigeboard.Items.createBody(b.getString("title"), b.getString("itemKind"), s("dueDate"), s("time"), b.getString("key"))
+                "create" -> net.jkos.app.alpha.beigeboard.Items.createBody(b.getString("title"), b.getString("itemKind"), s("dueDate"), s("time"), b.getString("key"), if (b.has("parentId")) b.getLong("parentId") else null)
                 "complete" -> net.jkos.app.alpha.beigeboard.Items.completeBody(b.getBoolean("completed"))
                 "update" -> {
                     val ch = b.getJSONObject("changes")
@@ -637,6 +637,20 @@ class BeigeBoardTest {
         assertEquals(listOf(4L), t.done.map { it.id }); assertEquals(listOf(5L), t.overdue.map { it.id })
         assertEquals(listOf(9L, 8L), t.events.map { it.id })              // a multi-day event shows on each of its days
         assertEquals(3L, t.next?.id); assertEquals(25, t.pct)
+    }
+
+    @Test fun progressIsTheLeafTasksLessARoutinesSessions() {
+        val items = listOf(
+            item(1, kind = "goal"), item(2, kind = "milestone", parent = 1), item(3, parent = 2, done = true), item(4, parent = 2),
+            item(5, parent = 1), item(6, parent = 5, done = true),            // 5 has a child, so it isn't a leaf
+            item(7, kind = "routine", parent = 1), item(8, parent = 7, done = true),   // a routine's session isn't progress
+            item(9, kind = "goal"), item(10, kind = "goal", parent = 9),      // a goal under a goal isn't a top goal
+        )
+        val tree = net.jkos.app.alpha.beigeboard.Tree(items)
+        assertEquals(net.jkos.app.alpha.beigeboard.Progress(2, 3), tree.progress(1))
+        assertEquals(67, tree.progress(1).pct); assertEquals(0, tree.progress(9).pct)
+        assertEquals(listOf(1L, 9L), tree.goals.map { it.id })
+        assertEquals(listOf(3L, 4L), tree.children(2).map { it.id })
     }
 
     @Test fun anAccentIsTheNearestDrawableOne() {
