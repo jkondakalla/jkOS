@@ -10,6 +10,7 @@ import net.jkos.app.alpha.auth.*
 //   album/<artist>/<album>    both segments encoded like JavaScript's encodeURIComponent
 //   artist/<artist>
 //   playlist/<playlist id>
+//   book/<book id>
 //   station/<seed track id>
 //
 // The encoder is written out here rather than borrowed from android.net.Uri.encode: it has to
@@ -65,6 +66,8 @@ object PlayContext {
     fun station(seedTrackId: Long): String? = id("station", seedTrackId)
 
     fun playlist(playlistId: Long): String? = id("playlist", playlistId)
+
+    fun book(bookId: Long): String? = id("book", bookId)
 
     /** `<kind>/<id>`: the server's ID is 1–12 digits. */
     private fun id(kind: String, id: Long): String? = if (id in 0..999_999_999_999L) "$kind/$id" else null

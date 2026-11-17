@@ -1,0 +1,370 @@
+{
+  "_comment": "What the output reports (POST /api/session/state) for a player state. SessionCore.reportBody must build `expect` from `player` (the JVM test), and validate.js stateReport must accept every `expect` (check:native). A book is one entry per file in the player and ONE item, book:<id>, in the session; a track is kouros:<id>.",
+  "deviceId": "0f8fad5b-d9cb-469f-a165-70867728950e",
+  "cases": [
+    {
+      "name": "nothing queued",
+      "player": {
+        "mediaIds": [],
+        "current": -1,
+        "positionMs": 5000,
+        "playing": true,
+        "rate": 1,
+        "repeat": "off",
+        "context": null,
+        "volume": 1,
+        "muted": false,
+        "sleep": {
+          "mode": "off"
+        },
+        "nowMs": 1800000000000
+      },
+      "expect": {
+        "deviceId": "0f8fad5b-d9cb-469f-a165-70867728950e",
+        "queue": {
+          "items": [],
+          "cursor": -1,
+          "policy": {
+            "shuffle": false,
+            "repeat": "off",
+            "shuffleSeed": 0,
+            "shuffleOrder": []
+          }
+        },
+        "item_ref": null,
+        "context": null,
+        "position_ms": 0,
+        "playing": false,
+        "rate": 1,
+        "volume": 1,
+        "muted": false,
+        "sleep_mode": null,
+        "sleep_remaining_ms": null
+      }
+    },
+    {
+      "name": "an album, second track",
+      "player": {
+        "mediaIds": [
+          "12",
+          "13",
+          "14"
+        ],
+        "current": 1,
+        "positionMs": 61000,
+        "playing": true,
+        "rate": 1,
+        "repeat": "off",
+        "context": "album/Radiohead/Kid%20A",
+        "volume": 1,
+        "muted": false,
+        "sleep": {
+          "mode": "off"
+        },
+        "nowMs": 1800000000000
+      },
+      "expect": {
+        "deviceId": "0f8fad5b-d9cb-469f-a165-70867728950e",
+        "queue": {
+          "items": [
+            "kouros:12",
+            "kouros:13",
+            "kouros:14"
+          ],
+          "cursor": 1,
+          "policy": {
+            "shuffle": false,
+            "repeat": "off",
+            "shuffleSeed": 0,
+            "shuffleOrder": []
+          }
+        },
+        "item_ref": "kouros:13",
+        "context": "album/Radiohead/Kid%20A",
+        "position_ms": 61000,
+        "playing": true,
+        "rate": 1,
+        "volume": 1,
+        "muted": false,
+        "sleep_mode": null,
+        "sleep_remaining_ms": null
+      }
+    },
+    {
+      "name": "a three-file book, in its last file, at 1.5x with 10 min of sleep left",
+      "player": {
+        "mediaIds": [
+          "book:7:0",
+          "book:7:1",
+          "book:7:2"
+        ],
+        "current": 2,
+        "positionMs": 4000000,
+        "playing": true,
+        "rate": 1.5,
+        "repeat": "off",
+        "context": "book/7",
+        "volume": 1,
+        "muted": false,
+        "sleep": {
+          "mode": "30",
+          "deadlineMs": 1800000600000
+        },
+        "nowMs": 1800000000000
+      },
+      "expect": {
+        "deviceId": "0f8fad5b-d9cb-469f-a165-70867728950e",
+        "queue": {
+          "items": [
+            "book:7"
+          ],
+          "cursor": 0,
+          "policy": {
+            "shuffle": false,
+            "repeat": "off",
+            "shuffleSeed": 0,
+            "shuffleOrder": []
+          }
+        },
+        "item_ref": "book:7",
+        "context": "book/7",
+        "position_ms": 4000000,
+        "playing": true,
+        "rate": 1.5,
+        "volume": 1,
+        "muted": false,
+        "sleep_mode": "30",
+        "sleep_remaining_ms": 600000
+      }
+    },
+    {
+      "name": "a book, then a track playing after it",
+      "player": {
+        "mediaIds": [
+          "book:7:0",
+          "book:7:1",
+          "12"
+        ],
+        "current": 2,
+        "positionMs": 1000,
+        "playing": false,
+        "rate": 1,
+        "repeat": "off",
+        "context": null,
+        "volume": 1,
+        "muted": false,
+        "sleep": {
+          "mode": "off"
+        },
+        "nowMs": 1800000000000
+      },
+      "expect": {
+        "deviceId": "0f8fad5b-d9cb-469f-a165-70867728950e",
+        "queue": {
+          "items": [
+            "book:7",
+            "kouros:12"
+          ],
+          "cursor": 1,
+          "policy": {
+            "shuffle": false,
+            "repeat": "off",
+            "shuffleSeed": 0,
+            "shuffleOrder": []
+          }
+        },
+        "item_ref": "kouros:12",
+        "context": null,
+        "position_ms": 1000,
+        "playing": false,
+        "rate": 1,
+        "volume": 1,
+        "muted": false,
+        "sleep_mode": null,
+        "sleep_remaining_ms": null
+      }
+    },
+    {
+      "name": "sleep at the end of the chapter carries no remaining",
+      "player": {
+        "mediaIds": [
+          "book:9:0"
+        ],
+        "current": 0,
+        "positionMs": 10,
+        "playing": true,
+        "rate": 1,
+        "repeat": "off",
+        "context": "book/9",
+        "volume": 1,
+        "muted": false,
+        "sleep": {
+          "mode": "segment",
+          "chapterEndMs": 900000
+        },
+        "nowMs": 1800000000000
+      },
+      "expect": {
+        "deviceId": "0f8fad5b-d9cb-469f-a165-70867728950e",
+        "queue": {
+          "items": [
+            "book:9"
+          ],
+          "cursor": 0,
+          "policy": {
+            "shuffle": false,
+            "repeat": "off",
+            "shuffleSeed": 0,
+            "shuffleOrder": []
+          }
+        },
+        "item_ref": "book:9",
+        "context": "book/9",
+        "position_ms": 10,
+        "playing": true,
+        "rate": 1,
+        "volume": 1,
+        "muted": false,
+        "sleep_mode": "segment",
+        "sleep_remaining_ms": null
+      }
+    },
+    {
+      "name": "out-of-range rate and volume are held to the server's bounds",
+      "player": {
+        "mediaIds": [
+          "5"
+        ],
+        "current": 0,
+        "positionMs": 0,
+        "playing": true,
+        "rate": 4,
+        "repeat": "all",
+        "context": null,
+        "volume": 1.5,
+        "muted": true,
+        "sleep": {
+          "mode": "off"
+        },
+        "nowMs": 1800000000000
+      },
+      "expect": {
+        "deviceId": "0f8fad5b-d9cb-469f-a165-70867728950e",
+        "queue": {
+          "items": [
+            "kouros:5"
+          ],
+          "cursor": 0,
+          "policy": {
+            "shuffle": false,
+            "repeat": "all",
+            "shuffleSeed": 0,
+            "shuffleOrder": []
+          }
+        },
+        "item_ref": "kouros:5",
+        "context": null,
+        "position_ms": 0,
+        "playing": true,
+        "rate": 3,
+        "volume": 1,
+        "muted": true,
+        "sleep_mode": null,
+        "sleep_remaining_ms": null
+      }
+    },
+    {
+      "name": "an entry that is no ref is not reported",
+      "player": {
+        "mediaIds": [
+          "x",
+          "12"
+        ],
+        "current": 1,
+        "positionMs": 2,
+        "playing": true,
+        "rate": 1,
+        "repeat": "off",
+        "context": null,
+        "volume": 1,
+        "muted": false,
+        "sleep": {
+          "mode": "off"
+        },
+        "nowMs": 1800000000000
+      },
+      "expect": {
+        "deviceId": "0f8fad5b-d9cb-469f-a165-70867728950e",
+        "queue": {
+          "items": [
+            "kouros:12"
+          ],
+          "cursor": 0,
+          "policy": {
+            "shuffle": false,
+            "repeat": "off",
+            "shuffleSeed": 0,
+            "shuffleOrder": []
+          }
+        },
+        "item_ref": "kouros:12",
+        "context": null,
+        "position_ms": 2,
+        "playing": true,
+        "rate": 1,
+        "volume": 1,
+        "muted": false,
+        "sleep_mode": null,
+        "sleep_remaining_ms": null
+      }
+    },
+    {
+      "name": "the same book twice, apart, is two items",
+      "player": {
+        "mediaIds": [
+          "book:7:0",
+          "12",
+          "book:7:1"
+        ],
+        "current": 2,
+        "positionMs": 3,
+        "playing": true,
+        "rate": 1,
+        "repeat": "off",
+        "context": null,
+        "volume": 1,
+        "muted": false,
+        "sleep": {
+          "mode": "off"
+        },
+        "nowMs": 1800000000000
+      },
+      "expect": {
+        "deviceId": "0f8fad5b-d9cb-469f-a165-70867728950e",
+        "queue": {
+          "items": [
+            "book:7",
+            "kouros:12",
+            "book:7"
+          ],
+          "cursor": 2,
+          "policy": {
+            "shuffle": false,
+            "repeat": "off",
+            "shuffleSeed": 0,
+            "shuffleOrder": []
+          }
+        },
+        "item_ref": "book:7",
+        "context": null,
+        "position_ms": 3,
+        "playing": true,
+        "rate": 1,
+        "volume": 1,
+        "muted": false,
+        "sleep_mode": null,
+        "sleep_remaining_ms": null
+      }
+    }
+  ]
+}

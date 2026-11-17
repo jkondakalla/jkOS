@@ -1,0 +1,126 @@
+{
+  "_comment": "The listening session's role decision, as vectors. apps/kouros/src/session/route.ts modeOf and the app's SessionCore.modeOf must both return `expect` for every case: check:native runs the TypeScript, the JVM test runs the Kotlin. On a phone one install is one device, so its facts always carry lockElsewhere false; the cases still cover the browser's.",
+  "cases": [
+    {
+      "facts": {
+        "available": false,
+        "active": null,
+        "me": "a",
+        "activeOnline": false,
+        "holdsLock": false,
+        "lockElsewhere": false
+      },
+      "expect": "solo"
+    },
+    {
+      "facts": {
+        "available": false,
+        "active": "a",
+        "me": "a",
+        "activeOnline": true,
+        "holdsLock": true,
+        "lockElsewhere": false
+      },
+      "expect": "solo"
+    },
+    {
+      "facts": {
+        "available": true,
+        "active": "a",
+        "me": "a",
+        "activeOnline": true,
+        "holdsLock": true,
+        "lockElsewhere": false
+      },
+      "expect": "local"
+    },
+    {
+      "facts": {
+        "available": true,
+        "active": "a",
+        "me": "a",
+        "activeOnline": false,
+        "holdsLock": true,
+        "lockElsewhere": false
+      },
+      "expect": "local"
+    },
+    {
+      "facts": {
+        "available": true,
+        "active": "a",
+        "me": "a",
+        "activeOnline": true,
+        "holdsLock": false,
+        "lockElsewhere": true
+      },
+      "expect": "remote"
+    },
+    {
+      "facts": {
+        "available": true,
+        "active": "a",
+        "me": "a",
+        "activeOnline": true,
+        "holdsLock": false,
+        "lockElsewhere": false
+      },
+      "expect": "idle"
+    },
+    {
+      "facts": {
+        "available": true,
+        "active": "b",
+        "me": "a",
+        "activeOnline": true,
+        "holdsLock": false,
+        "lockElsewhere": false
+      },
+      "expect": "remote"
+    },
+    {
+      "facts": {
+        "available": true,
+        "active": "b",
+        "me": "a",
+        "activeOnline": true,
+        "holdsLock": true,
+        "lockElsewhere": false
+      },
+      "expect": "remote"
+    },
+    {
+      "facts": {
+        "available": true,
+        "active": "b",
+        "me": "a",
+        "activeOnline": false,
+        "holdsLock": false,
+        "lockElsewhere": false
+      },
+      "expect": "idle"
+    },
+    {
+      "facts": {
+        "available": true,
+        "active": null,
+        "me": "a",
+        "activeOnline": false,
+        "holdsLock": false,
+        "lockElsewhere": false
+      },
+      "expect": "idle"
+    },
+    {
+      "facts": {
+        "available": true,
+        "active": null,
+        "me": "a",
+        "activeOnline": true,
+        "holdsLock": true,
+        "lockElsewhere": false
+      },
+      "expect": "idle"
+    }
+  ]
+}

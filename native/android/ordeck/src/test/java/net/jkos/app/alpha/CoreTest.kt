@@ -24,6 +24,8 @@ import net.jkos.app.alpha.kouros.MediaRef
 import net.jkos.app.alpha.kouros.Rates
 import net.jkos.app.alpha.kouros.SleepState
 import net.jkos.app.alpha.kouros.SleepTimer
+import net.jkos.app.alpha.kouros.ModeFacts
+import net.jkos.app.alpha.kouros.SessionCore
 import java.util.Base64
 
 import org.json.JSONArray
@@ -105,6 +107,7 @@ class PlayContextTest {
                 "artist" -> PlayContext.artist(c.getString("artist"))
                 "station" -> PlayContext.station(c.getLong("id"))
                 "playlist" -> PlayContext.playlist(c.getLong("id"))
+                "book" -> PlayContext.book(c.getLong("id"))
                 else -> error("unknown kind ${c.getString("kind")}")
             }
             if (got != c.expect()) wrong += "#$i ${c.getString("kind")}: expected ${c.expect()}, got $got"
@@ -415,5 +418,66 @@ class BooksTest {
         assertFalse(c.due(0, 899_000)); assertTrue(c.due(0, 899_750))     // a quarter second early
         assertFalse(SleepTimer.plan(SleepState.CHAPTER, 0, null).on)       // no chapter to end: off
         assertFalse(SleepTimer.plan("90", 0, null).on)                     // not a mode: off
+    }
+}
+
+/** The listening session's pure half, held to the two case files the web and the server pass too. */
+class SessionTest {
+    private fun cases(prop: String) = JSONObject(File(System.getProperty(prop) ?: error("$prop not set")).readText())
+
+    private fun JSONObject.strOrNull(k: String) = if (isNull(k)) null else getString(k)
+
+    /** JSON as plain values, numbers as doubles, so two bodies compare by content, not key order. */
+    private fun canon(v: Any?): Any? = when (v) {
+        is JSONObject -> v.keys().asSequence().associateWith { canon(v.opt(it)) }.toSortedMap()
+        is JSONArray -> (0 until v.length()).map { canon(v.opt(it)) }
+        is Number -> v.toDouble()
+        JSONObject.NULL -> null
+        else -> v
+    }
+
+    @Test fun theRoleIsRouteTsModeOf() {
+        val doc = cases("jkos.sessionModeCases").getJSONArray("cases")
+        val wrong = (0 until doc.length()).mapNotNull { i ->
+            val c = doc.getJSONObject(i)
+            val f = c.getJSONObject("facts")
+            val got = SessionCore.modeOf(
+                ModeFacts(f.getBoolean("available"), f.strOrNull("active"), f.getString("me"), f.getBoolean("activeOnline"), f.getBoolean("holdsLock"), f.getBoolean("lockElsewhere")),
+            ).wire
+            if (got == c.getString("expect")) null else "#$i $f: expected ${c.getString("expect")}, got $got"
+        }
+        assertTrue(wrong.joinToString("\n"), doc.length() >= 8 && wrong.isEmpty())
+    }
+
+    @Test fun everyReportIsTheBodyTheServerAccepts() {
+        val doc = cases("jkos.sessionStateCases")
+        val all = doc.getJSONArray("cases")
+        val wrong = (0 until all.length()).mapNotNull { i ->
+            val c = all.getJSONObject(i)
+            val p = c.getJSONObject("player")
+            val ids = p.getJSONArray("mediaIds")
+            val sl = p.getJSONObject("sleep")
+            val sleep = SleepState(
+                sl.getString("mode"),
+                if (sl.has("deadlineMs")) sl.getLong("deadlineMs") else null,
+                if (sl.has("chapterEndMs")) sl.getLong("chapterEndMs") else null,
+            )
+            val got = SessionCore.reportBody(
+                doc.getString("deviceId"),
+                SessionCore.PlayerState(
+                    (0 until ids.length()).map { ids.getString(it) }, p.getInt("current"), p.getLong("positionMs"), p.getBoolean("playing"),
+                    p.getDouble("rate").toFloat(), p.getString("repeat"), p.strOrNull("context"), p.getDouble("volume").toFloat(),
+                    p.getBoolean("muted"), sleep, p.getLong("nowMs"),
+                ),
+            )
+            if (canon(got) == canon(c.getJSONObject("expect"))) null else "${c.getString("name")}:\n  expected ${c.getJSONObject("expect")}\n  got      $got"
+        }
+        assertTrue(wrong.joinToString("\n"), all.length() >= 6 && wrong.isEmpty())
+    }
+
+    @Test fun aSessionItemMapsBackToItsFirstFile() {
+        val v = SessionCore.collapse(listOf("book:7:0", "book:7:1", "12", "13"), 3)
+        assertEquals(listOf("book:7", "kouros:12", "kouros:13"), v.items)
+        assertEquals(2, v.cursor); assertEquals(0, v.entryOf(0)); assertEquals(2, v.entryOf(1)); assertEquals(-1, v.entryOf(9))
     }
 }

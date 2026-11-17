@@ -183,6 +183,16 @@
       "kind": "playlist",
       "id": -3,
       "expect": null
+    },
+    {
+      "kind": "book",
+      "id": 7,
+      "expect": "book/7"
+    },
+    {
+      "kind": "book",
+      "id": -1,
+      "expect": null
     }
   ]
 }

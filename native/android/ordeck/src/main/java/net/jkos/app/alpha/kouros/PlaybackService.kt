@@ -89,6 +89,7 @@ fun BookDetail.toMediaItems(): List<MediaItem> {
                     .setArtworkUri(if (book.hasCover) Uri.parse(KourosApi.bookCoverUrl(book.id)) else null)
                     .setExtras(Bundle().apply {
                         putLong(EXTRA_DURATION_MS, (f.durationSec * 1000).toLong())
+                        putString(EXTRA_CONTEXT, PlayContext.book(book.id))
                         putLong(EXTRA_BOOK_ID, book.id)
                         putLong(EXTRA_BOOK_OFFSET_MS, layout.startOf(pos))
                         putLong(EXTRA_BOOK_TOTAL_MS, layout.totalMs)

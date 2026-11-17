@@ -71,6 +71,10 @@ androidComponents {
 val shell = ((JsonSlurper().parse(rootProject.file("shells.json")) as Map<String, Any>)["native"] as List<Map<String, Any>>)
     .single { it["module"] == project.name }
 val playContextCases: File = rootProject.file("../play-context-cases.json")
+// The listening session's two case files, which the web's route.ts and the server's validate.js
+// are held to as well (test/native.mjs).
+val sessionModeCases: File = rootProject.file("../session-mode-cases.json")
+val sessionStateCases: File = rootProject.file("../session-state-cases.json")
 
 android {
     namespace = "net.jkos.app.alpha"
@@ -89,6 +93,10 @@ android {
         unitTests.all { test ->
             test.inputs.file(playContextCases)
             test.systemProperty("jkos.playContextCases", playContextCases.absolutePath)
+            test.inputs.file(sessionModeCases)
+            test.systemProperty("jkos.sessionModeCases", sessionModeCases.absolutePath)
+            test.inputs.file(sessionStateCases)
+            test.systemProperty("jkos.sessionStateCases", sessionStateCases.absolutePath)
         }
     }
 }

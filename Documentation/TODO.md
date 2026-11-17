@@ -617,6 +617,12 @@ Each step ends in an APK and a device checklist.
      (`apps/kouros/backend/src/session/validate.js`) get shared case files that the TypeScript
      and the Kotlin both pass.
    - If remotes need presence, §4's "silent remote" ping comes in here, in the next server batch.
+   - **Landed (2026-11-17, not pushed):** the pure half, `SessionCore` (the role, the queue
+     as the session's, with a book's files as one `book:<id>` item, and the report body), and
+     both case files: `native/session-mode-cases.json` (route.ts passes it) and
+     `native/session-state-cases.json` (validate.js accepts every body). **Next:** the
+     transport (device registration, the event stream with reconnect and `reauth`), then the
+     output role (report, heartbeat, apply commands), then the remote role.
 
 ### H · BeigeBoard
 

@@ -564,7 +564,7 @@ const policy = require(resolve(root, 'native/desktop/src/policy.js'));
         const p = parsePlayContext(c.expect); return !p || p.artist !== c.artist || p.album !== c.album; }
       case 'artist': { if (c.expect === null) return c.artist !== '';
         const p = parsePlayContext(c.expect); return !p || p.artist !== c.artist; }
-      case 'station': case 'playlist': { if (c.expect === null) return parsePlayContext(`${c.kind}/${c.id}`) !== null;
+      case 'station': case 'playlist': case 'book': { if (c.expect === null) return parsePlayContext(`${c.kind}/${c.id}`) !== null;
         const p = parsePlayContext(c.expect); return !p || p.kind !== c.kind || p.id !== c.id; }
       default: return true;
     }
@@ -577,6 +577,28 @@ const policy = require(resolve(root, 'native/desktop/src/policy.js'));
       && /rootProject\.file\("\.\.\/play-context-cases\.json"\)/.test(gradle),
     'the Kotlin PlayContext test reads the same play-context-cases.json',
     'CoreTest.kt no longer reads native/play-context-cases.json — the encoder and the server can now drift apart');
+
+  // The listening session: the role decision is the web's route.ts, run here on the shared
+  // vectors (the JVM test runs the Kotlin on the same file); every state body the app would
+  // report is one the server's validate.js accepts.
+  const { transpile } = await import(resolve(root, 'test/lib/unit.mjs'));
+  const routeJs = transpile(read('apps/kouros/src/session/route.ts'), 'route.ts');
+  const { modeOf } = await import(`data:text/javascript;base64,${Buffer.from(routeJs).toString('base64')}`);
+  const modes = JSON.parse(read('native/session-mode-cases.json')).cases;
+  const modeWrong = modes.filter((c) => modeOf(c.facts) !== c.expect);
+  check(modes.length >= 8 && modeWrong.length === 0,
+    `session roles: all ${modes.length} vectors agree with the web's route.ts modeOf`,
+    `session-mode-cases.json disagrees with route.ts:\n    ${modeWrong.map((c) => `${JSON.stringify(c.facts)} → ${modeOf(c.facts)}, expected ${c.expect}`).join('\n    ')}`);
+  const V = require(resolve(root, 'apps/kouros/backend/src/session/validate.js'));
+  const states = JSON.parse(read('native/session-state-cases.json'));
+  const refused = states.cases.map((c) => [c.name, V.stateReport(c.expect)]).filter(([, r]) => !r.ok || V.deviceId(states.deviceId) == null);
+  check(states.cases.length >= 6 && refused.length === 0,
+    `session reports: all ${states.cases.length} bodies the app builds are accepted by validate.js stateReport`,
+    `validate.js refuses a body the app would report:\n    ${refused.map(([n, r]) => `${n}: ${r.error}`).join('\n    ')}`);
+  check(/System\.getProperty\(prop\)/.test(pcTest) && ['sessionModeCases', 'sessionStateCases'].every((k) => pcTest.includes(`cases("jkos.${k}")`)
+      && new RegExp(`systemProperty\\("jkos\\.${k}", ${k}\\.absolutePath\\)`).test(gradle)),
+    'the Kotlin session tests read the same two case files',
+    'CoreTest.kt or the Gradle wiring no longer reads native/session-{mode,state}-cases.json — the app and the server can drift apart');
 }
 
 // ── 8. Native sign-in reaches the right jkAuth, through the edge ─────────────
