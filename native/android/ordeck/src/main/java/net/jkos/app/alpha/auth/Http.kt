@@ -22,13 +22,14 @@ internal class HttpResult(val code: Int, val body: ByteArray) {
  * mistyped base URL fails loudly instead of quietly sending a Bearer token over http.
  */
 internal object Http {
-    fun request(method: String, url: String, headers: Map<String, String> = emptyMap(), json: String? = null): HttpResult {
+    /** [timeoutMs] bounds the read, and the connect too when it is shorter than 15 s. */
+    fun request(method: String, url: String, headers: Map<String, String> = emptyMap(), json: String? = null, timeoutMs: Int = 30_000): HttpResult {
         if (!url.startsWith("https://")) throw IOException("refusing a non-https URL")
         val c = URI(url).toURL().openConnection() as HttpURLConnection
         try {
             c.instanceFollowRedirects = false
-            c.connectTimeout = 15_000
-            c.readTimeout = 30_000
+            c.connectTimeout = minOf(15_000, timeoutMs)
+            c.readTimeout = timeoutMs
             c.requestMethod = method
             c.useCaches = false
             for ((k, v) in headers) c.setRequestProperty(k, v)

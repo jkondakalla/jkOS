@@ -37,7 +37,8 @@
 //      server's grammar on native/play-context-cases.json.
 //   8. A native app signs in where it should and nowhere else: staging jkAuth serves the
 //      staging clients, production none until it is set, and the staging edge gate
-//      hands jkAuth the app's Bearer token.
+//      hands jkAuth the app's Bearer token. Its health probes are routed, and carry the
+//      token exactly where the edge gates them.
 //
 // The generated files (per-variant origins, shells.json) are held by
 // `node native/gen-native.mjs --check`, which runs first in the same check:native script.
@@ -438,26 +439,31 @@ const policy = require(resolve(root, 'native/desktop/src/policy.js'));
     'HTTP never follows a redirect and refuses http:', 'Http.kt follows redirects or accepts non-https URLs');
   // ── The Bearer token goes only to a derived base ──────────────────────────────────────
   // One transport (BearerClient) attaches it, to URLs under the root it was built for and
-  // nowhere else. Two clients build one: AppApi, for `${an app's derived base}/api/`, and
-  // AccountApi, for `${the derived auth origin}/auth/`. The player's data source asks KourOS's
-  // client the same question. A base comes from shell.xml's generated list, so an app outside
-  // native/shells.js's derivation has no base to call.
+  // nowhere else. Three clients build one: AppApi, for `${an app's derived base}/api/`,
+  // AccountApi, for `${the derived auth origin}/auth/`, and the systems card's HealthApi, for
+  // one derived health URL, on a build whose derived healthBearer says the edge gates it (the
+  // edge rule in section 8 holds that flag to both confs). The player's data source asks
+  // KourOS's client the same question. Every base and URL comes from shell.xml's generated
+  // lists, so a host outside native/shells.js's derivation has nothing to call.
   const bearer = kt['BearerClient.kt'] || '';
   const appApi = kt['AppApi.kt'] || '';
   const accountApi = kt['AccountApi.kt'] || '';
+  const healthApi = kt['HealthApi.kt'] || '';
   const svc = kt['PlaybackService.kt'] || '';
   const built = all.flatMap(([f, src]) => [...src.matchAll(/BearerClient\(([^)]*)\) \{ ([^}]*) \}/g)].map((m) => `${f}: ${m[2].trim()}`)).sort();
   check(/fun authorized\(url: String\): Boolean = url\.startsWith\(root\(\)\)/.test(bearer)
-      && /internal suspend fun call\(method: String, target: String, json: String\? = null\): HttpResult = withContext\(Dispatchers\.IO\) \{\s*check\(authorized\(target\)\)/.test(bearer)
+      && /internal suspend fun call\(method: String, target: String, json: String\? = null, timeoutMs: Int = 30_000\): HttpResult = withContext\(Dispatchers\.IO\) \{\s*check\(authorized\(target\)\)/.test(bearer)
       && /val base: String get\(\) = Auth\.config\.apiBases\.getValue\(app\)/.test(appApi)
       && /private val origin: String get\(\) = Auth\.config\.authOrigin/.test(accountApi)
-      && JSON.stringify(built) === JSON.stringify(['AccountApi.kt: "$origin/auth/"', 'AppApi.kt: "$base/api/"'])
-      && [...all.map(([, src]) => [...src.matchAll(/BearerClient\(/g)].length)].reduce((a, b) => a + b, 0) === 3 // the class + two clients
+      && JSON.stringify(built) === JSON.stringify(['AccountApi.kt: "$origin/auth/"', 'AppApi.kt: "$base/api/"', 'HealthApi.kt: probe.url'])
+      && [...all.map(([, src]) => [...src.matchAll(/BearerClient\(/g)].length)].reduce((a, b) => a + b, 0) === 4 // the class + three clients
+      && /check\(probe in Auth\.config\.health\)/.test(healthApi)
+      && /if \(Auth\.config\.healthBearer\) BearerClient\("health"\) \{ probe\.url \}\.call\("GET", probe\.url, timeoutMs = TIMEOUT_MS\)\s*else Http\.request\("GET", probe\.url, mapOf\("Accept" to "application\/json"\), timeoutMs = TIMEOUT_MS\)/.test(healthApi)
       && /fun authorized\(url: String\): Boolean = client\.authorized\(url\)/.test(appApi)
       && /fun authorized\(url: String\): Boolean = api\.authorized\(url\)/.test(kt['KourosApi.kt'] || '')
       && /if \(!KourosApi\.authorized\(spec\.uri\.toString\(\)\)\) return spec/.test(svc),
-    "a Bearer token is attached only to URLs under a derived base — an app's /api/ or jkAuth's /auth/ — by the two clients and the player alike",
-    `BearerClient.authorized changed, a client is built for another root (${JSON.stringify(built)}), or the player data source attaches the token without asking`);
+    "a Bearer token is attached only to URLs under a derived base — an app's /api/, jkAuth's /auth/, or a derived health probe the edge gates — by the three clients and the player alike",
+    `BearerClient.authorized changed, a client is built for another root (${JSON.stringify(built)}), HealthApi probes an underived URL or sends the token without healthBearer, or the player data source attaches the token without asking`);
   const bearerFiles = hits(/"Bearer /).sort();
   check(JSON.stringify(bearerFiles) === JSON.stringify(['BearerClient.kt', 'PlaybackService.kt']),
     'the Authorization header is built in exactly two places (the transport and the player)',
@@ -706,6 +712,48 @@ const policy = require(resolve(root, 'native/desktop/src/policy.js'));
   check(native.length > 0 && bases.length > 0 && unrouted.length === 0,
     `every native app's staging API base is routed (${bases.join(', ')})`,
     native.length ? `a native app's staging API base is not routed: ${unrouted.join(', ') || 'it has none'}` : 'no native shell declared');
+
+  // The systems card's probes: each derived health URL is routed on the portal's server block,
+  // and the token goes with it exactly where that route is gated. On staging every probe passes
+  // the admin gate (auth_request reads the Bearer), so the app must send it or read the gate's
+  // 302 as "down"; in production the routes are open, so a token sent there would be one sent
+  // for nothing. nginx's own choice of location: an exact `location =` first, else the longest
+  // prefix.
+  const conf = { 'weave-proxy.conf': read('infra/nginx/weave-proxy.conf'), 'weave-proxy-staging.conf': read('infra/nginx/weave-proxy-staging.conf') };
+  const standalone = read('infra/nginx/standalone.conf');
+  const locationsOf = (text) => [...text.matchAll(/^\s*location\s+(=\s+)?(\/[^\s{]*)\s*\{/gm)].map((m) => {
+    let depth = 0, i = m.index + m[0].length - 1;
+    for (; i < text.length; i++) { if (text[i] === '{') depth++; else if (text[i] === '}' && --depth === 0) break; }
+    return { exact: !!m[1], path: m[2], body: text.slice(m.index, i + 1) };
+  });
+  const routeFor = (text, path) => {
+    const locs = locationsOf(text);
+    return locs.find((l) => l.exact && l.path === path)
+      ?? locs.filter((l) => !l.exact && path.startsWith(l.path)).sort((a, b) => b.path.length - a.path.length)[0];
+  };
+  const healthProblems = [];
+  let probes = 0;
+  for (const s of native) {
+    for (const env of ['debug', 'release']) {
+      const c = shells.nativeConfig(s, env);
+      const file = env === 'debug' ? 'weave-proxy-staging.conf' : 'weave-proxy.conf';
+      const host = new URL(c.portalUrl).host;
+      const block = (new RegExp(`server_name\\s+${host.replace(/\./g, '\\.')};([\\s\\S]*?)(?=server_name|$)`).exec(standalone) || [])[1] || '';
+      if (!block.includes(`include /etc/nginx/${file};`)) healthProblems.push(`${host}'s server block doesn't include ${file}, where its ${env} probes are routed`);
+      for (const h of c.health) {
+        probes++;
+        const path = new URL(h.url).pathname;
+        if (new URL(h.url).host !== host) healthProblems.push(`${env} ${h.app}: ${h.url} is not on the portal's origin`);
+        const route = routeFor(conf[file], path);
+        if (!route) { healthProblems.push(`${env} ${h.app}: ${path} has no location in ${file}`); continue; }
+        const gated = /\bauth_request\s/.test(route.body);
+        if (gated !== c.healthBearer) healthProblems.push(`${env} ${h.app}: ${path} is ${gated ? '' : 'not '}gated in ${file}, but healthBearer is ${c.healthBearer}`);
+      }
+    }
+  }
+  check(native.length > 0 && probes >= 6 && healthProblems.length === 0,
+    `the systems card's ${probes} health probes are routed on the portal's server block, and carry the token exactly where the edge gates them (staging) and nowhere it doesn't (production)`,
+    `a native health probe is misrouted or carries the token wrongly:\n    ${healthProblems.join('\n    ') || 'no probes derived'}`);
 }
 
 if (failed) {

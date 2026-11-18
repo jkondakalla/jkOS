@@ -141,6 +141,22 @@ ${cfg.apiBases.map((b) => `        <item>${androidString(b.base)}</item>`).join(
          this package can register. apps/jkauth/src/native-clients.json holds the same pair. -->
     <string name="client_id">${androidString(cfg.clientId)}</string>
     <string name="redirect_uri">${androidString(cfg.redirectUri)}</string>
+    <!-- The web portal the home screen mirrors: opened in the browser to arrange the HUD. -->
+    <string name="portal_url">${androidString(cfg.portalUrl)}</string>
+    <!-- The systems card's probes, the web card's own URLs. Parallel: health_apps[i] is read
+         at health_urls[i]. ai_apps are the probes the LazurOS kill switch hides. The token goes
+         with a probe only when health_bearer is true: the staging edge gates these, production's
+         are open (check:native holds both). -->
+    <string-array name="health_apps">
+${cfg.health.map((h) => `        <item>${androidString(h.app)}</item>`).join('\n')}
+    </string-array>
+    <string-array name="health_urls">
+${cfg.health.map((h) => `        <item>${androidString(h.url)}</item>`).join('\n')}
+    </string-array>
+    <string-array name="ai_apps">
+${cfg.health.filter((h) => h.ai).map((h) => `        <item>${androidString(h.app)}</item>`).join('\n')}
+    </string-array>
+    <bool name="health_bearer">${cfg.healthBearer ? 'true' : 'false'}</bool>
 </resources>
 `
 }

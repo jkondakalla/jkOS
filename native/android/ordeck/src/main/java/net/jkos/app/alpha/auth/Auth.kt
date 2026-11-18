@@ -24,6 +24,12 @@ class ShellConfig(
     val environment: String,
     val channel: String,
     val versionName: String,
+    /** The web portal this app's home mirrors, for arranging the HUD in the browser. */
+    val portalUrl: String = "",
+    /** The systems card's probes, the web card's own URLs (native/shells.js → shell.xml). */
+    val health: List<Probe> = emptyList(),
+    /** Whether a probe carries the token: the staging edge gates them, production's are open. */
+    val healthBearer: Boolean = false,
 ) {
     companion object {
         fun load(context: Context): ShellConfig {
@@ -38,10 +44,20 @@ class ShellConfig(
                 environment = context.getString(R.string.environment),
                 channel = context.getString(R.string.channel),
                 versionName = version,
+                portalUrl = context.getString(R.string.portal_url),
+                health = context.resources.getStringArray(R.array.ai_apps).toSet().let { ai ->
+                    context.resources.getStringArray(R.array.health_apps)
+                        .zip(context.resources.getStringArray(R.array.health_urls)) { app, url -> Probe(app, url, app in ai) }
+                },
+                healthBearer = context.resources.getBoolean(R.bool.health_bearer),
             )
         }
     }
 }
+
+/** One health probe of the systems card: [app]'s health, read at [url]. [ai] hides it while the
+ *  person's LazurOS kill switch is off. */
+data class Probe(val app: String, val url: String, val ai: Boolean)
 
 sealed interface AuthState {
     data object SignedOut : AuthState

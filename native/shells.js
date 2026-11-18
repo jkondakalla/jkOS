@@ -30,7 +30,7 @@
 // Zero deps, CJS, no build step, no env, no network — safe to require() anywhere, like
 // suite-manifest itself.
 
-const { APPS } = require('../packages/suite-manifest/apps.js')
+const { APPS, healthPathOf } = require('../packages/suite-manifest/apps.js')
 
 /** Semver of every shell. versionCode (Android) is derived from it; the desktop package's own
  *  version must equal it (check:native asserts it). Bump it for every build you install. */
@@ -180,12 +180,23 @@ const REDIRECT_PATH = ':/oauth2redirect'
  *   authOrigin   the jkAuth that signs it in — `${authOrigin}/auth/native/...`
  *   clientId     its jkAuth client id = its applicationId (one fact, not two)
  *   redirectUri  `<applicationId>:/oauth2redirect`
+ *   portalUrl    the web portal this app's home mirrors (its start app's URL), opened in the
+ *                browser to arrange the HUD. No token goes with it.
+ *   health       the systems card's probes: every suite app with a health path, in the
+ *                manifest's probe order, on the portal's origin — exactly the URLs the web's
+ *                systems card reads (ORDECK's useSystems, same-origin through the edge). `ai`
+ *                marks a probe the LazurOS kill switch hides, as the web's probeApps does.
+ *   healthBearer whether the token goes with a health probe. On staging every probe passes the
+ *                edge's admin gate (`auth_request`, which reads the Bearer); in production the
+ *                /health/<peer> routes are open and nothing reads a token there, so none is
+ *                sent. check:native holds this to both edge confs, probe by probe.
  */
 function nativeConfig(shell, env) {
   if (shell.android !== 'native') throw new Error(`native/shells.js: '${shell.id}' is not a native shell`)
   if (!shell.channel) throw new Error(`native/shells.js: native shell '${shell.id}' has no channel`)
   const cfg = shellConfig(shell, env)
   const staging = env === 'debug'
+  const portal = originOf(cfg.startUrl)
   return {
     applicationId: cfg.applicationId,
     name: cfg.name,
@@ -196,6 +207,9 @@ function nativeConfig(shell, env) {
     authOrigin: staging ? STAGING_ORIGIN : originOf(app('auth').origin),
     clientId: cfg.applicationId,
     redirectUri: cfg.applicationId + REDIRECT_PATH,
+    portalUrl: cfg.startUrl,
+    health: APPS.filter((a) => healthPathOf(a)).map((a) => ({ app: a.id, url: portal + healthPathOf(a), ai: !!a.ai })),
+    healthBearer: staging,
   }
 }
 

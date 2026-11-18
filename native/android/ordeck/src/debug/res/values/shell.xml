@@ -21,4 +21,26 @@
          this package can register. apps/jkauth/src/native-clients.json holds the same pair. -->
     <string name="client_id">net.jkos.app.alpha.staging</string>
     <string name="redirect_uri">net.jkos.app.alpha.staging:/oauth2redirect</string>
+    <!-- The web portal the home screen mirrors: opened in the browser to arrange the HUD. -->
+    <string name="portal_url">https://staging.jkos.net/</string>
+    <!-- The systems card's probes, the web card's own URLs. Parallel: health_apps[i] is read
+         at health_urls[i]. ai_apps are the probes the LazurOS kill switch hides. The token goes
+         with a probe only when health_bearer is true: the staging edge gates these, production's
+         are open (check:native holds both). -->
+    <string-array name="health_apps">
+        <item>auth</item>
+        <item>beigeboard</item>
+        <item>lazuros</item>
+        <item>kouros</item>
+    </string-array>
+    <string-array name="health_urls">
+        <item>https://staging.jkos.net/health/auth</item>
+        <item>https://staging.jkos.net/health/beigeboard</item>
+        <item>https://staging.jkos.net/api/lazuros/health</item>
+        <item>https://staging.jkos.net/health/kouros</item>
+    </string-array>
+    <string-array name="ai_apps">
+        <item>lazuros</item>
+    </string-array>
+    <bool name="health_bearer">true</bool>
 </resources>
