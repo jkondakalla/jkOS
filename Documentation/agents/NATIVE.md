@@ -194,7 +194,9 @@ origin-scoped listeners gets no bridge at all (the page still works).
 >   as the paper or dark face from hub.css's computed values. Password and two-factor stay
 >   jkAuth's own pages, opened in a Custom Tab.
 > - **One transport holds the token** (`BearerClient`): `AppApi` builds one for
->   `${an app's base}/api/`, `AccountApi` one for `${auth_origin}/auth/`, and nothing else may.
+>   `${an app's base}/api/`, `AccountApi` one for `${auth_origin}/auth/`, and `HealthApi` one
+>   per derived health probe, on a staging build only (`health_bearer`: the staging edge gates
+>   the probes; production's are open). Nothing else may.
 > - **KourOS's lists (phase G1):** search, the queue and playlists. A playlist's tracks are
 >   read by id (`/api/tracks?ids=`, in pieces of Weave's `IN_MAX`), never by pulling the
 >   catalog. The queue is Media3's own, so every edit is a player call. Reordering, in the
@@ -227,6 +229,13 @@ origin-scoped listeners gets no bridge at all (the page still works).
 >   a routine is changed as its document, through the import's dry run and then the import.
 >   Every field list and vocabulary the app keeps is held by check:native to its declaration
 >   or to `@jkos/routine-spec`.
+> - **ORDECK, the Home tab (phase I):** the HUD. `HudOrder` reads the person's arrangement
+>   (`preferences.ordeck.hud`) as the web's `loadHudState` + `layoutForBreakpoint` do for the
+>   mobile tier, held to them by `native/hud-order-cases.json`. `Slices.kt` ports the web's
+>   slices (`useHudData.ts`); `HudModel` reads the profile once (order, shelf, AI switch), holds
+>   a `Board` for BeigeBoard's items, and probes each app's health (`HealthApi`, the URLs
+>   `shells.js` derives). It refreshes every minute, the probes every 30 s, only while Home is
+>   up and the app is in front. Tapping an item opens BeigeBoard's `ItemSheet` over the Home.
 > - **A tab exists only for an app in the token's `aud`** (`Tabs.forAud`). The audience is read
 >   from the access token and kept in the sealed session file, so the tabs are right at a cold
 >   start. Each tab has its own back stack; the mini player sits above the bar.

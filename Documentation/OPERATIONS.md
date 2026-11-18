@@ -303,7 +303,7 @@ from sample data (no sign-in, no network, no tab bar):
 
 ```bash
 pnpm android:build -- :ordeck:testDebugUnitTest -Pjkos.screens
-ls native/android/ordeck/build/screens/        # 01-today.png … 16-kouros-mini.png
+ls native/android/ordeck/build/screens/        # 01-today.png … 21-home-item-sheet.png
 ```
 
 **After bumping an Android dependency**, regenerate the checksums and **read the diff**: every new
@@ -488,6 +488,25 @@ exists.
   - Library: search, and filter by collection. Add an entry (pick its unit and load unit, a
     ladder one rung a line). Edit one: only what changed is sent, and its slug can't change.
     Delete one (it asks first). Import… a library export from the web: "N new, M updated".
+
+- **I · ORDECK: the HUD as home.** The Home tab.
+  - Open jkos.net (staging: `staging.jkos.net`) in the phone's browser beside the app: the same
+    cards in the same order, one column. Weather isn't drawn: the foot says so, and counts any
+    other app's card it doesn't draw.
+  - The clock ticks each second. Its date line, UTC and day of the year match the web's.
+  - The top strip's ✎ opens the web HUD in the browser. Move a card there, come back and pull
+    down on the Home: the new order. A card's "BEIGEBOARD ›" opens the BeigeBoard tab.
+  - Today: tick a task (it's done on the web after a refresh) and untick it. Add a task: it's
+    on BeigeBoard's Today. Tap a row: BeigeBoard's sheet opens over the Home.
+  - Focus a task in BeigeBoard, go back to Home: the Focus card shows it, lit, and every other
+    card dims. END FOCUS clears it, here and on the web.
+  - Pin a task in BeigeBoard: it's on the Pinned card. Tap it: its sheet. The Week card lists
+    this week, Monday first, today marked; tap an entry: its sheet.
+  - Systems: a row per app with its time. LazurOS isn't deployed on staging, so it reads down,
+    the top strip says 3 of 4, and Alerts lists LAZUROS DOWN. A task whose time has passed
+    shows as overdue; the one happening now as happening now.
+  - Background the app for a few minutes: staging's access log shows no `/health/` requests
+    from it until it's in front again.
 
 ### Android: jkOS Home on a panel device
 

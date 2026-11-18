@@ -650,15 +650,20 @@ Each step ends in an APK and a device checklist. Everything goes through a capab
 
 ### I · The HUD as home
 
-ORDECK's cards (`apps/ordeck/widgets/`), hand-built, in one column in your saved order
-(`preferences.ordeck.hud`, read through phase E).
+Built 2026-11-18 on `staging`, not pushed, not deployed. The Home tab is your HUD: your cards in
+the order you arranged them for a phone on the web, one column, pull to refresh. Clock, Today,
+Calendar, Week, Focus, Pinned, Systems and Alerts. Tapping an item opens its BeigeBoard sheet
+over the Home.
 
-- Clock, today, calendar, week, focus, pinned, systems and notifications.
-- Arranging stays on the web.
-- **Weather isn't built.** Its AccuWeather key lives in the browser's `localStorage` (§7), and an
-  APK must not carry one.
-- The systems card reads each app's health the way the web card does (`/health/<id>`), which adds
-  those paths to phase D's derived list.
+- The order is held to the web's own `loadHudState` (`native/hud-order-cases.json`).
+- The health probes are derived in `native/shells.js`. The token goes with them on staging only,
+  where the edge gates them (CONTROLS.md CF-3).
+- Arranging stays on the web; the Home's ✎ opens it. **Weather isn't built**: its AccuWeather key
+  lives in the browser's `localStorage` (§7), and an APK must not carry one. Another app's card
+  (KourOS's, LazurOS's) is counted at the foot, not drawn.
+- The web's own phone tier draws the Week card as a time grid squeezed into two columns; the app
+  draws a seven-day agenda instead. Fixing the web's is §6 work.
+- **You:** after the deploy, run OPERATIONS § Native apps' I checks.
 
 ### J · The alpha
 
