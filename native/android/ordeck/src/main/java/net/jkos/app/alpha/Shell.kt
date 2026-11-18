@@ -57,6 +57,7 @@ import net.jkos.app.alpha.kouros.rememberController
 import net.jkos.app.alpha.kouros.rememberNowPlaying
 import net.jkos.app.alpha.ordeck.HomeRoot
 import net.jkos.app.alpha.ordeck.HomeTab
+import net.jkos.app.alpha.ordeck.HudModel
 import net.jkos.app.alpha.look.TButton
 
 // The app's shell: sign-in, then a bottom bar of tabs, one back stack per tab, and the mini
@@ -147,6 +148,11 @@ private fun SignedIn(user: User, aud: Set<String>) {
         if (nav.canPop) nav.pop() else selected = tabs.first()
     }
 
+    // The home's data outlives a visit to another tab, so Home redraws at once and refreshes behind it.
+    val shellScope = rememberCoroutineScope()
+    val reachesBoard = tabs.any { it.app == "beigeboard" }
+    val hud = remember(user.id, reachesBoard) { HudModel(shellScope, reachesBoard) }
+
     // The player belongs to KourOS, and exists only when this person can enter KourOS.
     val kouros = tabs.firstOrNull { it.app == "kouros" }
     val controller = if (kouros != null) rememberController() else null
@@ -155,7 +161,7 @@ private fun SignedIn(user: User, aud: Set<String>) {
     Column(Modifier.fillMaxSize()) {
         Box(Modifier.weight(1f)) {
             when (current) {
-                Tab.Home -> HomeTab(user, tabs.mapNotNull { t -> faceOf(t)?.let { it.label to { selected = t } } }.drop(1))
+                Tab.Home -> HomeTab(user, hud, buildLabel(), openApp = { app -> tabs.firstOrNull { it.app == app }?.let { t -> selected = t; navOf(t).popToRoot() } })
                 Tab.Account -> AccountTab(user, nav.top, nav)
                 is Tab.App -> when (current.app) {
                     "kouros" -> KourosTab(nav.top, nav, controller, now)

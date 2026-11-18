@@ -101,14 +101,25 @@ class Board(private val scope: CoroutineScope) {
         this.shelf = shelf
     }
 
-    fun load() {
+    /** Read the items, and the shelf unless [withShelf] is false (the home reads it with the rest of the profile). */
+    fun load(withShelf: Boolean = true) {
         scope.launch {
             if (state !is Load.Ready) state = Load.Loading
             val r = attempt { BeigeBoardApi.items() }
+            // A failed read keeps the last good board: blanking it on one dropped request says
+            // less than the truth (the web's HUD does the same).
             if (r is Load.Ready || state !is Load.Ready) state = r
-            runCatching { AccountApi.shelf() }.onSuccess { shelf = it }
+            stale = r is Load.Failed
+            if (withShelf) runCatching { AccountApi.shelf() }.onSuccess { shelf = it }
         }
     }
+
+    /** True while the last read failed and the board shows the one before it. */
+    var stale by mutableStateOf(false)
+        private set
+
+    /** A shelf read elsewhere (the home reads it with the HUD's order). */
+    fun adopt(shelf: Shelf) { this.shelf = shelf }
 
     private fun replace(item: Item) { state = Load.Ready(items.map { if (it.id == item.id) item else it }) }
 
@@ -163,6 +174,13 @@ class Board(private val scope: CoroutineScope) {
         val before = shelf
         shelf = shelf.copy(pins = next)
         scope.launch { if (attempt { AccountApi.setPins(next) } is Load.Failed) { shelf = before; note = "Couldn't change the pins." } }
+    }
+
+    /** End the focus, whichever app's it is (the web's END FOCUS). */
+    fun endFocus() {
+        val before = shelf
+        shelf = shelf.copy(focus = null)
+        scope.launch { if (attempt { AccountApi.setFocus(null) } is Load.Failed) { shelf = before; note = "Couldn't end the focus." } }
     }
 
     fun toggleFocus(item: Item) {

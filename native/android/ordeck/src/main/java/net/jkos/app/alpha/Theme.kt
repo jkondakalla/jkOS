@@ -189,6 +189,12 @@ object Glyphs {
         moveTo(3f, 14f); lineTo(10f, 17.5f); lineTo(3f, 21f); close()
         moveTo(12f, 16.5f); lineTo(21f, 16.5f); lineTo(21f, 18.5f); lineTo(12f, 18.5f); close()
     }
+    /** Arrange (the web HUD's edit button): a pencil over a card's corner. */
+    val Arrange = glyph("arrange") {
+        moveTo(3f, 5f); lineTo(11f, 5f); lineTo(11f, 7f); lineTo(5f, 7f); lineTo(5f, 19f); lineTo(17f, 19f); lineTo(17f, 13f); lineTo(19f, 13f)
+        lineTo(19f, 21f); lineTo(3f, 21f); close()
+        moveTo(17.5f, 2.5f); lineTo(21.5f, 6.5f); lineTo(12f, 16f); lineTo(8f, 17f); lineTo(9f, 13f); close()
+    }
     val Account = glyph("account") {
         moveTo(9f, 3f); lineTo(15f, 3f); lineTo(16.5f, 5f); lineTo(16.5f, 9f); lineTo(15f, 11f)
         lineTo(9f, 11f); lineTo(7.5f, 9f); lineTo(7.5f, 5f); close()

@@ -209,6 +209,55 @@ class ScreensTest {
         }
     }
 
+    // ── ORDECK: the home, over the web's own preview sample (apps/ordeck/src/hud/sample.ts) —
+    // the same items, focus, pins and probes, the clock pinned to the instant the web's sheets
+    // draw at — so each card can be laid beside `pnpm widget shot <id>`.
+
+    private val pinned = java.time.ZonedDateTime.of(2026, 9, 28, 9, 41, 27, 0, java.time.ZoneId.of("America/Chicago"))
+    private fun sd(days: Long) = pinned.toLocalDate().plusDays(days).toString()
+    private val hudItems: List<Item> = listOf(
+        item("Standup with the platform team", kind = "event", due = sd(0), time = "09:00", endTime = "09:15", done = true, id = 1),
+        item("Review the access-control matrix", due = sd(0), time = "09:30", endTime = "10:30", id = 2),
+        item("Reconcile the Q3 change log", due = sd(0), time = "11:00", id = 3),
+        item("Lunch", kind = "event", due = sd(0), time = "12:30", endTime = "13:15", id = 4),
+        item("Write up the segregation-of-duties finding", due = sd(0), time = "14:00", endTime = "15:30", id = 5),
+        item("Walk", kind = "habit", due = sd(0), time = "17:30", id = 6),
+        item("Rotate the service-client secrets", due = sd(-2), id = 7),
+        item("Draft the audit scoping memo", due = sd(1), time = "10:00", endTime = "11:00", id = 8),
+        item("Evidence request: user provisioning", due = sd(3), id = 9),
+        item("Quarterly access review", kind = "event", due = sd(7), time = "09:00", endTime = "12:00", id = 10),
+        item("File the expense report", due = sd(-5), done = true, id = 11),
+    )
+    private val hudShelf = Shelf(
+        listOf(HudRef("beigeboard", "3", "Reconcile the Q3 change log"), HudRef("beigeboard", "5", "Write up the segregation-of-duties finding"), HudRef("beigeboard", "8", "Draft the audit scoping memo")),
+        HudRef("beigeboard", "2", "Review the access-control matrix", "/"),
+    )
+    private val hudSystems = net.jkos.app.alpha.ordeck.SystemsState(listOf(
+        net.jkos.app.alpha.ordeck.Systems.row("auth", true, 12, null), net.jkos.app.alpha.ordeck.Systems.row("beigeboard", true, 18, null),
+        net.jkos.app.alpha.ordeck.Systems.row("kouros", true, 24, null), net.jkos.app.alpha.ordeck.Systems.row("lazuros", true, 30, """{"compute_online":false}"""),
+    ))
+    private val user = net.jkos.app.alpha.auth.User(1, "jag@example.test", "Jag", "admin")
+
+    private fun home(name: String, order: List<String>, dark: Boolean = false, focus: Boolean = true) = captureRoboImage(out(name)) {
+        Face(dark) {
+            val scope = rememberCoroutineScope()
+            val model = remember {
+                net.jkos.app.alpha.ordeck.HudModel(scope, reachesBoard = true).also {
+                    it.preload(order, hudItems, if (focus) hudShelf else hudShelf.copy(focus = null), hudSystems)
+                }
+            }
+            net.jkos.app.alpha.ordeck.HomeTab(user, model, "ALPHA · staging · 0.1.0-alpha-staging", {}, now = pinned)
+        }
+    }
+
+    /** A phone arrangement with every card the app draws (and Weather, which it names at the foot). */
+    private val everyCard = listOf("clock", "focus", "today", "pinned", "bb-week", "calendar", "systems", "notifications", "weather")
+
+    @Test fun home() = home("17-home", net.jkos.app.alpha.ordeck.HudOrder.order(null), focus = false)
+    @Test @Config(qualifiers = "w411dp-h3400dp-xxhdpi") fun homeEveryCard() = home("18-home-every-card", everyCard, focus = false)
+    @Test @Config(qualifiers = "w411dp-h3400dp-xxhdpi") fun homeEveryCardDark() = home("19-home-every-card-dark", everyCard, dark = true, focus = false)
+    @Test fun homeFocus() = home("20-home-focus", everyCard)
+
     // ── KourOS: covers are drawn as their empty tiles (no network here), as the web's fixtures are.
 
     private val albums = listOf(
