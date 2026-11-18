@@ -21,6 +21,9 @@
 //   H. the cadence is validated at the door (bad days / out-of-range count → 400)
 //   I. a pinned "today" drives the mint (X-JKOS-TODAY, test-harness only), and a
 //      filtered read never triggers a horizon write
+//   N. one person's routines and library are theirs: another person's reads by id
+//      404, and the upserts by name (a routine's slug, an entry's collection + slug)
+//      write that person's own rows, never the first one's
 //   K. migration 13's variance instrumentation — completed_at is stamped by the
 //      TRIGGER on the 0→1 edge, is not moved by a later edit (the whole reason it
 //      is not updated_at), is cleared on retraction and is not client-writable;
@@ -515,6 +518,61 @@ try {
     'cascade: the stray\'s CHILD goes too — the purge cascades, it does not bare-DELETE (BB-12)');
   ok(rows.some((r) => r.id === strayGoal.json.id),
     'cascade: the goal the stray was dragged into is untouched');
+
+  // ── N. ONE PERSON'S ROUTINES AND LIBRARY ARE THEIRS (TODO §10 K9) ───────────
+  // Invited testers share one server. Every routine and library query is scoped by
+  // user_id in the code; this proves it through the HTTP surface for the reads by id
+  // and for the two writes that UPSERT BY A NAME (a routine by slug, a library entry
+  // by collection + slug), where a missing scope would let one person's import
+  // overwrite another's row with nothing failing.
+  {
+    const B = mkToken({ sub: 502, role: 'user', scope: ['beigeboard:write'] });
+    const asB = { token: B };
+    const doc = (title) => ({ slug: 'n-cross-user', title, days: ['mon', 'thu'], time: '07:00', spec: { steps: [{ ref: 'back-squat', sets: 3, target: 5 }] } });
+
+    const aImp = await req('POST', '/api/routines/import', doc("A's routine"));
+    const rid = aImp.json?.routine?.id;
+    ok(aImp.status === 201 && Number.isInteger(rid), `N: A imports a routine (got ${aImp.status})`);
+    const bRoutines = await req('GET', '/api/routines', undefined, asB);
+    ok(bRoutines.status === 200 && Array.isArray(bRoutines.json) && !bRoutines.json.some((r) => r.id === rid),
+      `N: B's routine list does not hold A's routine (got ${bRoutines.status})`);
+    for (const sub of ['', '/preview', '/metric', '/series?measure=target', '/revisions']) {
+      const r = await req('GET', `/api/routines/${rid}${sub}`, undefined, asB);
+      ok(r.status === 404, `N: B GET /api/routines/:id${sub} of A's routine → 404 (got ${r.status})`);
+    }
+    const aOcc = occurrencesOf(await list(), rid).find((o) => o.due_date);
+    ok(!!aOcc, 'N: A\'s routine minted a session to test against');
+    if (aOcc) {
+      const d = await req('POST', `/api/items/${aOcc.id}/deload`, { deload: true }, asB);
+      ok(d.status === 404, `N: B cannot deload A's session → 404 (got ${d.status})`);
+    }
+    const bImp = await req('POST', '/api/routines/import', doc("B's routine"), asB);
+    ok(bImp.status === 201 && bImp.json?.created === true && bImp.json?.routine?.id !== rid,
+      `N: B importing the same slug makes B's own routine (got ${bImp.status}, created ${bImp.json?.created})`);
+    const aAfter = await req('GET', `/api/routines/${rid}`);
+    ok(aAfter.status === 200 && aAfter.json?.title === "A's routine", `N: A's routine is untouched by B's import (title ${aAfter.json?.title})`);
+
+    const entry = (title) => ({ collection: 'exercise', slug: 'n-cross-user', title, unit: 'reps' });
+    const aEnt = await req('POST', '/api/library', entry("A's entry"));
+    const eid = aEnt.json?.id;
+    ok((aEnt.status === 201 || aEnt.status === 200) && Number.isInteger(eid), `N: A saves a library entry (got ${aEnt.status})`);
+    const bLib = await req('GET', '/api/library', undefined, asB);
+    ok(bLib.status === 200 && Array.isArray(bLib.json) && !bLib.json.some((e) => e.id === eid || e.title === "A's entry"),
+      `N: B's library does not hold A's entry (got ${bLib.status})`);
+    const bPatch = await req('PATCH', `/api/library/${eid}`, { title: 'hijacked' }, asB);
+    ok(bPatch.status === 404, `N: B PATCH of A's entry → 404 (got ${bPatch.status})`);
+    const bDel = await req('DELETE', `/api/library/${eid}`, undefined, asB);
+    ok(bDel.status === 404, `N: B DELETE of A's entry → 404 (got ${bDel.status})`);
+    const bSave = await req('POST', '/api/library', entry("B's entry"), asB);
+    ok(bSave.status === 201 && bSave.json?.id !== eid, `N: B saving the same collection + slug makes B's own entry (got ${bSave.status}, id ${bSave.json?.id})`);
+    const bBulk = await req('POST', '/api/library/import', { entries: [entry("B's import")] }, asB);
+    ok(bBulk.status === 200, `N: B imports the same collection + slug (got ${bBulk.status})`);
+    const bExport = await req('GET', '/api/library/export', undefined, asB);
+    ok(bExport.status === 200 && !(bExport.json?.entries || []).some((e) => e.title === "A's entry"),
+      `N: B's export does not carry A's entry (got ${bExport.status})`);
+    const aEntry = ((await req('GET', '/api/library')).json || []).find((e) => e.id === eid);
+    ok(aEntry?.title === "A's entry", `N: A's entry survived B's patch, delete, save and import (title ${aEntry?.title})`);
+  }
 } catch (e) {
   crashed(e);
 } finally {

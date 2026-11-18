@@ -741,7 +741,11 @@ function materializeOne(routineId, userId, today) {
  */
 const setDeloadOverride = db.transaction((occId, userId, today, value) => {
   const row = get('SELECT * FROM items WHERE id = ? AND user_id = ?', [occId, userId]);
-  if (!row || !String(row.ext_ref || '').startsWith('routine:')) return { ok: false, error: 'not a routine occurrence' };
+  /* No row for THIS caller is a 404, the suite's answer for "not yours" — the same for
+     a row that doesn't exist and one that belongs to someone else, so it tells nobody
+     which. A row of yours that isn't a session is the 400 below. */
+  if (!row) return { ok: false, notFound: true, error: 'not found' };
+  if (!String(row.ext_ref || '').startsWith('routine:')) return { ok: false, error: 'not a routine occurrence' };
   if (row.completed) return { ok: false, error: 'that session is already done' };
   const when = row.due_date || row.week_start || '';
   if (when && when < today) return { ok: false, error: 'the past is a record — it cannot be deloaded' };

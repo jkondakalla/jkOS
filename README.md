@@ -12,7 +12,7 @@ separate staging and production environments.
 | jkDeploy | Deploy console |
 
 Built by [Jag Kondakalla](https://jaaggruthkondakalla.com) as a portfolio project for IT audit roles.
-Each security control is enforced in code and covered by a test. All 25 controls are listed in
+Each security control is enforced in code and covered by a test. All 26 controls are listed in
 [CONTROLS.md](Documentation/CONTROLS.md), with the code and test for each.
 
 ## 1. Single sign-on and sessions
@@ -127,7 +127,7 @@ The model is pretrained. This project is the pipeline, the math and the checks a
 
 ## 5. Controls matrix
 
-[CONTROLS.md](Documentation/CONTROLS.md) lists 25 controls. Each row has the risk, the code that
+[CONTROLS.md](Documentation/CONTROLS.md) lists 26 controls. Each row has the risk, the code that
 enforces it, the test that proves it and the audit event it leaves. The file ends with a list of
 known gaps.
 

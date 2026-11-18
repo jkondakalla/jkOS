@@ -554,6 +554,7 @@ router.post('/api/items/:id/deload', (req, res) => {
     const value = req.body?.clear === true ? null
       : (asked === false || asked === 0 ? 0 : 1);
     const r = setDeloadOverride(id, req.user.sub, callerDay(req), value);
+    if (!r.ok && r.notFound) return res.status(404).json({ error: 'Not found' });
     if (!r.ok) return res.status(400).json({ error: r.error, code: 'VALIDATION' });
     res.json(toRow(r.row));
   } catch (e) { fail(res, e); }
