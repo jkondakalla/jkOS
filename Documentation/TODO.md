@@ -562,7 +562,7 @@ Superseded 2026-11-17, when `staging` was pushed with D–H. The next staging de
 Alpha's jkAuth client, so the old APK can't sign in after it. jkOS Alpha's KourOS tab is that
 app plus G.
 
-1. **You:** after the deploy, install `~/Android/jkos-apks/jkos-alpha-0.1.0-staging-h4.apk` and
+1. **You:** after the deploy, install `~/Android/jkos-apks/jkos-alpha-0.1.0-staging-i1.apk` and
    run OPERATIONS § Native apps. Start with the old KourOS Alpha checks, which hold for its KourOS
    tab: sign-in, screen-off playback, lock-screen controls with covers, headphones out, Start
    radio, listens in recently played, and sign-out shown as revoked on `/auth/security`. The app
@@ -593,7 +593,7 @@ out. Password and two-factor open jkAuth's own page in a Custom Tab.
 
 ### G · KourOS
 
-One APK carries all of D–H: `~/Android/jkos-apks/jkos-alpha-0.1.0-staging-h4.apk` (or build it:
+One APK carries all of D–I: `~/Android/jkos-apks/jkos-alpha-0.1.0-staging-i1.apk` (or build it:
 `pnpm android:build -- :ordeck:assembleDebug`). Each step below has its device checklist.
 
 1. **Search, queue and playlists.** Built and pushed 2026-11-17, not deployed.
