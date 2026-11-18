@@ -34,7 +34,7 @@ const { APPS, healthPathOf } = require('../packages/suite-manifest/apps.js')
 
 /** Semver of every shell. versionCode (Android) is derived from it; the desktop package's own
  *  version must equal it (check:native asserts it). Bump it for every build you install. */
-const VERSION = '0.1.0'
+const VERSION = '0.2.0'
 
 /** A debug build is a staging build: it points at staging.jkos.net and installs BESIDE the
  *  release app instead of over it. */
