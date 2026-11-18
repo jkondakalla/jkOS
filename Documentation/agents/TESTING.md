@@ -40,6 +40,7 @@ bash jkos-deploy/scripts/selftest.sh           # deploy-pipeline dry-run (read-o
 cd music && ./.venv/bin/python -m unittest discover   # music/ — NOT on the node gate
 pnpm android:build -- :home:testDebugUnitTest      # jkOS Home's OriginPolicy vs origin-cases.json — needs the JDK, NOT on the node gate
 pnpm android:build -- :ordeck:testDebugUnitTest    # jkOS Alpha's pure core (PKCE, ledger, JSON, play contexts, the aud claim and the tabs, the account shapes) — same: JDK, not on the gate
+pnpm android:build -- :ordeck:testDebugUnitTest                   # JVM tests, incl. TokensTest: both faces' colours = hub.css as Chromium computes it
 pnpm android:build -- :ordeck:testDebugUnitTest -Pjkos.screens   # renders of the app's screens (ScreensTest: Roborazzi on Robolectric, sample data, no network) → native/android/ordeck/build/screens/*.png — LOOK at them; not a gate
 ```
 

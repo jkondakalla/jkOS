@@ -320,6 +320,42 @@ current track: it keeps playing and the station becomes the rest of the queue) �
 own stack plus `BackHandler`, with no navigation library. Icons are hand-drawn `ImageVector`s,
 and covers are `HttpURLConnection` + `BitmapFactory` + an `LruCache`, with no image library.
 
+### The look: the web's, not Material's
+
+The app draws in the suite's own visual language, so it reads as jkOS rather than as a stock
+Android app. **Compare against the desktop web, not BeigeBoard's `src/mobile/` tree**, which is
+stale. Everything lives in `ordeck/…/look/`:
+
+- **`Tokens.kt`** holds both faces' colours, derived the way `hub.css` derives them: the literal
+  grounds, inks and lines, and the accent chain computed from the person's own pair
+  (`preferences.theme.primary` / `.secondary`) with CSS `color-mix` arithmetic. Paper deepens
+  the pair, and the tube shows it raw and makes it glow. It is pure Kotlin.
+  **`TokensTest`** holds every token, on both faces, to what Chromium computes from `hub.css`
+  (`packages/design/tokens/computed-baseline.json`, written by `test/token-identity.mjs`).
+  Change `hub.css`, regenerate the baseline, and the native test fails until the app follows.
+- **`Type.kt`** sets up the four typefaces: Fraunces (two optical cuts, text and display), IBM
+  Plex Sans, IBM Plex Mono, and Big Shoulders Display for the tube's readouts. They are bundled
+  in `res/font` and pinned in `native/android/fonts.json` (upstream commit + sha256, OFL licence
+  in `assets/licenses/`). `check:native` § 5 holds every font file to that list. Material's type
+  roles are filled from them, so a stock dialog still prints like the suite.
+- **`Atmosphere.kt`** paints the ground (`Ground`). Film grain is multiplied into paper and
+  screened onto the tube. With halation on there is the rake on paper and the buzz on the tube,
+  plus the scan-line veil when the person turns it on. `LocalStill` holds the rake still for
+  the renders.
+- **`Kit.kt`** holds the primitives, named after `@jkos/ui`'s: `Sheet`, `Chip` (tinted, solid,
+  done), `Well`, `Check`, `Bar`, `VU`, `Eyebrow`, `Lab`, `PressTitle` / `Wordmark`, `Seg`,
+  `Folio`, `TButton`, `Field`, `Pill`, `Lamp`, `MastTab`, `JkSlider` (the fader) and `Knob` (the
+  transport button). Each follows its hub.css recipe: paper presses and debosses, the tube
+  glows. **A screen builds from these, never from Material's defaults.** Material components
+  that remain (dialogs, menus, switches) take their colours and shapes from the theme.
+- **`Look`** (`auth/AccountModels.kt`) is the person's mode, accent pair and effects, read from
+  `/auth/profile` as auth-client reads them. A stored colour is drawn, so anything but a hex is
+  refused. The last look seen is kept in the sealed prefs file, so the app opens in it.
+
+Render after any visual change, in both faces, and put the renders beside the web's. For the
+web side, use `pnpm widget shot --routes <app>` for the widget pages. For the rest, use a
+scratchpad mock backend, `vite build` and headless Chromium with `--force-prefers-reduced-motion`.
+
 ### What hasn't been seen yet
 
 **It has never run on a device.** Gradle first built it on 2026-11-16, against the real Media3
@@ -393,7 +429,9 @@ or give the dev binary a profile as root. Don't add `--no-sandbox`.
 | `pnpm check:native` | `native/gen-native.mjs --check` + `test/native.mjs` | generated files in sync (and no stale variant dirs, and jkAuth's `native-clients.json`); desktop policy vs origin-cases; webPreferences, permissions, external schemes; main.js applies the policy; fuses; .deb-only; manifests least-privilege; no `addJavascriptInterface`/`proceed()`/file access/mixed content; signing from env; wrapper, dependencies, toolchain and image pinned; staging URLs routed; **KourOS Alpha (§ 7 of the test):** exactly four permissions, Media3's `ACCESS_NETWORK_STATE` removed, the build's merged-manifest allow-list equal to the four, exactly three exported components, the redirect filter's scheme = `${applicationId}`, no WebView, tokens written only Keystore-sealed into `noBackupFilesDir`, every refresh under the Mutex, store-before-use, the state check, no redirect following, Bearer only to `api_base`, play-context vectors vs the server's parser; **native sign-in (§ 8):** staging jkAuth alone sets `JKOS_NATIVE_ENV`, the edge gate forwards `Authorization`, every native app's staging API base is routed |
 | `apps/jkauth/test/native.mjs` | `npm test` in jkAuth (gate step 2) | the native sign-in, over real HTTP: dead-end refusals, the login round trip, consent bound to person and request, the scheme in `form-action`, codes single-use / verifier-bound / short-lived / replay-burns, refresh rotation + 409 race + reuse burn, the transport binding both ways (and its triggers), an S256-shaped challenge held by a CHECK, a role the app doesn't admit refused before consent, the Bearer gate, revoke, the audit trail, off when `JKOS_NATIVE_ENV` is unset and no boot on an unknown value |
 | Gradle unit test | `:ordeck:testDebugUnitTest` | PKCE (RFC 7636 vector), redirect parsing, `ListenLedger`, JSON shapes, `PlayContext` vs play-context-cases |
-| Screen renders | `:ordeck:testDebugUnitTest -Pjkos.screens` | `ScreensTest`: the real Compose screens drawn on Robolectric (Roborazzi) from sample data, as PNGs to look at. Test-only dependencies (none reaches an APK); Robolectric's Android runtime is resolved and checksum-pinned by Gradle and loaded offline (`robolectric.offline`), never fetched by Robolectric itself. Out of the normal test run unless asked for. Their first run found two app-wide theme bugs (TRAPS.md § Native shells). |
+| Token parity | `:ordeck:testDebugUnitTest` (`TokensTest`) | every colour token on both faces equals what Chromium computes from hub.css (`computed-baseline.json`); seen to fail on a changed mix before it was trusted |
+| Font pinning | `pnpm check:native` § 5 | every file under a module's `res/font` is in `fonts.json`, matches its sha256, comes from a pinned google/fonts commit, and ships its OFL licence; seen to fail on an unlisted file and on a changed hash |
+| Screen renders | `:ordeck:testDebugUnitTest -Pjkos.screens` | `ScreensTest`: the real Compose screens drawn on Robolectric (Roborazzi) from sample data, as PNGs to look at: BeigeBoard's, and KourOS's library, Now Playing and mini player. Test-only dependencies (none reaches an APK); Robolectric's Android runtime is resolved and checksum-pinned by Gradle and loaded offline (`robolectric.offline`), never fetched by Robolectric itself. Out of the normal test run unless asked for. Their first run found two app-wide theme bugs (TRAPS.md § Native shells). |
 | `pnpm check:nginx` | `infra/nginx/gen-nginx-weave.mjs --check` | every origin a TWA trusts serves `/.well-known/assetlinks.json` |
 | `pnpm check:audit` | `test/supply-chain.mjs` | **every tracked** `pnpm-lock.yaml`, so the desktop's too, at the `high` floor |
 | Gradle unit test | `:home:testDebugUnitTest` | `OriginPolicy` vs origin-cases (not on the node gate: it needs the JDK) |

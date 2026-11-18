@@ -959,6 +959,16 @@ Every trap here was hit building `native/` on 2026-09-24; see [NATIVE.md](NATIVE
   `JkosTheme` now provides the ground's ink. Likewise a `LinearProgressIndicator`'s track is
   `secondaryContainer`, which neither face set, so it drew Material's lavender.
 
+- **An endless animation or ticking loop makes a screen render take minutes.** Roborazzi waits
+  for Compose to go idle, and Robolectric's test clock keeps advancing an
+  `rememberInfiniteTransition` (the paper rake) or a `while (true) { delay(…) }` (the masthead
+  clock) without ever settling. Each render then took about 4½ minutes instead of a second, and
+  nothing failed. Anything that loops reads `LocalStill`, which `ScreensTest` provides as true.
+
+- **BeigeBoard's `src/mobile/` tree is not the web's current look.** It predates Full Press: an
+  italic greeting, a bottom tab bar and a "+ Add task" slab. The desktop layout is the reference
+  for the native app's visual parity, so render the web at desktop width to compare.
+
 - **Robolectric can't load from a path with a space.** It percent-encodes the path it loads its
   Android runtime from, so `The Forge` becomes `The%20Forge`, a directory that doesn't exist,
   and every render fails with `NoSuchFileException`. `:ordeck:robolectricJars` copies the

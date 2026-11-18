@@ -84,8 +84,8 @@ object Auth {
     @Volatile var familyId: String? = null
         private set
 
-    /** The suite's theme mode for this person; the last one seen is kept across restarts. */
-    val themeMode = MutableStateFlow(ThemeMode.System)
+    /** How the suite looks for this person (mode, accent pair, effects); the last seen is kept. */
+    val look = MutableStateFlow(Look())
 
     private val mutex = Mutex()
     private var access: String? = null
@@ -100,7 +100,8 @@ object Auth {
         store = SessionStore(context)
         val session = store.readSession()
         familyId = session?.familyId
-        themeMode.value = ThemeMode.of(store.readThemeMode())
+        // The look as last seen; a device from before the look was kept has only its mode.
+        look.value = store.readLook()?.let { Look.fromJson(it) } ?: Look(mode = ThemeMode.of(store.readThemeMode()))
         _state.value = session?.let { AuthState.SignedIn(it.user, it.aud) } ?: AuthState.SignedOut
     }
 
@@ -186,11 +187,14 @@ object Auth {
         }
     }
 
-    /** The theme mode this person chose, here or on another device. */
-    fun themeModeSeen(mode: ThemeMode) {
-        themeMode.value = mode
-        store.writeThemeMode(mode.wire)
+    /** The look this person chose, here or on another device. */
+    fun lookSeen(seen: Look) {
+        look.value = seen
+        store.writeLook(seen.toJson())
     }
+
+    /** The theme mode, changed here: the rest of the look stays. */
+    fun themeModeSeen(mode: ThemeMode) = lookSeen(look.value.copy(mode = mode))
 
     /** A device preference an app keeps (SessionStore's prefs file: sealed, no backup). */
     fun pref(key: String): String? = store.readPref(key)

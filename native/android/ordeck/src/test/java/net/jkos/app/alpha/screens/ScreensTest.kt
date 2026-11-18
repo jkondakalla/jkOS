@@ -16,10 +16,14 @@ import com.github.takahirom.roborazzi.captureRoboImage
 import com.github.takahirom.roborazzi.captureScreenRoboImage
 import com.github.takahirom.roborazzi.registerRoborazziActivityToRobolectricIfNeeded
 import net.jkos.app.alpha.JkosTheme
+import androidx.compose.runtime.CompositionLocalProvider
+import net.jkos.app.alpha.look.Ground
+import net.jkos.app.alpha.look.LocalStill
 import net.jkos.app.alpha.Nav
 import net.jkos.app.alpha.Screen
 import net.jkos.app.alpha.auth.HudRef
 import net.jkos.app.alpha.auth.Shelf
+import net.jkos.app.alpha.auth.Look
 import net.jkos.app.alpha.auth.ThemeMode
 import net.jkos.app.alpha.beigeboard.*
 import org.json.JSONObject
@@ -91,8 +95,8 @@ class ScreensTest {
 
     @Composable
     private fun Face(dark: Boolean = false, content: @Composable () -> Unit) {
-        JkosTheme(if (dark) ThemeMode.Dark else ThemeMode.Light) {
-            Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) { content() }
+        JkosTheme(Look(mode = if (dark) ThemeMode.Dark else ThemeMode.Light)) {
+            CompositionLocalProvider(LocalStill provides true) { Ground(Modifier.fillMaxSize()) { content() } }
         }
     }
 

@@ -26,7 +26,8 @@
 //      addWebMessageListener), no SSL proceed(), no file access, no mixed content, debugging
 //      only on debug builds.
 //   5. Supply chain + signing: release signing only from the environment, no key tracked,
-//      Gradle's wrapper and every dependency pinned by checksum, the build image by digest.
+//      Gradle's wrapper and every dependency pinned by checksum, the build image by digest,
+//      and every bundled font file by upstream commit and sha256, with its licence.
 //   6. Every staging URL a debug build opens is actually routed by the staging server.
 //   7. The NATIVE app (jkOS Alpha, native/android/ordeck): exactly four permissions; only the
 //      launcher, the sign-in redirect and the media service exported; the redirect filter's
@@ -45,6 +46,7 @@
 //                                    `pnpm test:contracts`)
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve, join } from 'node:path';
 import { createRequire } from 'node:module';
@@ -292,6 +294,26 @@ const policy = require(resolve(root, 'native/desktop/src/policy.js'));
     'toolchain.json has an unpinned or non-https download');
   check(/^FROM [^\s]+@sha256:[0-9a-f]{64}\s*$/m.test(read('native/android/Dockerfile')),
     'the Android build image is pinned by digest', 'native/android/Dockerfile FROM is not pinned by @sha256 digest');
+
+  // The bundled typefaces: every file under a module's res/font is in fonts.json, pinned to one
+  // upstream commit and by sha256, and ships with its OFL licence.
+  const fonts = JSON.parse(read('native/android/fonts.json')).fonts;
+  const listed = new Set(fonts.map((f) => f.file));
+  const onDisk = readdirSync(resolve(root, 'native/android'), { withFileTypes: true })
+    .filter((d) => d.isDirectory() && existsSync(resolve(root, 'native/android', d.name, 'src/main/res/font')))
+    .flatMap((d) => readdirSync(resolve(root, 'native/android', d.name, 'src/main/res/font')).map((f) => `${d.name}/src/main/res/font/${f}`));
+  const badFont = fonts.filter((f) => {
+    const p = resolve(root, 'native/android', f.file);
+    const lic = resolve(root, 'native/android', f.license);
+    return !existsSync(p)
+      || createHash('sha256').update(readFileSync(p)).digest('hex') !== f.sha256
+      || !/^https:\/\/raw\.githubusercontent\.com\/google\/fonts\/[0-9a-f]{40}\//.test(f.url)
+      || !existsSync(lic) || !/SIL OPEN FONT LICENSE Version 1\.1/i.test(readFileSync(lic, 'utf8'));
+  }).map((f) => f.file);
+  const unlisted = onDisk.filter((f) => !listed.has(f));
+  check(fonts.length > 0 && !badFont.length && !unlisted.length,
+    `the ${fonts.length} bundled font files are pinned (commit + sha256) and ship their OFL licence`,
+    `fonts.json: ${[...badFont.map((f) => `${f} (hash, url or licence)`), ...unlisted.map((f) => `${f} (not listed)`)].join(', ')}`);
 }
 
 // ── 6. Every staging URL a debug build opens is routed ───────────────────────

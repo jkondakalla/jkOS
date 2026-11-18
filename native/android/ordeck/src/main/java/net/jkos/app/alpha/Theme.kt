@@ -1,85 +1,84 @@
 package net.jkos.app.alpha
 
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ColorScheme
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.LocalTextStyle
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.PathBuilder
 import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.unit.dp
-import net.jkos.app.alpha.auth.ThemeMode
+import net.jkos.app.alpha.auth.Look
+import net.jkos.app.alpha.look.JkFace
+import net.jkos.app.alpha.look.JkRadius
+import net.jkos.app.alpha.look.JkTypography
+import net.jkos.app.alpha.look.LocalJkFace
+import net.jkos.app.alpha.look.Tokens
+import net.jkos.app.alpha.look.mix
 
-// The suite's two faces, from packages/design/tokens/hub.css as a browser computes them
-// (packages/design/tokens/computed-baseline.json): paper and dark. Which one is drawn is the
-// person's own `preferences.theme.mode`, the same setting every web app follows.
-private class Face(
-    val ground: Color, val surface: Color, val surfaceHigh: Color, val line: Color,
-    val ink: Color, val inkDim: Color, val accent: Color, val onAccent: Color,
-    val danger: Color, val ok: Color,
-)
+// The suite's look on the phone: the face (paper or the tube) in the person's own accent pair,
+// the four typefaces, and Material's roles filled from both, so a stock component still prints
+// like the web. The tokens are look/Tokens.kt (held to hub.css by TokensTest); the primitives a
+// screen draws with are look/Kit.kt.
 
-private val DarkFace = Face(
-    ground = Color(0xFF11100D),       // --hub-ground-0
-    surface = Color(0xFF1A1814),      // --hub-ground-1
-    surfaceHigh = Color(0xFF2C2820),  // --hub-ground-3
-    line = Color(0xFF3A3528),         // --hub-line
-    ink = Color(0xFFEFE6C9),          // --hub-ink
-    inkDim = Color(0xFFD6CBA8),       // --hub-ink-muted
-    accent = Color(0xFFFFB000),       // --hub-accent
-    onAccent = Color(0xFF1C1408),
-    danger = Color(0xFFFF4530),       // --hub-danger
-    ok = Color(0xFF5CD66A),           // --hub-ok
-)
-
-private val PaperFace = Face(
-    ground = Color(0xFFEDE2C8),
-    surface = Color(0xFFE4D5B0),
-    surfaceHigh = Color(0xFFEAD9BB),
-    line = Color(0xFFC8AE88),
-    ink = Color(0xFF1C1408),
-    inkDim = Color(0xFF6B5038),
-    accent = Color(0xFFB27B05),       // the amber deepened for paper (color-mix 64% with #2a1c0e)
-    onAccent = Color(0xFFF7F1E3),     // --hub-ground-4
-    danger = Color(0xFFB42010),
-    ok = Color(0xFF2A7040),
-)
-
-/** KourOS's own colour (its web manifest's theme_color), for its surfaces. */
-val KourosViolet = Color(0xFF4B3F8F)
-
-private fun schemeOf(f: Face, dark: Boolean): ColorScheme {
-    val base = if (dark) darkColorScheme() else lightColorScheme()
+private fun schemeOf(f: JkFace): ColorScheme {
+    val base = if (f.dark) darkColorScheme() else lightColorScheme()
     return base.copy(
-        primary = f.accent, onPrimary = f.onAccent,
-        primaryContainer = KourosViolet, onPrimaryContainer = Color(0xFFEFE6C9),
-        secondary = f.accent, onSecondary = f.onAccent,
-        // A progress bar's track (Material's default is lavender, which neither face has).
+        primary = f.accent, onPrimary = f.accentContrast,
+        primaryContainer = f.accent.mix(14.0, f.card), onPrimaryContainer = f.accent,
+        secondary = f.secondary, onSecondary = f.accentContrast,
+        // A progress bar's track and a selected chip (Material's default is lavender).
         secondaryContainer = f.line, onSecondaryContainer = f.ink,
-        tertiary = f.ok, onTertiary = f.ground,
-        background = f.ground, onBackground = f.ink,
-        surface = f.surface, onSurface = f.ink,
-        surfaceVariant = f.surfaceHigh, onSurfaceVariant = f.inkDim,
+        tertiary = f.ok, onTertiary = f.paper,
+        background = f.paper, onBackground = f.ink,
+        surface = f.card, onSurface = f.ink,
+        surfaceVariant = f.card2, onSurfaceVariant = f.muted,
+        // Dialogs, sheets and menus are card stock (a menu is the lit stock on paper).
+        surfaceContainerLowest = f.paper, surfaceContainerLow = f.paper2, surfaceContainer = f.card,
+        surfaceContainerHigh = f.card, surfaceContainerHighest = f.card2, surfaceBright = f.lit, surfaceDim = f.paper2,
+        inverseSurface = f.ink, inverseOnSurface = f.paper,
         outline = f.line, outlineVariant = f.line,
-        error = f.danger, onError = f.ground,
+        error = f.danger, onError = f.paper,
+        scrim = f.scrim,
     )
 }
 
+private val JkShapes = Shapes(
+    extraSmall = RoundedCornerShape(JkRadius.xs),
+    small = RoundedCornerShape(JkRadius.sm),
+    medium = RoundedCornerShape(JkRadius.base),
+    large = RoundedCornerShape(JkRadius.lg),
+    extraLarge = RoundedCornerShape(JkRadius.lg),
+)
+
 @Composable
-fun JkosTheme(mode: ThemeMode, content: @Composable () -> Unit) {
-    val dark = mode.isDark(isSystemInDarkTheme())
-    val scheme = schemeOf(if (dark) DarkFace else PaperFace, dark)
-    // ⚠️ The app paints its ground with a Box, not a Surface, so nothing set the content colour
-    // and any Text without its own colour was BLACK: invisible on the dark face. Seen in the
-    // screenshot renders (2026-11-17). The ground's ink is the default now.
-    MaterialTheme(colorScheme = scheme) {
-        CompositionLocalProvider(LocalContentColor provides scheme.onBackground, content = content)
+fun JkosTheme(look: Look, content: @Composable () -> Unit) {
+    val dark = look.mode.isDark(isSystemInDarkTheme())
+    val face = remember(look, dark) {
+        JkFace(Tokens.palette(dark, look.primary, look.secondary), look.halation, look.scanLines, look.scanStrength)
+    }
+    val scheme = remember(face) { schemeOf(face) }
+    // ⚠️ The app paints its ground itself (look/Atmosphere.kt), not with a Surface, so nothing
+    // set the content colour and any Text without its own colour was BLACK: invisible on the
+    // dark face (seen in the first renders, 2026-11-17). The ground's ink is the default now,
+    // in the prose voice.
+    MaterialTheme(colorScheme = scheme, typography = JkTypography, shapes = JkShapes) {
+        CompositionLocalProvider(
+            LocalJkFace provides face,
+            LocalContentColor provides face.ink,
+            LocalTextStyle provides JkTypography.bodyMedium,
+            content = content,
+        )
     }
 }
 

@@ -2,6 +2,7 @@ package net.jkos.app.alpha
 
 import net.jkos.app.alpha.auth.AccountModels
 import net.jkos.app.alpha.auth.AuthModels
+import net.jkos.app.alpha.auth.Look
 import net.jkos.app.alpha.auth.ThemeMode
 import net.jkos.app.alpha.auth.Claims
 import net.jkos.app.alpha.auth.Pkce
@@ -290,6 +291,26 @@ class AccountTest {
         assertEquals("Ann", p.user.name)
         assertEquals(ThemeMode.Dark, p.themeMode)
         assertEquals(7, p.prefsVersion)
+    }
+
+    @Test fun theLookIsTheThemeAndTheEffects() {
+        val p = AccountModels.profile("""{"user":{"id":3,"email":"a@b.c","name":"Ann","role":"user"},"preferences":{"theme":{"mode":"light","primary":"#5CD66A","secondary":"#c08aff"},"effects":{"halation":false,"scanLines":true,"scanStrength":0.6}}}""")
+        assertEquals(Look(ThemeMode.Light, "#5cd66a", "#c08aff", halation = false, scanLines = true, scanStrength = 0.6), p.look)
+        // Kept across restarts as written, and read back the same.
+        assertEquals(p.look, Look.fromJson(p.look.toJson()))
+        assertEquals(Look(), Look.fromJson(null)); assertEquals(Look(), Look.fromJson("not json"))
+    }
+
+    @Test fun aLookFallsBackToTheSuitesDefaults() {
+        // Nothing stored: the house pair, halation on, scan lines off (auth-client's defaults).
+        val bare = AccountModels.profile("""{"user":{"id":3,"email":"a@b.c","name":null,"role":"user"},"preferences":{}}""").look
+        assertEquals(Look(), bare); assertEquals("#ffb000", bare.primary); assertTrue(bare.halation); assertFalse(bare.scanLines)
+        // The legacy nested theme kept its pair under `dark`.
+        val legacy = AccountModels.profile("""{"user":{"id":3,"email":"a@b.c","name":null,"role":"user"},"preferences":{"theme":{"mode":"dark","dark":{"primary":"#a8d8ff","secondary":"#ff6b5a"}}}}""").look
+        assertEquals("#a8d8ff", legacy.primary); assertEquals("#ff6b5a", legacy.secondary)
+        // A stored colour is drawn, so anything but a hex is refused.
+        val odd = AccountModels.profile("""{"user":{"id":3,"email":"a@b.c","name":null,"role":"user"},"preferences":{"theme":{"primary":"red; background:url(x)","secondary":"#12"},"effects":{"scanStrength":9}}}""").look
+        assertEquals("#ffb000", odd.primary); assertEquals("#4ecdc4", odd.secondary); assertEquals(1.0, odd.scanStrength, 0.0)
     }
 
     @Test fun aMissingOrUnknownModeIsSystem() {

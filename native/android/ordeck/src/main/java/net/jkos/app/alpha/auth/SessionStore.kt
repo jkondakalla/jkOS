@@ -160,9 +160,13 @@ internal class SessionStore(context: Context) {
 
     fun writePref(key: String, value: String) = write(PREFS, (read(PREFS) ?: JSONObject()).put(key, value))
 
-    fun readThemeMode(): String? = readPref("theme_mode")
+    /** The person's look as last seen (Look.toJson), so the app opens in it before the network. */
+    fun readLook(): String? = readPref("look")
 
-    fun writeThemeMode(mode: String) = writePref("theme_mode", mode)
+    fun writeLook(json: String) = writePref("look", json)
+
+    /** The mode alone, as a build before the look was kept stored it (read once, to carry it over). */
+    fun readThemeMode(): String? = readPref("theme_mode")
 
     companion object {
         private const val SESSION = "session.bin"

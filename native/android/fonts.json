@@ -1,0 +1,54 @@
+{
+  "note": "The typefaces the app bundles: hub.css's four families (--jk-font-serif/-sans/-mono/-seg), which the web loads from Google Fonts. Each file is pinned to one commit of github.com/google/fonts and by sha256, and ships with its SIL Open Font License (OFL 1.1 requires the licence to travel with the font). test/native.mjs holds every file under res/font/ to this list. To update: download from a new commit, replace the file, and write its url and sha256 here.",
+  "fonts": [
+    {
+      "file": "ordeck/src/main/res/font/fraunces.ttf",
+      "family": "Fraunces",
+      "url": "https://raw.githubusercontent.com/google/fonts/5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/fraunces/Fraunces%5BSOFT,WONK,opsz,wght%5D.ttf",
+      "sha256": "177ff6c0f14e5550a3c624247cd1189611d4eb65d000b14944c63d967958abbb",
+      "license": "ordeck/src/main/assets/licenses/OFL-Fraunces.txt"
+    },
+    {
+      "file": "ordeck/src/main/res/font/fraunces_italic.ttf",
+      "family": "Fraunces",
+      "url": "https://raw.githubusercontent.com/google/fonts/5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/fraunces/Fraunces-Italic%5BSOFT,WONK,opsz,wght%5D.ttf",
+      "sha256": "b24448c43702fac4ee856781d461a0dfba8d8e594b6e8e190234b75fed2c0e01",
+      "license": "ordeck/src/main/assets/licenses/OFL-Fraunces.txt"
+    },
+    {
+      "file": "ordeck/src/main/res/font/plex_sans.ttf",
+      "family": "IBM Plex Sans",
+      "url": "https://raw.githubusercontent.com/google/fonts/5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/ibmplexsans/IBMPlexSans%5Bwdth,wght%5D.ttf",
+      "sha256": "3b031aa4216174205bd8471f88a49b91f093169e9e87bd5262242bc5967fe2e3",
+      "license": "ordeck/src/main/assets/licenses/OFL-IBMPlex.txt"
+    },
+    {
+      "file": "ordeck/src/main/res/font/plex_mono_regular.ttf",
+      "family": "IBM Plex Mono",
+      "url": "https://raw.githubusercontent.com/google/fonts/5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/ibmplexmono/IBMPlexMono-Regular.ttf",
+      "sha256": "6a3412f058c7d8dfd9170c41e85ade48e5156ecb89356110ca57a0a27734af46",
+      "license": "ordeck/src/main/assets/licenses/OFL-IBMPlex.txt"
+    },
+    {
+      "file": "ordeck/src/main/res/font/plex_mono_medium.ttf",
+      "family": "IBM Plex Mono",
+      "url": "https://raw.githubusercontent.com/google/fonts/5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/ibmplexmono/IBMPlexMono-Medium.ttf",
+      "sha256": "a9b4c49bb299e05b5f6c481e7fb5e78943d2793249a0c8874ab574a2d1ea6755",
+      "license": "ordeck/src/main/assets/licenses/OFL-IBMPlex.txt"
+    },
+    {
+      "file": "ordeck/src/main/res/font/plex_mono_semibold.ttf",
+      "family": "IBM Plex Mono",
+      "url": "https://raw.githubusercontent.com/google/fonts/5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/ibmplexmono/IBMPlexMono-SemiBold.ttf",
+      "sha256": "d3c38e55c78f5b0f28009fddba4834ec503278936a5986032424c9bd2d23aa46",
+      "license": "ordeck/src/main/assets/licenses/OFL-IBMPlex.txt"
+    },
+    {
+      "file": "ordeck/src/main/res/font/big_shoulders_display.ttf",
+      "family": "Big Shoulders Display",
+      "url": "https://raw.githubusercontent.com/google/fonts/5bd87dfc525c8a0d1d8529d3684716e00c3fc59a/ofl/bigshouldersdisplay/BigShouldersDisplay%5Bwght%5D.ttf",
+      "sha256": "60e208dc276a1c35fc5b62e94f9fb959c40c11783a9eb7548175c14b1fbeb720",
+      "license": "ordeck/src/main/assets/licenses/OFL-BigShouldersDisplay.txt"
+    }
+  ]
+}

@@ -39,15 +39,15 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            val mode by Auth.themeMode.collectAsState()
+            val look by Auth.look.collectAsState()
             // The system bars' icons follow the face the person chose, not the device's own
             // day/night: paper under a dark-mode phone needs dark icons.
-            val dark = mode.isDark(isSystemInDarkTheme())
+            val dark = look.mode.isDark(isSystemInDarkTheme())
             LaunchedEffect(dark) {
                 val bars = if (dark) SystemBarStyle.dark(Color.TRANSPARENT) else SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
                 enableEdgeToEdge(statusBarStyle = bars, navigationBarStyle = bars)
             }
-            JkosTheme(mode) {
+            JkosTheme(look) {
                 JkosRoot()
             }
         }

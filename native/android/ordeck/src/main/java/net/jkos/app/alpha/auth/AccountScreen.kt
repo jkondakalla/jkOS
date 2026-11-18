@@ -14,13 +14,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Button
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -44,6 +39,8 @@ import net.jkos.app.alpha.Nav
 import net.jkos.app.alpha.Screen
 import net.jkos.app.alpha.activity
 import net.jkos.app.alpha.attempt
+import androidx.compose.ui.unit.sp
+import net.jkos.app.alpha.look.*
 
 // The Account tab: jkAuth's screens. Who you are, how the suite looks, where you are signed
 // in, and the way out. Password and two-factor stay jkAuth's own pages, in the browser.
@@ -53,10 +50,12 @@ data object AccountRoot : Screen
 
 @Composable
 private fun SectionTitle(text: String) {
-    Text(
-        text.uppercase(), style = MaterialTheme.typography.labelMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 20.dp, bottom = 6.dp),
-    )
+    // The suite's section name: Fraunces caps in the accent, over a hairline (jkAuth's account page).
+    Column(Modifier.padding(top = 24.dp, bottom = 8.dp)) {
+        AccentLab(text)
+        Gap(6)
+        Rule()
+    }
 }
 
 @Composable
@@ -72,14 +71,14 @@ internal fun shortStamp(iso: String): String =
 fun AccountTab(user: User, @Suppress("UNUSED_PARAMETER") screen: Screen, @Suppress("UNUSED_PARAMETER") nav: Nav) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-    val mode by Auth.themeMode.collectAsState()
+    val mode = Auth.look.collectAsState().value.mode
 
     // The profile carries the theme mode and the version a theme write must be built on.
     var profile by remember { mutableStateOf<Load<Profile>>(Load.Loading) }
     var devices by remember { mutableStateOf<Load<List<Device>>>(Load.Loading) }
     var reload by remember { mutableIntStateOf(0) }
     LaunchedEffect(reload) {
-        profile = attempt { AccountApi.profile().also { Auth.themeModeSeen(it.themeMode) } }
+        profile = attempt { AccountApi.profile().also { Auth.lookSeen(it.look) } }
         devices = attempt { AccountApi.devices() }
     }
 
@@ -107,20 +106,24 @@ fun AccountTab(user: User, @Suppress("UNUSED_PARAMETER") screen: Screen, @Suppre
         Header("Account", onBack = null)
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 24.dp, end = 24.dp, bottom = 24.dp)) {
             item {
-                Text(user.name ?: user.email, style = MaterialTheme.typography.titleLarge)
-                Text(user.email, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Note("Role: ${user.role}")
+                Gap(14)
+                PressTitle(user.name ?: user.email, size = 30.sp)
+                Row(Modifier.padding(top = 6.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Eyebrow(user.email, Modifier.weight(1f))
+                    Pill(user.role, tint = Jk.face.accent)
+                }
+                Rule(strong = true)
                 note?.let {
                     Spacer(Modifier.height(8.dp))
                     Text(it, color = MaterialTheme.colorScheme.secondary)
                 }
 
                 SectionTitle("Display name")
-                OutlinedTextField(
+                Field(
                     value = name, onValueChange = { name = it.take(100) }, singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                TextButton(
+                TButton(quiet = true, 
                     enabled = !busy && name.trim().isNotEmpty() && name.trim() != (user.name ?: ""),
                     onClick = {
                         val wanted = name.trim()
@@ -132,7 +135,7 @@ fun AccountTab(user: User, @Suppress("UNUSED_PARAMETER") screen: Screen, @Suppre
                 ) { Text("Save name") }
 
                 SectionTitle("Appearance")
-                Row {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(bottom = 8.dp)) {
                     for (m in ThemeMode.entries) {
                         Choice(m.label, selected = m == mode) {
                             val p = (profile as? Load.Ready)?.value ?: return@Choice
@@ -158,8 +161,8 @@ fun AccountTab(user: User, @Suppress("UNUSED_PARAMETER") screen: Screen, @Suppre
             when (val d = devices) {
                 Load.Loading -> item { Note("Loading…") }
                 is Load.Failed -> item {
-                    Text(d.message, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    TextButton(onClick = { reload++ }) { Text("Retry") }
+                    Hush(d.message)
+                    TButton(quiet = true, onClick = { reload++ }) { Text("Retry") }
                 }
                 is Load.Ready -> items(d.value, key = { it.familyId }) { dev ->
                     DeviceRow(dev, busy) {
@@ -171,7 +174,7 @@ fun AccountTab(user: User, @Suppress("UNUSED_PARAMETER") screen: Screen, @Suppre
             item {
                 SectionTitle("Password and two-factor")
                 Note("These stay on jkOS's own pages, so a password is never typed into this app.")
-                OutlinedButton(onClick = {
+                TButton(onClick = {
                     context.activity()?.let {
                         CustomTabsIntent.Builder().setShowTitle(true).build().launchUrl(it, Uri.parse(AccountApi.securityPage))
                     }
@@ -185,7 +188,7 @@ fun AccountTab(user: User, @Suppress("UNUSED_PARAMETER") screen: Screen, @Suppre
                 Note("Signed in by: ${Auth.config.authOrigin}")
 
                 Spacer(Modifier.height(24.dp))
-                Button(enabled = !signingOut, onClick = {
+                TButton(primary = true, enabled = !signingOut, onClick = {
                     signingOut = true
                     scope.launch { Auth.signOut() }
                 }) { Text(if (signingOut) "Signing out…" else "Sign out") }
@@ -207,8 +210,8 @@ private fun DeviceRow(dev: Device, busy: Boolean, revoke: () -> Unit) {
                         dev.clientId == Auth.config.clientId -> "jkOS Alpha on another device"
                         else -> dev.clientId
                     },
-                    style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    color = if (dev.revoked) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+                    style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    color = if (dev.revoked) Jk.face.faint else if (dev.isThisDevice) Jk.face.accent else Jk.face.ink,
                 )
                 Note(
                     if (dev.revoked) "Signed out (${dev.revokedReason ?: "revoked"}) · started ${shortStamp(dev.createdAt)}"
@@ -217,10 +220,10 @@ private fun DeviceRow(dev: Device, busy: Boolean, revoke: () -> Unit) {
             }
             if (!dev.revoked && !dev.isThisDevice) {
                 Spacer(Modifier.width(8.dp))
-                TextButton(enabled = !busy, onClick = revoke) { Text("Sign out") }
+                TButton(quiet = true, enabled = !busy, onClick = revoke) { Text("Sign out") }
             }
         }
         Spacer(Modifier.height(8.dp))
-        HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
+        Rule()
     }
 }
