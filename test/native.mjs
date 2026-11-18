@@ -706,6 +706,15 @@ const policy = require(resolve(root, 'native/desktop/src/policy.js'));
   ];
   const listWrong = lists.filter(([f, n, want]) => JSON.stringify((kotlinList(f, n) ?? []).slice().sort()) !== JSON.stringify(want.slice().sort()))
     .map(([f, n, want, of]) => `${f} ${n} ${JSON.stringify(kotlinList(f, n))} is not ${of} ${JSON.stringify(want)}`);
+  // The calendar's source tints: an event's colour when it has none of its own. Typed twice
+  // (Kotlin can't import the web's theme.ts), held equal here.
+  const ktTints = Object.fromEntries([...(/val SOURCE_TINTS = mapOf\(([\s\S]*?)\n\)/.exec(read(`${SRC}/beigeboard/Items.kt`))?.[1] ?? '')
+    .matchAll(/"(\w+)" to "(#[0-9A-Fa-f]{6})"/g)].map((m) => [m[1], m[2].toUpperCase()]));
+  const webTints = Object.fromEntries([...(/export const SOURCES[^=]*= \{([\s\S]*?)\n\}/.exec(read('apps/beigeboard/src/lib/theme.ts'))?.[1] ?? '')
+    .matchAll(/(\w+):\s*\{\s*label:\s*'[^']*',\s*hex:\s*'(#[0-9A-Fa-f]{6})'\s*\}/g)].map((m) => [m[1], m[2].toUpperCase()]));
+  check(Object.keys(webTints).length >= 6 && JSON.stringify(ktTints) === JSON.stringify(webTints),
+    `the calendar's ${Object.keys(webTints).length} source tints are BeigeBoard's SOURCES (apps/beigeboard/src/lib/theme.ts)`,
+    `Items.kt SOURCE_TINTS ${JSON.stringify(ktTints)} is not theme.ts SOURCES ${JSON.stringify(webTints)}`);
   check(listWrong.length === 0,
     `the app's ${lists.length} field lists and vocabularies are their declarations' (${lists.map(([, n, , of]) => `${n} = ${of}`).join(', ')})`,
     `a list the app keeps has drifted from its declaration:\n    ${listWrong.join('\n    ')}`);

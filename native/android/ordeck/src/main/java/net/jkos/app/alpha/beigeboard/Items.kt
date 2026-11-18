@@ -37,6 +37,12 @@ data class Item(
     val source: String?,
     val tags: List<String>,
     val deloadOverride: Int?,
+    /** A routine's committed weekdays, as offsets from Monday ("0,3"). */
+    val cadenceDays: String? = null,
+    /** A routine's weekly target; null means its committed days are the target. */
+    val cadenceCount: Int? = null,
+    /** The dates a routine's cadence calls for and the person struck out ("2026-11-19,…"). */
+    val cadenceSkips: String? = null,
 ) {
     val isTask get() = kind == "task"
     val isEvent get() = kind == "event"
@@ -81,6 +87,9 @@ object Items {
             source = o.str("source"),
             tags = if (tags == null) emptyList() else (0 until tags.length()).mapNotNull { tags.optString(it).takeIf(String::isNotBlank) },
             deloadOverride = if (o.isNull("deload_override") || !o.has("deload_override")) null else o.optInt("deload_override"),
+            cadenceDays = o.str("cadence_days"),
+            cadenceCount = if (o.isNull("cadence_count") || !o.has("cadence_count")) null else o.optDouble("cadence_count").takeUnless { it.isNaN() }?.toInt(),
+            cadenceSkips = o.str("cadence_skips"),
         )
     }
 
@@ -285,6 +294,21 @@ fun accentOf(item: Item, byId: Map<Long, Item>): Long? {
     }
     return null
 }
+
+/**
+ * BeigeBoard's source tints (apps/beigeboard/src/lib/theme.ts SOURCES): an event's colour when
+ * it carries none of its own. An unknown source has none, and falls through to the theme, as the
+ * web's sourceTintOf does. check:native holds this table to the web's.
+ */
+val SOURCE_TINTS = mapOf(
+    "work" to "#3A5C78", "personal" to "#4E7250", "outlook" to "#7A5070",
+    "google" to "#3A7BD5", "icloud" to "#5C8FA8", "bb" to "#B05040",
+)
+
+/** An agenda row's colour, as the web's calendar views pick it: an event's own accent or its
+ *  source's tint; anything else its accent through the tree. Null: the theme's muted ink. */
+fun agendaTint(item: Item, byId: Map<Long, Item>): Long? =
+    if (item.isEvent) (item.accent?.let(::hex) ?: SOURCE_TINTS[item.source]?.let(::hex)) else accentOf(item, byId)
 
 private fun hex(s: String): Long? {
     val m = Regex("^#([0-9a-fA-F]{6})$").find(s.trim()) ?: return null
