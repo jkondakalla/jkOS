@@ -64,6 +64,7 @@ import net.jkos.app.alpha.auth.HudShelf
 import net.jkos.app.alpha.auth.User
 import net.jkos.app.alpha.beigeboard.Board
 import net.jkos.app.alpha.beigeboard.Days
+import net.jkos.app.alpha.beigeboard.ItemSheet
 import net.jkos.app.alpha.look.*
 import java.time.LocalDate
 import java.time.ZonedDateTime
@@ -147,13 +148,15 @@ class HudModel(private val scope: CoroutineScope, val reachesBoard: Boolean) {
 }
 
 /**
- * The home screen. [openApp] switches to an app's tab (a card's source, a pinned item). [now] pins
- * the clock (the renders); otherwise it ticks. While the screen is up and the app is in front,
+ * The home screen. [openApp] switches to an app's tab, with a screen pushed on it when one is
+ * given (a card's source; a goal page from an item's sheet). Tapping a BeigeBoard item anywhere
+ * on the home opens its sheet right here, over the home's own board. [now] pins the clock (the
+ * renders); otherwise it ticks. [preOpen] opens an item's sheet at once (the renders). While the screen is up and the app is in front,
  * the profile and board refresh every minute and the probes every 30 s, as the web's HUD polls.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeTab(user: User, model: HudModel, build: String, openApp: (String) -> Unit, now: ZonedDateTime? = null) {
+fun HomeTab(user: User, model: HudModel, build: String, openApp: (String, Screen?) -> Unit, now: ZonedDateTime? = null, preOpen: Long? = null) {
     val face = Jk.face
     val context = LocalContext.current
     val still = LocalStill.current
@@ -178,7 +181,10 @@ fun HomeTab(user: User, model: HudModel, build: String, openApp: (String) -> Uni
         context.activity()?.let { CustomTabsIntent.Builder().setShowTitle(true).build().launchUrl(it, Uri.parse(Auth.config.portalUrl)) }
         Unit
     }
-    val openBoard: (() -> Unit)? = if (model.reachesBoard) ({ openApp("beigeboard") }) else null
+    val openBoard: (() -> Unit)? = if (model.reachesBoard) ({ openApp("beigeboard", null) }) else null
+    // The item whose sheet is open over the home, if any: the BeigeBoard tab's own sheet.
+    var open by remember { mutableStateOf(preOpen) }
+    val openItem: (Long) -> Unit = { id -> if (model.board.byId.containsKey(id)) open = id }
 
     val clock = ClockFace.of(tick)
     val today: LocalDate = tick.toLocalDate()
@@ -220,11 +226,11 @@ fun HomeTab(user: User, model: HudModel, build: String, openApp: (String) -> Uni
                     Box(Modifier.alpha(if (dimOthers && id != "focus") 0.32f else 1f)) {
                         when (id) {
                             "clock" -> ClockCard(clock)
-                            "today" -> TodayCard(day, { itemId, _ -> model.board.byId[itemId]?.let(model.board::toggleDone) }, { t -> model.board.add(t, "task", clock.iso, null) }, openBoard)
+                            "today" -> TodayCard(day, { itemId, _ -> model.board.byId[itemId]?.let(model.board::toggleDone) }, { t -> model.board.add(t, "task", clock.iso, null) }, openBoard, openItem)
                             "calendar" -> CalendarCard(MonthSlice.of(items, today), today)
-                            "bb-week" -> WeekCard(Days.week(clock.iso).map { LocalDate.parse(it) to Days.on(items, it) }, today, openBoard)
-                            "focus" -> FocusCard(focus, model.board::endFocus, openBoard?.takeIf { focus.app == "beigeboard" })
-                            "pinned" -> PinnedCard(Pinned.of(model.board.shelf.pins, items), model.reachesBoard, openBoard?.let { o -> { _: PinRow -> o() } })
+                            "bb-week" -> WeekCard(Days.week(clock.iso).map { LocalDate.parse(it) to Days.on(items, it) }, today, openBoard, openItem)
+                            "focus" -> FocusCard(focus, model.board::endFocus, focus.id?.toLongOrNull()?.takeIf { focus.app == "beigeboard" && model.board.byId.containsKey(it) }?.let { id -> { openItem(id) } })
+                            "pinned" -> PinnedCard(Pinned.of(model.board.shelf.pins, items), model.reachesBoard) { p -> p.id.toLongOrNull()?.let(openItem) }
                             "systems" -> SystemsCard(model.systems)
                             "notifications" -> AlertsCard(Alerts.of(day, model.systems, clock.hm))
                         }
@@ -235,6 +241,9 @@ fun HomeTab(user: User, model: HudModel, build: String, openApp: (String) -> Uni
                 item(key = "strip") { BottomStrip(user, build) }
             }
         }
+    }
+    open?.let { id ->
+        model.board.byId[id]?.let { ItemSheet(it, model.board, { screen -> open = null; openApp("beigeboard", screen) }) { open = null } } ?: run { open = null }
     }
 }
 

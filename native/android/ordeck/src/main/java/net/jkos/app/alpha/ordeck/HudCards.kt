@@ -223,7 +223,7 @@ fun ClockCard(face0: ClockFace) {
 
 /** Today: the day's progress, its items (tick a task off in place), and a quick add for today. */
 @Composable
-fun TodayCard(day: DaySlice, onCheck: (Long, Boolean) -> Unit, onAdd: (String) -> Unit, openBoard: (() -> Unit)?) {
+fun TodayCard(day: DaySlice, onCheck: (Long, Boolean) -> Unit, onAdd: (String) -> Unit, openBoard: (() -> Unit)?, openItem: (Long) -> Unit = {}) {
     HudCard {
         CardHead("Today", "BeigeBoard", openBoard)
         when {
@@ -238,6 +238,7 @@ fun TodayCard(day: DaySlice, onCheck: (Long, Boolean) -> Unit, onAdd: (String) -
                     HudRow(
                         t.title, lead = t.timeLabel, tone = t.tone, done = t.done, first = k == 0,
                         onCheck = if (t.checkable && !day.offline) { on -> onCheck(t.id, on) } else null,
+                        onClick = { openItem(t.id) },
                     )
                 }
             }
@@ -313,7 +314,7 @@ fun CalendarCard(month: MonthSlice, today: LocalDate) {
  * web's card is the calendar kit's time grid, which a two-column phone tier squeezes to slivers.)
  */
 @Composable
-fun WeekCard(days: List<Pair<LocalDate, List<Item>>>, today: LocalDate, openBoard: (() -> Unit)?) {
+fun WeekCard(days: List<Pair<LocalDate, List<Item>>>, today: LocalDate, openBoard: (() -> Unit)?, openItem: (Long) -> Unit = {}) {
     val face = Jk.face
     HudCard {
         CardHead("Week", "BeigeBoard", openBoard)
@@ -336,7 +337,7 @@ fun WeekCard(days: List<Pair<LocalDate, List<Item>>>, today: LocalDate, openBoar
                 Column(Modifier.weight(1f).padding(top = 2.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                     if (items.isEmpty()) Text("—", style = mono.copy(fontSize = 12.sp, color = face.ghost))
                     for (it in items.take(4)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(4.dp)).clickable { openItem(it.id) }.defaultMinSize(minHeight = 28.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text(it.scheduledTime?.take(5) ?: "", Modifier.width(48.dp), style = mono.copy(fontSize = 11.5.sp, color = face.faint, fontFeatureSettings = "tnum"), maxLines = 1)
                             Text(
                                 it.title, Modifier.weight(1f),
@@ -388,7 +389,7 @@ fun FocusCard(focus: FocusSlice, onEnd: () -> Unit, openItem: (() -> Unit)?) {
 
 /** Pinned: what the person pinned from any app, upgraded from the live row when it is BeigeBoard's. */
 @Composable
-fun PinnedCard(pins: List<PinRow>, reachable: Boolean, openItem: ((PinRow) -> Unit)?) {
+fun PinnedCard(pins: List<PinRow>, reachable: Boolean, openItem: (PinRow) -> Unit) {
     HudCard {
         CardHead("Pinned", "BeigeBoard")
         when {
@@ -396,7 +397,7 @@ fun PinnedCard(pins: List<PinRow>, reachable: Boolean, openItem: ((PinRow) -> Un
             pins.isEmpty() -> CardNote("Nothing pinned — pin a task in BeigeBoard.")
             else -> pins.forEachIndexed { k, p ->
                 HudRow(p.title, lead = p.timeLabel, tone = p.tone, done = p.done, first = k == 0,
-                    onClick = openItem?.takeIf { p.app == "beigeboard" }?.let { { it(p) } })
+                    onClick = if (p.app == "beigeboard") ({ openItem(p) }) else null)
             }
         }
     }

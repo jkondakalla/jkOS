@@ -161,7 +161,9 @@ private fun SignedIn(user: User, aud: Set<String>) {
     Column(Modifier.fillMaxSize()) {
         Box(Modifier.weight(1f)) {
             when (current) {
-                Tab.Home -> HomeTab(user, hud, buildLabel(), openApp = { app -> tabs.firstOrNull { it.app == app }?.let { t -> selected = t; navOf(t).popToRoot() } })
+                Tab.Home -> HomeTab(user, hud, buildLabel(), openApp = { app, screen ->
+                    tabs.firstOrNull { it.app == app }?.let { t -> selected = t; navOf(t).popToRoot(); screen?.let(navOf(t)::push) }
+                })
                 Tab.Account -> AccountTab(user, nav.top, nav)
                 is Tab.App -> when (current.app) {
                     "kouros" -> KourosTab(nav.top, nav, controller, now)

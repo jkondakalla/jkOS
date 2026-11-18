@@ -246,7 +246,7 @@ class ScreensTest {
                     it.preload(order, hudItems, if (focus) hudShelf else hudShelf.copy(focus = null), hudSystems)
                 }
             }
-            net.jkos.app.alpha.ordeck.HomeTab(user, model, "ALPHA · staging · 0.1.0-alpha-staging", {}, now = pinned)
+            net.jkos.app.alpha.ordeck.HomeTab(user, model, "ALPHA · staging · 0.1.0-alpha-staging", { _, _ -> }, now = pinned)
         }
     }
 
@@ -257,6 +257,23 @@ class ScreensTest {
     @Test @Config(qualifiers = "w411dp-h3400dp-xxhdpi") fun homeEveryCard() = home("18-home-every-card", everyCard, focus = false)
     @Test @Config(qualifiers = "w411dp-h3400dp-xxhdpi") fun homeEveryCardDark() = home("19-home-every-card-dark", everyCard, dark = true, focus = false)
     @Test fun homeFocus() = home("20-home-focus", everyCard)
+
+    /** A tap on an item opens BeigeBoard's own sheet over the home (a dialog: its own window). */
+    @Test fun homeItemSheet() {
+        registerRoborazziActivityToRobolectricIfNeeded()
+        ActivityScenario.launch(RoborazziActivity::class.java).use { s ->
+            s.onActivity { a ->
+                a.setContent {
+                    Face {
+                        val scope = rememberCoroutineScope()
+                        val model = remember { net.jkos.app.alpha.ordeck.HudModel(scope, reachesBoard = true).also { it.preload(everyCard, hudItems, hudShelf, hudSystems) } }
+                        net.jkos.app.alpha.ordeck.HomeTab(user, model, "ALPHA · staging · 0.1.0-alpha-staging", { _, _ -> }, now = pinned, preOpen = 3)
+                    }
+                }
+            }
+            captureScreenRoboImage(out("21-home-item-sheet"))
+        }
+    }
 
     // ── KourOS: covers are drawn as their empty tiles (no network here), as the web's fixtures are.
 
