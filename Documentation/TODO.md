@@ -178,6 +178,9 @@ Everything since 2026-07-30, when `main` was last merged. The staging *deploy* l
   - BeigeBoard declares what the app calls: the tree on `createItem`, `calendarStatus`, the
     library's entry writes, a routine's document round trip;
   - BeigeBoard's corrected `syncCalendar` and `importRoutineBundle` declarations.
+- on `staging`, not pushed (2026-11-18, no migrations): ORDECK's clock reads the right day of
+  the year; deloading someone else's session answers 404, not 400; jkOS Alpha's §10 I and its
+  visual pass; every shell at `0.2.0`.
 
 **What each deploy migrates** (read from the live databases on 2026-11-16, read-only):
 
@@ -681,8 +684,8 @@ Each step is your decision. In order:
    `apksigner verify --print-certs`.
 8. **Distribution.** Recommended: a jkAuth-gated download at the edge, with the APK's SHA-256
    beside it. The alternatives are Play Console internal testing, or handing the file over.
-9. Invite the testers as `user`s; they reach BeigeBoard and KourOS. Check that
-   `apps/jkauth/test/multiuser.mjs` covers what testers will do near each other's data.
+9. Invite the testers as `user`s; they reach BeigeBoard and KourOS. What they can reach of each
+   other's data is CONTROLS.md AC-12, and the tests it cites.
 10. Settle §2's pre-release question, then promote and tag (§1).
 11. Remove the edge's refusal of production's `/auth/register` once production runs
     invite-only registration: the `location ~* ^/auth/register/?$` block in
