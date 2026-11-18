@@ -221,3 +221,67 @@ object Library {
         return JSONObject().put("entries", entries)
     }
 }
+
+/** One day of a routine's week strip (the web's weekCells, apps/beigeboard/src/lib/routines.ts). */
+enum class CellState { Off, Idle, Skipped, Planned, Open, Missed, Done }
+
+data class WeekCell(val iso: String, val committed: Boolean, val state: CellState)
+
+/**
+ * A routine's week, as the web's Workshop draws it on a routine's card: which days it commits
+ * to, what each day of this week holds, and the streak. An occurrence is a row the engine
+ * minted under the routine (parent_id AND a `routine:` ext_ref), so a task filed under a routine
+ * by hand is never counted. Pure: the JVM test holds it.
+ */
+object Cadence {
+    /** The committed day offsets, 0 = Monday, sorted and de-duped; anything malformed is dropped. */
+    fun days(r: Item): List<Int> = (r.cadenceDays ?: "").split(',').mapNotNull { it.trim().toIntOrNull()?.takeIf { n -> n in 0..6 } }.distinct().sorted()
+
+    /** The weekly target: an explicit count, else the committed days. */
+    fun weeklyTarget(r: Item): Int = r.cadenceCount?.coerceAtLeast(0) ?: days(r).size
+
+    fun skips(r: Item): Set<String> = (r.cadenceSkips ?: "").split(',').map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+
+    fun occurrences(r: Item, items: List<Item>): List<Item> = items.filter { it.parentId == r.id && it.isOccurrence }
+
+    /** The seven cells of the week starting [weekStart] (a Monday). */
+    fun week(r: Item, items: List<Item>, weekStart: String, today: String): List<WeekCell> {
+        val committed = days(r).toSet()
+        val skips = skips(r)
+        val byDate = occurrences(r, items).filter { it.dueDate != null }.associateBy { it.dueDate!! }
+        val start = java.time.LocalDate.parse(weekStart)
+        return (0 until 7).map { offset ->
+            val iso = start.plusDays(offset.toLong()).toString()
+            val o = byDate[iso]
+            val state = when {
+                o != null && o.completed -> CellState.Done
+                o != null && iso < today -> CellState.Missed
+                o != null && iso == today -> CellState.Open
+                o != null -> CellState.Planned
+                iso in skips -> CellState.Skipped
+                offset in committed -> CellState.Idle
+                else -> CellState.Off
+            }
+            WeekCell(iso, offset in committed, state)
+        }
+    }
+
+    /** Kept occurrences in a row, back from the latest. Today unticked neither breaks nor counts. */
+    fun streak(r: Item, items: List<Item>, today: String): Int {
+        var n = 0
+        for (o in occurrences(r, items).filter { it.dueDate != null && it.dueDate <= today }.sortedByDescending { it.dueDate }) {
+            if (o.completed) { n++; continue }
+            if (o.dueDate == today) continue
+            break
+        }
+        return n
+    }
+
+    /** The card's cadence line for a weekly routine: "2×/WK · 18:00"; empty when it commits to nothing. */
+    fun line(r: Item): String {
+        val target = weeklyTarget(r)
+        if (target == 0) return ""
+        return "$target×/WK" + (r.scheduledTime?.take(5)?.let { " · $it" } ?: "")
+    }
+}
+

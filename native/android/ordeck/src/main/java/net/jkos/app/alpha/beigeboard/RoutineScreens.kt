@@ -65,31 +65,29 @@ fun RoutinesPane(
             Choice("Routines", !library) { library = false }
             Choice("Library", library) { library = true }
         }
-        if (library) LibraryPane(entries) else RoutineList(push, routines)
+        if (library) LibraryPane(entries) else RoutineList(push, routines, board.items)
     }
 }
 
 @Composable
-private fun RoutineList(push: (Screen) -> Unit, preloaded: List<Routine>?) {
+private fun RoutineList(push: (Screen) -> Unit, preloaded: List<Routine>?, items: List<Item>) {
     var attemptNo by remember { mutableIntStateOf(0) }
     var state by remember { mutableStateOf<Load<List<Routine>>>(preloaded?.let { Load.Ready(it) } ?: Load.Loading) }
     LaunchedEffect(attemptNo) { if (preloaded == null || attemptNo > 0) state = attempt { BeigeBoardApi.routines() } }
+    val today = LocalDate.now().toString()
     Loaded(state, retry = { attemptNo++ }) { routines ->
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 18.dp, end = 18.dp, bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             item {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TButton(onClick = { push(BeigeBoardScreen.DocumentPage(null)) }) { Text("New or import") }
-                    TButton(quiet = true, onClick = { attemptNo++ }) { Text("Refresh") }
-                }
-                if (routines.isEmpty()) Text("No routines yet. Write one, or paste a document an assistant wrote.", Modifier.padding(top = 12.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                val running = routines.count { (it.item.status ?: "active") == "active" }
+                RailHead("Routines", "%02d running".format(running))
+                if (routines.isEmpty()) Hush("No routines yet. Write one, or paste a document an assistant wrote.")
             }
-            items(routines, key = { it.item.id }) { r ->
-                Column(Modifier.fillMaxWidth().clickable { push(BeigeBoardScreen.RoutinePage(r.item.id)) }.padding(vertical = 12.dp)) {
-                    Text(r.item.title, style = MaterialTheme.typography.titleMedium)
-                    r.summary?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis) }
-                    r.item.status?.takeIf { it != "active" }?.let { Text(it.uppercase(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary) }
+            items(routines, key = { it.item.id }) { r -> RoutineCard(r, items, today) { push(BeigeBoardScreen.RoutinePage(r.item.id)) } }
+            item {
+                Row(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    DashedButton("+ New or import", { push(BeigeBoardScreen.DocumentPage(null)) }, Modifier.weight(1f))
+                    DashedButton("Refresh", { attemptNo++ })
                 }
-                HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
             }
         }
     }

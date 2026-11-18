@@ -172,3 +172,62 @@ class SlicesTest {
         assertTrue(net.jkos.app.alpha.ordeck.AiSwitch.enabled(JSONObject("""{"lazuros":{"enabled":true}}""")))
     }
 }
+
+/** A routine's week strip and streak, and the calendar's colours, as the web's lib/routines.ts and theme.ts derive them. */
+class CadenceTest {
+    private fun item(id: Long, kind: String = "task", due: String? = null, done: Boolean = false, parent: Long? = null, extRef: String? = null,
+                     cadence: String? = null, count: Int? = null, skips: String? = null, time: String? = null, accent: String? = null, source: String? = null) =
+        net.jkos.app.alpha.beigeboard.Items.item(JSONObject().apply {
+            put("id", id); put("kind", kind); put("title", "t$id"); put("completed", if (done) 1 else 0)
+            put("due_date", due ?: JSONObject.NULL); put("parent_id", parent ?: JSONObject.NULL); put("ext_ref", extRef ?: JSONObject.NULL)
+            put("cadence_days", cadence ?: JSONObject.NULL); put("cadence_count", count ?: JSONObject.NULL); put("cadence_skips", skips ?: JSONObject.NULL)
+            put("scheduled_time", time ?: JSONObject.NULL); put("accent", accent ?: JSONObject.NULL); put("source", source ?: JSONObject.NULL)
+        })
+    private val C = net.jkos.app.alpha.beigeboard.Cadence
+    private fun occ(id: Long, date: String, done: Boolean = false) = item(id, due = date, done = done, parent = 1, extRef = "routine:1:$date")
+
+    @Test fun theCommittedDaysAndTheTarget() {
+        assertEquals(listOf(0, 3), C.days(item(1, "routine", cadence = "3, 0,9,x,3")))
+        assertEquals(2, C.weeklyTarget(item(1, "routine", cadence = "0,3")))
+        assertEquals(4, C.weeklyTarget(item(1, "routine", cadence = "0,3", count = 4)))
+        assertEquals("3×/WK · 18:00", C.line(item(1, "routine", cadence = "0,2,4", time = "18:00:00")))
+        assertEquals("", C.line(item(1, "routine")))
+    }
+
+    @Test fun eachDayOfTheWeekIsWhatItHolds() {
+        val r = item(1, "routine", cadence = "0,2,4", skips = "2026-11-20")
+        val items = listOf(
+            r, occ(10, "2026-11-16", done = true), occ(11, "2026-11-18"), occ(12, "2026-11-21"),
+            // Filed under the routine by hand (no routine: ext_ref): not an occurrence, never counted.
+            item(13, due = "2026-11-19", parent = 1, done = true),
+        )
+        val states = C.week(r, items, "2026-11-16", "2026-11-18").map { it.state }
+        assertEquals(listOf(net.jkos.app.alpha.beigeboard.CellState.Done, net.jkos.app.alpha.beigeboard.CellState.Off, net.jkos.app.alpha.beigeboard.CellState.Open,
+            net.jkos.app.alpha.beigeboard.CellState.Off, net.jkos.app.alpha.beigeboard.CellState.Skipped, net.jkos.app.alpha.beigeboard.CellState.Planned,
+            net.jkos.app.alpha.beigeboard.CellState.Off), states)
+        val missed = C.week(r, listOf(r, occ(10, "2026-11-16")), "2026-11-16", "2026-11-18").first().state
+        assertEquals(net.jkos.app.alpha.beigeboard.CellState.Missed, missed)
+        // A committed weekday with nothing minted is idle, not off.
+        assertEquals(net.jkos.app.alpha.beigeboard.CellState.Idle, C.week(r, listOf(r), "2026-11-16", "2026-11-18")[2].state)
+    }
+
+    @Test fun theStreakCountsBackAndTodayNeitherBreaksNorCounts() {
+        val r = item(1, "routine", cadence = "0,2,4")
+        val kept = listOf(r, occ(10, "2026-11-11", true), occ(11, "2026-11-13", true), occ(12, "2026-11-16", true))
+        assertEquals(3, C.streak(r, kept + occ(13, "2026-11-18"), "2026-11-18"))
+        assertEquals(4, C.streak(r, kept + occ(13, "2026-11-18", true), "2026-11-18"))
+        assertEquals(0, C.streak(r, listOf(r, occ(10, "2026-11-13", true), occ(11, "2026-11-16")), "2026-11-18"))
+        // A future occurrence doesn't count, done or not.
+        assertEquals(3, C.streak(r, kept + occ(14, "2026-11-20", true), "2026-11-18"))
+    }
+
+    @Test fun anAgendaRowTakesItsOwnColourItsSourcesOrItsGoals() {
+        val goal = item(50, "goal", accent = "#C0392B")
+        val byId = mapOf(50L to goal)
+        assertEquals(0xFF112233, net.jkos.app.alpha.beigeboard.agendaTint(item(1, "event", accent = "#112233", source = "google"), byId))
+        assertEquals(0xFF3A7BD5, net.jkos.app.alpha.beigeboard.agendaTint(item(2, "event", source = "google"), byId))
+        assertNull(net.jkos.app.alpha.beigeboard.agendaTint(item(3, "event", source = "somewhere"), byId))
+        assertEquals(0xFFC0392B, net.jkos.app.alpha.beigeboard.agendaTint(item(4, parent = 50), byId))
+        assertNull(net.jkos.app.alpha.beigeboard.agendaTint(item(5), byId))
+    }
+}

@@ -61,8 +61,9 @@ class ScreensTest {
     private fun item(
         title: String, kind: String = "task", due: String? = null, time: String? = null, end: String? = null,
         parent: Long? = null, done: Boolean = false, accent: String? = null, id: Long = nextId++, extRef: String? = null,
-        endTime: String? = null, location: String? = null, notes: String? = null,
+        endTime: String? = null, location: String? = null, notes: String? = null, cadence: String? = null,
     ) = Items.item(JSONObject().apply {
+        put("cadence_days", cadence ?: JSONObject.NULL)
         put("id", id); put("kind", kind); put("title", title); put("completed", if (done) 1 else 0)
         put("due_date", due ?: JSONObject.NULL); put("scheduled_time", time ?: JSONObject.NULL); put("end_date", end ?: JSONObject.NULL)
         put("scheduled_end", endTime ?: JSONObject.NULL); put("parent_id", parent ?: JSONObject.NULL); put("accent", accent ?: JSONObject.NULL)
@@ -88,7 +89,10 @@ class ScreensTest {
         item("Dentist", kind = "event", due = d(0), time = "16:30", endTime = "17:15", location = "Main St Dental", id = 21),
         item("Team offsite", kind = "event", due = d(-1), end = d(1), time = "09:00", id = 22),
         item("Renew passport", due = d(-9), id = 23),
-        item("Lower Body", kind = "routine", id = 30),
+        item("Lower Body", kind = "routine", id = 30, cadence = "0,2,4", time = "18:00"),
+        item("Lower Body", parent = 30, due = d(-2), time = "18:00", done = true, extRef = "routine:30:${d(-2)}", id = 34),
+        item("Lower Body", parent = 30, due = d(-5), time = "18:00", done = true, extRef = "routine:30:${d(-5)}", id = 35),
+        item("Lower Body", parent = 30, due = d(-7), time = "18:00", done = true, extRef = "routine:30:${d(-7)}", id = 36),
         item("Lower Body", parent = 30, due = d(0), time = "18:00", extRef = "routine:30:${d(0)}", id = 31),
         item("Lower Body", parent = 30, due = d(3), time = "18:00", extRef = "routine:30:${d(3)}", id = 32),
         item("Lower Body", parent = 30, due = d(7), time = "18:00", extRef = "routine:30:${d(7)}", id = 33),

@@ -36,8 +36,10 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
-import net.jkos.app.alpha.look.Field
-import net.jkos.app.alpha.look.TButton
+import net.jkos.app.alpha.look.*
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.unit.sp
 
 // The library (TODO §10 H4): the reusable sub-tasks routines are built from (exercises,
 // recipes, practice pieces, chores). A step names one by its slug (`ref`) and inherits its
@@ -64,33 +66,36 @@ fun LibraryPane(preloaded: List<LibraryEntry>? = null) {
         }
     }
     Column(Modifier.fillMaxSize()) {
-        Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Field(value = q, onValueChange = { q = it }, singleLine = true, placeholder = { Text("Search the library") }, modifier = Modifier.weight(1f))
-            TButton(quiet = true, onClick = { adding = true }) { Text("+ Entry") }
-        }
-        Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp)) {
-            Choice("All", collection == null) { collection = null }
-            for (c in Library.COLLECTIONS) Choice(c.replaceFirstChar { it.uppercase() }, collection == c) { collection = c }
-            TButton(quiet = true, onClick = { importing = true }) { Text("Import…") }
-        }
-        note?.let { Text(it, Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.secondary) }
         Loaded(state, retry = { attemptNo++ }) { entries ->
             val shown = entries.filter { e ->
                 (collection == null || e.collection == collection) &&
-                    (q.isBlank() || listOf(e.title, e.slug, e.tags.joinToString(" ")).any { it.contains(q.trim(), ignoreCase = true) })
+                    (q.isBlank() || listOf(e.title, e.slug, e.tags.joinToString(" "), e.variants.joinToString(" "), e.notes ?: "").any { it.contains(q.trim(), ignoreCase = true) })
             }.sortedBy { it.title.lowercase() }
-            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp)) {
-                if (shown.isEmpty()) item { Text("Nothing here.", Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                items(shown, key = { it.id }) { e ->
-                    Column(Modifier.fillMaxWidth().clickable { editing = e }.padding(vertical = 10.dp)) {
-                        Text(e.title)
-                        Text(
-                            listOfNotNull(e.collection, e.unit, e.loadUnit, e.variants.size.takeIf { it > 0 }?.let { "$it rungs" }, e.slug).joinToString(" · "),
-                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        )
+            val counts = entries.groupingBy { it.collection }.eachCount()
+            // The shelves that hold something, in the vocabulary's order, and the one chosen even if empty.
+            val shelves = Library.COLLECTIONS.filter { (counts[it] ?: 0) > 0 || it == collection }
+            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 18.dp, end = 18.dp, bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                item {
+                    // The web's library head: the shelf's name in the big serif, how many of how many.
+                    Row(Modifier.fillMaxWidth().padding(top = 10.dp), verticalAlignment = Alignment.Bottom) {
+                        SerifHead(collection?.replaceFirstChar { it.uppercase() } ?: "Everything", 28.sp, Modifier.weight(1f, fill = false))
+                        Spacer(Modifier.width(12.dp))
+                        Eyebrow("%02d of %02d entries".format(shown.size, entries.size), Modifier.padding(bottom = 5.dp))
                     }
-                    HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
+                    Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TButton(onClick = { adding = true }) { Text("+ New entry") }
+                        TButton(quiet = true, onClick = { importing = true }) { Text("⇪ Paste") }
+                    }
+                    Row(Modifier.horizontalScroll(rememberScrollState()).padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Choice("All %02d".format(entries.size), collection == null) { collection = null }
+                        for (c in shelves) Choice("$c %02d".format(counts[c] ?: 0), collection == c) { collection = c }
+                    }
+                    Field(value = q, onValueChange = { q = it }, singleLine = true, placeholder = { Text("Search title, tag, ladder, notes…") }, modifier = Modifier.fillMaxWidth().padding(top = 10.dp))
+                    note?.let { Text(it, Modifier.padding(top = 8.dp), color = MaterialTheme.colorScheme.secondary) }
+                    Rule(Modifier.padding(top = 12.dp, bottom = 4.dp))
+                    if (shown.isEmpty()) Eyebrow(if (q.isNotBlank()) "Nothing matches" else "This shelf is empty — add an entry or paste a set", Modifier.padding(vertical = 8.dp), maxLines = 2)
                 }
+                items(shown, key = { it.id }) { e -> EntryCard(e) { editing = e } }
             }
         }
     }
