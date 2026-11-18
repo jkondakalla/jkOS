@@ -86,7 +86,7 @@ const SHELLS = [
   },
   {
     // The suite as one truly native app — Compose UI, Media3 playback, each app's API over a
-    // Bearer token. Grown from KourOS Alpha (TODO §10). Its own package (the jkOS TWA's plus
+    // Bearer token (TODO §10). Its own package (the jkOS TWA's plus
     // `.alpha`), so it installs beside the TWAs while it is an alpha. ⚠️ Once a build of it is
     // release-signed the package can never change.
     id: 'jkos-alpha', name: 'jkOS Alpha', package: 'net.jkos.app.alpha',

@@ -76,7 +76,7 @@ class PkceTest {
         assertEquals(mapOf("code" to "c0de", "state" to "s+t/a"), parseRedirect("$r?code=c0de&state=s%2Bt%2Fa", r))
         assertEquals(mapOf("error" to "access_denied", "state" to "x"), parseRedirect("$r?error=access_denied&state=x", r))
         assertNull(parseRedirect("net.jkos.app.alpha.staging:/elsewhere?code=c&state=s", r)) // the filter matched the scheme only
-        assertNull(parseRedirect("net.jkos.kouros.alpha:/oauth2redirect?code=c&state=s", r)) // the other environment's app
+        assertNull(parseRedirect("net.jkos.app.alpha:/oauth2redirect?code=c&state=s", r)) // the other environment's app
         assertNull(parseRedirect("$r#code=c", r))
         assertNull(parseRedirect(r, r)) // no query at all
         assertNull(parseRedirect("$r?code=a&code=b&state=s", r)) // ambiguous: refused, not guessed

@@ -192,9 +192,9 @@ expected staging behaviour, not a regression. Re-run with `--token <admin jwt>` 
 ## Native apps (Android + desktop)
 
 Four Android apps and two Linux desktop apps, all declared in `native/shells.js`. The three web
-shells load the live site at its real origin, so their auth needs **zero changes**. **KourOS
-Alpha** is a native app: it signs in through jkAuth's native sign-in and calls KourOS's API with
-a Bearer token. How they're built and why they're shaped this way is in
+shells load the live site at its real origin, so their auth needs **zero changes**. **jkOS
+Alpha** is a native app: it signs in through jkAuth's native sign-in and calls BeigeBoard's and
+KourOS's APIs with a Bearer token. How they're built and why they're shaped this way is in
 [agents/NATIVE.md](agents/NATIVE.md); this is the runbook.
 
 | App | Package | What it's for |
@@ -262,18 +262,17 @@ read -rs JKOS_ANDROID_KEYSTORE_PASSWORD && export JKOS_ANDROID_KEYSTORE_PASSWORD
 pnpm android:build -- assembleRelease
 
 # 4. Install (USB debugging on), or copy the APK to the phone.
-adb install native/android/out/jkos-0.1.0-release.apk
+adb install native/android/out/jkos-0.2.0-release.apk
 ```
 
 A staging build needs no key: `pnpm android:build`, then
-`adb install native/android/out/jkos-0.1.0-staging.apk`. It shows a URL bar (staging serves no
+`adb install native/android/out/jkos-0.2.0-staging.apk`. It shows a URL bar (staging serves no
 asset links), and that's expected.
 
 ### Android: jkOS Alpha (the native app)
 
-One native app for the suite, grown from KourOS Alpha (TODO §10). It is being built phase by
-phase; this section is rewritten from the code at phase J, and each phase adds its device
-checks to the list at the end.
+One native app for the suite (TODO §10): Home (ORDECK's HUD), BeigeBoard, KourOS and Account.
+Its device checks, phase by phase, are the list at the end of this section.
 
 It needs two things in place before it can sign in. Do them in order:
 
@@ -295,7 +294,7 @@ needed: it's debug-signed):
 ```bash
 eval "$(node native/android/toolchain.mjs env ~/Android/jkos)"
 pnpm android:build -- :ordeck:testDebugUnitTest :ordeck:assembleDebug
-adb install native/android/out/jkos-alpha-0.1.0-staging.apk
+adb install native/android/out/jkos-alpha-0.2.0-staging.apk
 ```
 
 **To look at the screens without a phone**, render them: the real Compose code, drawn on Robolectric
@@ -317,7 +316,7 @@ git diff --stat gradle/verification-metadata.xml
 
 On the phone: **Sign in with jkOS** opens a Custom Tab on `staging.jkos.net`. Sign in (an
 **admin** account: the staging gate admits nobody else) and press **Allow**, and the app comes
-back signed in. "ALPHA · staging · 0.1.0-alpha-staging" is on the Home and Account tabs. Things
+back signed in. "ALPHA · staging · 0.2.0-alpha-staging" is on the Home and Account tabs. Things
 to try in the KourOS tab, none of which has been seen on a device yet: playback with the screen off; the lock-screen and
 notification controls, with covers; pulling the headphones (it should pause); a call (it should
 duck or pause); **Start radio**; sign out, then confirm `/auth/security` on staging shows the
@@ -326,7 +325,7 @@ app's session as signed out. Each listen should appear in KourOS's recently play
 audit trail.
 
 `aapt2 dump badging` and `apksigner verify --print-certs` on the APK should show package
-`net.jkos.app.alpha.staging`, versionName `0.1.0-alpha-staging`, and the permissions
+`net.jkos.app.alpha.staging`, versionName `0.2.0-alpha-staging`, and the permissions
 INTERNET, FOREGROUND_SERVICE, FOREGROUND_SERVICE_MEDIA_PLAYBACK and WAKE_LOCK, plus androidx.core's
 signature-level `net.jkos.app.alpha.staging.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`. A library
 that merges in anything else fails the build (`:ordeck:checkDebugPermissions`) before an APK
@@ -525,7 +524,7 @@ cd native/desktop
 export PATH="$HOME/.nvm/versions/node/v24.16.0/bin:$PATH"
 pnpm install --ignore-workspace
 pnpm dist                                    # → out/jkos/*.deb, out/kouros/*.deb
-sudo apt install ./out/jkos/jkos-jkos_0.1.0_amd64.deb
+sudo apt install ./out/jkos/jkos-jkos_0.2.0_amd64.deb
 ```
 
 The `.deb` installs an AppArmor profile so Chromium's sandbox can run on Ubuntu 24.04+. That's

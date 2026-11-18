@@ -40,7 +40,7 @@ jkOS/
 │   └── suite-prober      conformance instrument (prove + roundtrip)
 ├── music/                Python, numpy+onnxruntime only — OUTSIDE the pnpm workspace
 ├── native/                the installable shells: shells.js (one row per app) + generator
-│   ├── android/           Gradle: TWAs (jkOS, KourOS) + the jkOS Home launcher
+│   ├── android/           Gradle: TWAs (jkOS, KourOS), the jkOS Home launcher, jkOS Alpha (native)
 │   └── desktop/           Electron (Linux .deb) — OUTSIDE the pnpm workspace, own lockfile
 ├── infra/nginx/          standalone.conf + generated peer-proxy + compose
 ├── jkos-deploy/          FastAPI deploy controller, own Compose project
@@ -121,17 +121,20 @@ rather than from crossing environments: staging jkAuth reads `jkos_token_staging
 issuer `jkos-auth-staging`, so a prod session grants nothing there and vice versa — and a prod
 jkAuth outage does not take `staging.jkos.net/deploy`, the recovery tool, down with it. The gate also accepts a
 staging **user** token sent as `Authorization: Bearer` (`auth_request` forwards the header): that
-is how the native KourOS Alpha app, which holds no cookie, reaches `staging.jkos.net/kouros/api`.
-A service token is refused there.
+is how the native jkOS Alpha app, which holds no cookie, reaches `staging.jkos.net/<app>/api`
+and the systems card's `/health/<id>` probes. A service token is refused there.
 Code defaults are prod values; staging
 overrides live exclusively in `docker-compose.staging.yml`, so a merge into prod is safe
 by construction.
 
 **Native shells** (`native/`, see [NATIVE.md](agents/NATIVE.md)) are installable apps on the
-same topology, not a second one: each loads its start app **at its real origin** (a debug
-build, at `staging.jkos.net`), so the cookie, the issuer and the peer proxy above apply
+same topology, not a second one: each web shell loads its start app **at its real origin** (a
+debug build, at `staging.jkos.net`), so the cookie, the issuer and the peer proxy above apply
 unchanged. Their origin lists derive from `@jkos/suite-manifest`, and every origin an Android
-TWA trusts must serve `/.well-known/assetlinks.json` from the edge (`pnpm check:nginx`).
+TWA trusts must serve `/.well-known/assetlinks.json` from the edge (`pnpm check:nginx`). The
+native app (jkOS Alpha) has no page: it signs in through jkAuth's native sign-in (PKCE in a
+Custom Tab) and calls each reached app's declared API with a Bearer token, to bases
+`native/shells.js` derives and nowhere else.
 
 ---
 

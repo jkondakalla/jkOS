@@ -1,5 +1,5 @@
 'use strict'
-// Native sign-in — how an installed app (KourOS Alpha) gets a Bearer token without ever
+// Native sign-in — how an installed app (jkOS Alpha) gets a Bearer token without ever
 // seeing a password or holding a cookie. OAuth 2.0 for native apps (RFC 8252): the
 // authorization-code grant with PKCE (RFC 7636), in a Custom Tab, back to a private-use URI
 // scheme that only the app can register.

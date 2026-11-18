@@ -82,12 +82,13 @@ follows.
      nginx. Until then the TWAs open under a URL bar.
   3. **Install.** Staging APKs (`pnpm android:build`) work today, with a URL bar. KourOS's release
      app also needs the production DNS record below.
-  4. **Desktop:** `sudo apt install ./native/desktop/out/jkos/jkos-jkos_0.1.0_amd64.deb` (and the
+  4. **Desktop:** `sudo apt install ./native/desktop/out/jkos/jkos-jkos_0.2.0_amd64.deb` (and the
      KourOS one) after `pnpm dist` (Node ≥ 22.12, see OPERATIONS). The sudo is for the AppArmor
      profile the `.deb` installs.
-  5. **KourOS Alpha** ([OPERATIONS.md § KourOS Alpha](OPERATIONS.md#android-kouros-alpha-the-native-app))
-     builds, and its JVM tests pass, but it has **never run on a device**. §10 C is the device
-     pass. Production sign-in stays off (`JKOS_NATIVE_ENV` unset in the prod compose) until §10 K.
+  5. **jkOS Alpha** ([OPERATIONS.md § jkOS Alpha](OPERATIONS.md#android-jkos-alpha-the-native-app))
+     builds, its JVM tests pass and its screens are rendered, but it has **never run on a
+     device**. §10 J is the device pass. Production sign-in stays off (`JKOS_NATIVE_ENV` unset in
+     the prod compose) until §10 K.
   6. **Try them on real hardware.** None has run on a phone, a tablet or an installed `.deb`: the
      TWAs' URL bar, KourOS's lock-screen controls through Chrome, jkOS Home as the default home (the
      corner hold, the offline screen, rotation), and the desktop app's media keys.
@@ -165,14 +166,14 @@ Everything since 2026-07-30, when `main` was last merged. The staging *deploy* l
 - the security fixes;
 - the audiobook fold and the listening session;
 - widget phases 1–5;
-- KourOS Alpha and jkAuth's native sign-in;
+- jkAuth's native sign-in and the first native app;
 - the 2026-11-02 dependency fixes;
 - the 2026-11-04 controls work: CONTROLS.md, the root README, and jkDeploy's `PROD_BRANCH` default.
 - registration by invitation (jkAuth migration 025), and the edge's 403 on production's
   `/auth/register` until production runs it (§10 K11 removes that).
 - the alpha's server half (pushed 2026-11-17, no migrations):
   - jkAuth's account routes take the app's Bearer token;
-  - native-clients.json now lists jkOS Alpha, not KourOS Alpha;
+  - native-clients.json lists jkOS Alpha alone;
   - Weave's `in` filter (KourOS tracks by id);
   - BeigeBoard declares what the app calls: the tree on `createItem`, `calendarStatus`, the
     library's entry writes, a routine's document round trip;
@@ -477,16 +478,16 @@ P2–P4 need one controller rebuild by you on the host; P1 ships with a normal s
 ## 10 · The alpha — one native jkOS app
 
 Decided 2026-11-16: the next milestone is **one native Android app for the whole suite**, grown
-from KourOS Alpha. You test it on staging first; invited testers get it on production last. An
-agent works this section top to bottom and deletes each step as it lands. From phase C on, each
+from the first native KourOS app. You test it on staging first; invited testers get it on production last. An
+agent works this section top to bottom and deletes each step as it lands. Each
 phase that changes the app ends in a staging APK you can install.
 
 **Decided 2026-11-16. Don't re-propose:**
 
-- **One app, hand-built.** KourOS Alpha becomes jkOS Alpha: Kotlin and Compose screens written
+- **One app, hand-built.** The first native KourOS app became jkOS Alpha: Kotlin and Compose screens written
   against each app's declared datasets and capabilities. No WebView, no TWA inside it, and no
   native widget renderer until after the alpha.
-- **The shells merge into it.** KourOS Alpha's row in `native/shells.js` becomes jkOS Alpha's:
+- **The shells merge into it.** The native app's row in `native/shells.js` is jkOS Alpha's:
   one package, one jkAuth client. The jkOS and KourOS TWAs, jkOS Home and the desktop `.deb` are
   frozen. The TWAs retire once the app covers them (phase J). A phone app covers neither the
   kiosk launcher nor the Linux desktop, so those two stay.
@@ -556,21 +557,7 @@ phase that changes the app ends in a staging APK you can install.
    then step 6, which deletes the importer.
 4. **You:** §1's listening-session checks on real devices.
 
-### C · First light, on your phone
-
-Superseded 2026-11-17, when `staging` was pushed with D–H. The next staging deploy removes KourOS
-Alpha's jkAuth client, so the old APK can't sign in after it. jkOS Alpha's KourOS tab is that
-app plus G.
-
-1. **You:** after the deploy, install `~/Android/jkos-apks/jkos-alpha-0.1.0-staging-i1.apk` and
-   run OPERATIONS § Native apps. Start with the old KourOS Alpha checks, which hold for its KourOS
-   tab: sign-in, screen-off playback, lock-screen controls with covers, headphones out, Start
-   radio, listens in recently played, and sign-out shown as revoked on `/auth/security`. The app
-   has no `ACCESS_NETWORK_STATE`, so watch that playback starts and recovers after a network
-   change. Whatever breaks is fixed here.
-2. If KourOS Alpha is installed: sign out of it, then uninstall it.
-
-### D · One app: KourOS Alpha becomes jkOS Alpha
+### D · One app
 
 Pushed 2026-11-17, not deployed: the row, the derivation, the module and its packages, the
 tabbed shell, the tabs-by-`aud` rule and `check:native`'s declared-routes rule.
@@ -581,7 +568,7 @@ Pushed 2026-11-17, not deployed. The five account routes take the app's Bearer u
 (`resolveCaller`). The token endpoint names the app's own session (`family_id`), so the app
 can mark "this device".
 
-1. **You:** the staging deploy (phase B's) carries D–H.
+1. **You:** the staging deploy (phase B's) carries D–I.
 
 ### F · Account and devices
 
@@ -593,7 +580,7 @@ out. Password and two-factor open jkAuth's own page in a Custom Tab.
 
 ### G · KourOS
 
-One APK carries all of D–I: `~/Android/jkos-apks/jkos-alpha-0.1.0-staging-i1.apk` (or build it:
+One APK carries all of D–I: `~/Android/jkos-apks/jkos-alpha-0.2.0-staging.apk` (or build it:
 `pnpm android:build -- :ordeck:assembleDebug`). Each step below has its device checklist.
 
 1. **Search, queue and playlists.** Built and pushed 2026-11-17, not deployed.
@@ -667,14 +654,15 @@ over the Home.
 
 ### J · The alpha
 
-1. Bump `VERSION` in `native/shells.js`, and `native/desktop/package.json` to match
-   (`check:native` holds the two equal).
-2. **You:** the full device pass from OPERATIONS § Native apps. Fixes land here.
-3. Rewrite from the code: NATIVE.md § 5, OPERATIONS § Native apps, ARCHITECTURE's native lines,
-   and CONTROLS.md CF-3 and SM-4. No KourOS Alpha reference is left.
-4. **You:** does jkOS Alpha cover the jkOS and KourOS TWAs? If yes, retire them in one commit:
+Every shell is `0.2.0`, and the native docs are rewritten from the code (2026-11-18).
+
+1. **You:** after the deploy, install `~/Android/jkos-apks/jkos-alpha-0.2.0-staging.apk` and run
+   the full device pass from OPERATIONS § Native apps, every phase's checks. The app has no
+   `ACCESS_NETWORK_STATE`, so watch that playback starts and recovers after a network change.
+   Fixes land here.
+2. **You:** does jkOS Alpha cover the jkOS and KourOS TWAs? If yes, retire them in one commit:
    their `shells.js` rows, the `:twa` flavors and their `assetlinks.json` entries.
-5. The freeze on §5, §6 and §8 lifts. §8 P1–P4 come first: phase K's promote needs a preview and a
+3. The freeze on §5, §6 and §8 lifts. §8 P1–P4 come first: phase K's promote needs a preview and a
    ledger.
 
 ### K · Invited testers on production

@@ -8,8 +8,8 @@ Installable apps that show the suite. They come in two kinds:
   which is why Capacitor was rejected for KourOS.
 - **Native apps** (`android: 'native'`) have no page at all. Their UI is Kotlin and Compose,
   they call their start app's API directly, and they sign in through jkAuth's **native sign-in**
-  (PKCE in a Custom Tab), holding a Bearer token rather than a cookie. KourOS Alpha is the
-  first (§ [5](#5--kouros-alpha--the-native-app)).
+  (PKCE in a Custom Tab), holding a Bearer token rather than a cookie. jkOS Alpha is the one
+  (§ [5](#5--jkos-alpha--the-native-app)).
 
 For the operator's runbook (build, sign, install, verify), see
 [OPERATIONS.md § Native apps](../OPERATIONS.md#native-apps-android--desktop).
@@ -19,13 +19,13 @@ For the operator's runbook (build, sign, install, verify), see
 | **jkOS** | `net.jkos.app` | Android, Linux | TWA / Electron | ORDECK | every suite app with its own origin |
 | **KourOS** | `net.jkos.kouros` | Android, Linux | TWA / Electron | KourOS | KourOS + jkAuth |
 | **jkOS Home** | `net.jkos.home` | Android | home-screen launcher | ORDECK | every suite app with its own origin |
-| **jkOS Alpha** | `net.jkos.app.alpha` | Android | native (Compose + Media3) | ORDECK | BeigeBoard's and KourOS's APIs + jkAuth, by Bearer token |
+| **jkOS Alpha** | `net.jkos.app.alpha` | Android | native (Compose + Media3) | ORDECK | BeigeBoard's and KourOS's APIs, jkAuth, and (staging) the health probes, by Bearer token |
 
 KourOS is part of jkOS **and** its own app (Plex and Plexamp): its own icon, its own entry in
 recents, and `kouros.jkos.net` links open in it. jkOS Home is ORDECK as a home panel on a
-dedicated tablet or phone, as a kiosk (see [below](#jkos-home--the-launcher)). KourOS Alpha is
-KourOS rebuilt as a **native** app, for testing (see [below](#5--kouros-alpha--the-native-app)).
-Its version carries the channel (`0.1.0-alpha`).
+dedicated tablet or phone, as a kiosk (see [below](#jkos-home--the-launcher)). jkOS Alpha is
+the suite as one **native** app (see [below](#5--jkos-alpha--the-native-app)). Its version carries
+the channel (`0.2.0-alpha`).
 
 A **debug build is a staging build**: package `<id>.staging`, name "… (staging)", pointed at
 `staging.jkos.net`. It installs beside the release app, never over it.
@@ -52,10 +52,11 @@ native/
 │   ├── home/              :home — the launcher (Kotlin)
 │   │   └── src/<debug|release>/res/          GENERATED per build type
 │   └── ordeck/            :ordeck — jkOS Alpha, the native app (Kotlin + Compose + Media3)
-│       ├── src/<debug|release>/res/          GENERATED: api_apps + api_bases, auth_origin, client_id, redirect_uri
+│       ├── src/<debug|release>/res/          GENERATED: api_apps + api_bases, auth_origin, client_id, redirect_uri, portal_url, the health probes
 │       └── src/main/java/net/jkos/app/alpha/ the shell; one package per app beneath it:
 │           auth/ (jkAuth: sign-in, the session, the one API client), kouros/, beigeboard/, ordeck/
-├── play-context-cases.json  what a listen's `context` must be, as vectors the app and the server pass
+├── *-cases.json           shared vectors the app and the web or server both pass: play contexts, the session,
+│                          the HUD shelf, the HUD's order, BeigeBoard's bodies
 └── desktop/               Electron — OUTSIDE the pnpm workspace (own lockfile)
     ├── src/policy.js      every security decision, pure (the gate requires it)
     ├── src/main.js        applies policy.js; nothing else
@@ -92,7 +93,7 @@ name, package, which app it opens on, what it reaches, and its Android kind. Fro
   and `<package>:/oauth2redirect` its redirect URI. `gen-native.mjs` writes the same pair into
   the app's `shell.xml` *and* into `apps/jkauth/src/native-clients.json`, the list jkAuth
   honours, so the APK and the server can't disagree about where a code may be sent. A native
-  app's Gradle module is named after its start app (`:kouros`), and `settings.gradle.kts`
+  app's Gradle module is named after its start app (`:ordeck`), and `settings.gradle.kts`
   includes every one listed in `shells.json`.
 
 The generated files are **checked in**, not built inside Gradle: an origin list is a grant, and a
@@ -109,7 +110,7 @@ it lands on one of its origins. What happens to anything else depends on the she
 | TWA (jkOS, KourOS) | Chrome shows its URL bar / opens it in the browser | nothing Chrome doesn't give any site | none |
 | Desktop (Electron) | handed to the system browser (`https:`/`http:`/`mailto:` only; never `file:` or a custom scheme) | no Node, no preload, one permission (`clipboard-sanitized-write`) | the main process, which decides by `policy.js` |
 | jkOS Home | **refused**: a kiosk doesn't give a guest the browser | the `jkosShell` bridge on the start origin only | the launcher |
-| KourOS Alpha | there are no navigations: no WebView, no page | nothing | the whole app; its trust list is `api_base` (the only host that gets its token) and `auth_origin` |
+| jkOS Alpha | there are no navigations: no WebView, no page | nothing | the whole app; its trust list is generated (`api_bases`, `auth_origin`, the health probes), and only those get its token |
 
 **One navigation rule, two implementations.** The rule is https only, no userinfo, the default
 port only, and the origin exactly equal to a listed origin, with no prefix, suffix or pattern
@@ -141,7 +142,7 @@ them apart. `check:native` fails on any `addJavascriptInterface`.
 
 | Message (page → shell) | Reply |
 |---|---|
-| `{"type":"info"}` | `{"type":"info","shell":"home","package":"net.jkos.home","version":"0.1.0"}` |
+| `{"type":"info"}` | `{"type":"info","shell":"home","package":"net.jkos.home","version":"0.2.0"}` |
 | anything else | `{"type":"error","error":"unknown message type"}` |
 
 ```js
@@ -172,78 +173,78 @@ origin-scoped listeners gets no bridge at all (the page still works).
   WebView doesn't forward Media Session the way Chrome does, so for music on a phone, use the
   KourOS app.
 
-## 5 · KourOS Alpha — the native app
+## 5 · jkOS Alpha — the native app
 
-> **Being rebuilt as jkOS Alpha (TODO §10).** This section still describes the KourOS screens
-> and the sign-in, which are unchanged, and is rewritten from the code at phase J. What has
-> changed since it was written:
->
-> - **One app for the suite.** Package `net.jkos.app.alpha`, module `native/android/ordeck`
->   (named after its start app), jkAuth client `app: 'ordeck'`. Consent rests on ORDECK being
->   in the person's `aud`: a user or an admin, not a guest.
-> - **One API base per reached app**, derived by `nativeConfig()` and generated into `shell.xml`
->   as `api_apps` / `api_bases`. `AppApi` (in `auth/`) is the one client: it attaches the token
->   only to URLs under its own app's base. Where this section says `api_base`, read "KourOS's
->   base".
-> - **One Kotlin package per app** under `net.jkos.app.alpha`, and every `/api/…` path an app's
->   package types is a route that app declares, or is on `check:native`'s named list.
-> - **The Account tab is jkAuth's**: the display name and the theme mode through
->   `/auth/profile`, the devices list and sign-out-a-device through `/auth/sessions`, each with
->   the app's Bearer token (`AccountApi`). The app marks "this device" by the `family_id` the
->   token endpoint returned. The theme mode is the suite's own `preferences.theme.mode`, drawn
->   as the paper or dark face from hub.css's computed values. Password and two-factor stay
->   jkAuth's own pages, opened in a Custom Tab.
-> - **One transport holds the token** (`BearerClient`): `AppApi` builds one for
->   `${an app's base}/api/`, `AccountApi` one for `${auth_origin}/auth/`, and `HealthApi` one
->   per derived health probe, on a staging build only (`health_bearer`: the staging edge gates
->   the probes; production's are open). Nothing else may.
-> - **KourOS's lists (phase G1):** search, the queue and playlists. A playlist's tracks are
->   read by id (`/api/tracks?ids=`, in pieces of Weave's `IN_MAX`), never by pulling the
->   catalog. The queue is Media3's own, so every edit is a player call. Reordering, in the
->   queue and in a playlist, is one grip-bound `ReorderList` over pure `Reorder` arithmetic.
-> - **Audiobooks (phase G2):** a book is its files in the queue, one entry each, as
->   `book:<bookId>:<fileIndex>` (`MediaRef`; a bare number is still a track). Each entry's
->   extras carry its book, where it starts in the book, the book's length and its chapters, so
->   the service needs no lookup. `BookLayout` turns a position in the book into a file and an
->   offset. The service's `BookKeeper` saves `progress` (a PATCH of the row by id, a POST only when there
->   is none: the server's upsert gives a POSTed row a new id, which would strand a web tab) every
->   5 s of playing, on pause, on a switch and at the end; sets the device's book rate on a book
->   and 1× on anything else; and fires the `SleepTimer`. A book's listen goes to `book_history`,
->   one stretch across its files. The rate is a device preference in the sealed `prefs.bin`
->   (`Auth.pref`), since `check:native` allows no SharedPreferences.
-> - **The listening session (phase G3):** `SessionLink` is the transport: a device id per
->   install in the sealed prefs, registration, and `/api/session/events` read through
->   `BearerClient.stream`, the same one token holder. A cancel closes the connection,
->   since a blocked read notices nothing else. It reconnects with the web's backoff and
->   reopens on `reauth`. `SessionOutput`, in the service, is the output role; `SessionCore`
->   is its pure half, held to `native/session-{mode,state,command}-cases.json`. As a
->   remote, `SessionLink.role` routes the screens' plays (Player.kt) to the output as
->   commands, and `RemoteUi` draws the output's session on the server's clock and edits its
->   queue (jump, remove, reorder, in the session's indices).
-> - **BeigeBoard (phase H):** `BeigeBoardApi` over the declared routes, `Items` for the
->   shape and the bodies (each holds only its capability's declared fields; check:native
->   holds them, CONTROLS.md CF-4), and a `Board` holding the items with optimistic writes. Pin
->   and focus are the HUD shelf in jkAuth's preferences (`auth/HudShelf.kt`, through
->   `AccountApi`), read with the web's XC-5 fallback. `Tree` walks goals → lists → tasks and
->   measures progress as the web's getProgress does. Routines and the library (`Routines.kt`):
->   a routine is changed as its document, through the import's dry run and then the import.
->   Every field list and vocabulary the app keeps is held by check:native to its declaration
->   or to `@jkos/routine-spec`.
-> - **ORDECK, the Home tab (phase I):** the HUD. `HudOrder` reads the person's arrangement
->   (`preferences.ordeck.hud`) as the web's `loadHudState` + `layoutForBreakpoint` do for the
->   mobile tier, held to them by `native/hud-order-cases.json`. `Slices.kt` ports the web's
->   slices (`useHudData.ts`); `HudModel` reads the profile once (order, shelf, AI switch), holds
->   a `Board` for BeigeBoard's items, and probes each app's health (`HealthApi`, the URLs
->   `shells.js` derives). It refreshes every minute, the probes every 30 s, only while Home is
->   up and the app is in front. Tapping an item opens BeigeBoard's `ItemSheet` over the Home.
-> - **A tab exists only for an app in the token's `aud`** (`Tabs.forAud`). The audience is read
->   from the access token and kept in the sealed session file, so the tabs are right at a cold
->   start. Each tab has its own back stack; the mini player sits above the bar.
+One native Android app for the suite: Compose UI, Media3 playback, no WebView, no bundled
+frontend. Package `net.jkos.app.alpha` (a debug build is `….staging`, against
+`staging.jkos.net`), module `native/android/ordeck` (named after its start app), jkAuth client
+`app: 'ordeck'`. Its versionName carries the channel: `0.2.0-alpha` (release),
+`0.2.0-alpha-staging` (debug). That string is on screen as "ALPHA · staging · …", at the foot of
+the Home tab and on the Account tab.
 
-KourOS as a real Android app: Compose UI, Media3 playback, no WebView, no bundled frontend.
-Package `net.jkos.app.alpha` (a debug build is `….staging`, against `staging.jkos.net`), so
-it installs beside the KourOS TWA. Its versionName carries the channel: `0.1.0-alpha` (release),
-`0.1.0-alpha-staging` (debug). That string is on screen as "ALPHA · staging · …".
+### The shell and the tabs
+
+`Shell.kt` signs in, then draws a bottom bar of tabs, each with its own back stack (`Nav`, no
+navigation library; Back pops the tab's stack, then returns to Home), and the mini player above
+the bar. **A tab exists only for an app in the access token's `aud`** (`Tabs.forAud`): least
+privilege in the UI, read from a claim the servers enforce on every request anyway. The audience
+is kept in the sealed session file, so the tabs are right at a cold start. Consent rests on
+ORDECK being in the person's `aud`: a user or an admin, not a guest.
+
+One Kotlin package per app under `net.jkos.app.alpha`:
+
+- **`ordeck/` — Home: the HUD.** `HudOrder` reads the person's arrangement
+  (`preferences.ordeck.hud`, the legacy top-level key as the fallback) as the web's
+  `loadHudState` + `layoutForBreakpoint` do for the mobile tier, read top to bottom, left to
+  right. `native/hud-order-cases.json` holds both to it (`check:native` runs the web's real
+  code; the JVM test runs `HudOrder`). `Slices.kt` ports the web's slices (`useHudData.ts`):
+  clock, today, month, focus, pinned, alerts. `HudModel` reads the profile once (the
+  arrangement, the shelf, the LazurOS switch), holds a BeigeBoard `Board`, and probes each app's
+  health (`HealthApi`, the URLs `shells.js` derives). It refreshes every minute, the probes every
+  30 s, only while Home is up and the app is in front, and keeps the last arrangement per person
+  in the sealed prefs so a cold start draws at once. Cards: clock, Today (tick in place, quick
+  add), calendar, the week as an agenda, focus (END FOCUS), pinned, systems, alerts. Weather
+  isn't drawn (its key lives in the browser); another app's card is counted at the foot.
+  Tapping an item opens BeigeBoard's `ItemSheet` over the Home. Arranging stays on the web: the
+  ✎ opens `portal_url` in a Custom Tab.
+- **`beigeboard/`**: `BeigeBoardApi` over the declared routes, `Items` for the shape and the
+  bodies (each holds only its capability's declared fields; `check:native` holds them,
+  CONTROLS.md CF-4), and a `Board` holding the items with optimistic writes. Today, goals and
+  lists (`Tree`, measured as the web's getProgress), the calendar (the web's phone week and
+  month; an event's colour is its own, its source's from `SOURCE_TINTS`, or its goal's),
+  routines (`Cadence` ports the web's week strip and streak) and the library. A routine is
+  changed as its document, through the import's dry run and then the import. Pin and focus are
+  the HUD shelf in jkAuth's preferences (`auth/HudShelf.kt`), read with the web's XC-5 fallback.
+- **`kouros/`**: the library (albums, artists, books), search, playlists, the queue (Media3's
+  own, so every edit is a player call), Now Playing with Start radio, audiobooks and the
+  listening session. A playlist's tracks are read by id (`/api/tracks?ids=`, in pieces of
+  Weave's `IN_MAX`), never by pulling the catalog. Reordering, in the queue and in a playlist,
+  is one grip-bound `ReorderList` over pure `Reorder` arithmetic.
+- **`auth/`**: sign-in, the session, the one transport, and the Account tab: the display name
+  and the theme mode through `/auth/profile`, the devices list and sign-out-a-device through
+  `/auth/sessions` (the app marks "this device" by the `family_id` the token endpoint returned).
+  Password and two-factor stay jkAuth's own pages, opened in a Custom Tab.
+
+### What the app may call
+
+- **Its whole trust list is generated** into `shell.xml` from `nativeConfig()`: one API base per
+  reached app (`api_apps` / `api_bases`), the jkAuth that signs it in (`auth_origin`), its
+  client id and redirect URI, the web portal (`portal_url`), and the systems card's health
+  probes (`health_apps` / `health_urls` / `ai_apps`, `health_bearer`). No `jkos.net` URL is
+  typed in the Kotlin (`check:native`).
+- **One transport holds the token** (`BearerClient`), attaching it only to URLs under the root
+  it was built for. `AppApi` builds one for `${an app's base}/api/`, `AccountApi` one for
+  `${auth_origin}/auth/`, and `HealthApi` one per derived probe URL, on a staging build only:
+  the staging edge gates the probes behind `auth_request`, which reads the Bearer; production's
+  `/health/<peer>` routes are open, so no token goes there (`check:native` holds the flag to
+  both edge confs, probe by probe). The player's data source asks KourOS's client the same
+  question before it adds the header. Nothing else may build the header.
+- **Every `/api/…` path** an app's package types is a route that app's `discovery.js`
+  declares, or is on `check:native`'s short named list of routes its web client also uses
+  undeclared (the media streams and covers).
+- **Redirects are not followed.** Behind the staging edge gate an unauthenticated call is
+  answered with a **302 to the sign-in page**, not a 401; followed, it would become a 200 of
+  HTML. A 3xx is treated as a 401: renew once, retry once.
 
 ### Sign-in: jkAuth's native sign-in
 
@@ -259,7 +260,7 @@ OAuth 2.0 for native apps (RFC 8252), authorization code + PKCE (RFC 7636):
    URI to `Auth`, which requires the exact registered redirect path, a `state` equal to the
    pending attempt's (and no older than 15 min), and then spends the attempt.
 4. `POST /auth/native/token` (`authorization_code` + the verifier) → an access token (the
-   suite's ordinary user JWT, `azp: kouros`) and a refresh token.
+   suite's ordinary user JWT, `azp: ordeck`) and a refresh token.
 
 Android ignores a filter's `path` when it names no `host`, so the filter is the scheme alone and
 the path is checked in code. Any app could fire the redirect intent, which is why `state` and
@@ -281,23 +282,20 @@ In the app:
 
 - **The refresh token** lives only in `no_backup/session.bin`: AES-256-GCM under an Android
   Keystore key, written atomically. The **access token** lives in memory and renews 60 s
-  before it expires.
+  before it expires. The device's preferences (the look last seen, a book's rate, the session
+  device id, the last HUD arrangement per person) go through the same sealed write into
+  `prefs.bin`; they survive a sign-out on purpose.
 - **Refreshes are serialised** (one `Mutex`). jkAuth rotates refresh tokens, and a phone has no
   shared cookie jar, so two concurrent refreshes would spend one token twice and the second
   use, seconds later, is theft to the server. A new refresh token is written to disk *before*
   the new access token is used. `invalid_grant` = signed out. A `409 REFRESH_RACE` should be
   impossible with the lock and is reported, not retried.
-- **Sign out** calls `POST /auth/native/revoke` (the whole family) and deletes both files.
-- **The Bearer header** goes only to URLs under `api_base` (`Api.authorized`), from the API
-  client and from the player's data source, and from nowhere else.
-- **Redirects are not followed.** Behind the staging edge gate an unauthenticated API call is
-  answered with a **302 to the sign-in page**, not a 401. Followed, it becomes a 200 of HTML.
-  A 3xx is treated as a 401: renew once, retry once.
+- **Sign out** calls `POST /auth/native/revoke` (the whole family) and deletes the session.
 - **The staging gate** (`/_auth_admin_check` → `/auth/require-admin`) accepts the app's Bearer
   token. nginx's `auth_request` forwards the request's `Authorization` header by default, and
   `standalone.conf` says so explicitly (`check:native` § 8 holds the line). Only a *user* token
-  passes; a service token is refused there. Staging is admin-only, so the
-  staging app works for admins only.
+  passes; a service token is refused there. Staging is admin-only, so the staging app works
+  for admins only.
 
 ### Playback and history
 
@@ -305,84 +303,73 @@ In the app:
 lock screen and Bluetooth drive it with the screen off. It uses music audio attributes, audio
 focus, pause-on-unplug and the network wake mode. One `ResolvingDataSource` adds the token to
 every request: each range request of a stream, and the artwork the notification draws.
-Queue items are rebuilt from their track id in `onAddMediaItems`, so a controller never
+Queue items are rebuilt from their media id in `onAddMediaItems`, so a controller never
 chooses a URL. Any media controller on the device can drive playback (that is what a media
 session is for); none can read a token through it.
 
-The history ledger is written **from the service** (`HistoryRecorder` → `ListenLedger`), so a
-listen counts with the UI closed. It follows the web player's `flushSession`: one row per track
-per playing stretch, at least 1 s, closed on pause, on a track change (completed when the
-player moved on by itself) and when the app goes to the background (then reopened). The
-`context` is `album/…`, `artist/…` or `station/<seed>`, encoded exactly as JavaScript's
-`encodeURIComponent`. `PlayContext.kt` does it in plain Kotlin, and
-`native/play-context-cases.json` holds the vectors that both its JVM test and the server's own
-`parsePlayContext` (in `check:native`) pass. A context longer than the server's 600 characters
-is dropped, not sent: the server would refuse the whole row.
-
-### The screens
-
-Sign-in → **Library** (Albums: a cover grid with sort and search, paged 120 at a time; Artists)
-→ **Artist** (their albums) → **Album** (tap a track: the album plays from there) → a mini
-player bar and **Now Playing** (cover, seek bar, previous/play/next, **Start radio** from the
-current track: it keeps playing and the station becomes the rest of the queue) → **Account**
-(who, which environment, sign out). Edge-to-edge with `safeDrawing` insets. Back is the app's
-own stack plus `BackHandler`, with no navigation library. Icons are hand-drawn `ImageVector`s,
-and covers are `HttpURLConnection` + `BitmapFactory` + an `LruCache`, with no image library.
+- **Audiobooks:** a book is its files in the queue, one entry each, as
+  `book:<bookId>:<fileIndex>` (`MediaRef`; a bare number is a track). Each entry's extras carry
+  its book, where it starts in the book, the book's length and its chapters, so the service
+  needs no lookup. `BookLayout` turns a position in the book into a file and an offset. The
+  service's `BookKeeper` saves `progress` (a PATCH of the row by id, a POST only when there is
+  none) every 5 s of playing, on pause, on a switch and at the end; sets the device's book rate
+  on a book and 1× on anything else; and fires the `SleepTimer`. A book's listen goes to
+  `book_history`, one stretch across its files.
+- **The listening session:** `SessionLink` is the transport: a device id per install in the
+  sealed prefs, registration, and `/api/session/events` read through `BearerClient.stream`. A
+  cancel closes the connection, since a blocked read notices nothing else. It reconnects with
+  the web's backoff and reopens on `reauth`. `SessionOutput`, in the service, is the output
+  role; `SessionCore` is its pure half, held to `native/session-{mode,state,command}-cases.json`.
+  As a remote, `SessionLink.role` routes the screens' plays to the output as commands, and
+  `RemoteUi` draws the output's session on the server's clock and edits its queue.
+- **History** is written **from the service** (`HistoryRecorder` → `ListenLedger`), so a listen
+  counts with the UI closed. It follows the web player's `flushSession`: one row per track per
+  playing stretch, at least 1 s, closed on pause, on a track change and when the app goes to the
+  background. The `context` is `album/…`, `artist/…`, `station/<seed>`, `playlist/<id>` or
+  `book/<id>`, encoded exactly as JavaScript's `encodeURIComponent` (`PlayContext.kt`, held with
+  the server's `parsePlayContext` to `native/play-context-cases.json`). A context longer than the
+  server's 600 characters is dropped, not sent.
 
 ### The look: the web's, not Material's
 
 The app draws in the suite's own visual language, so it reads as jkOS rather than as a stock
-Android app. **Compare against the desktop web, not BeigeBoard's `src/mobile/` tree**, which is
-stale. Everything lives in `ordeck/…/look/`:
+Android app. Everything lives in `ordeck/…/look/`:
 
 - **`Tokens.kt`** holds both faces' colours, derived the way `hub.css` derives them: the literal
   grounds, inks and lines, and the accent chain computed from the person's own pair
   (`preferences.theme.primary` / `.secondary`) with CSS `color-mix` arithmetic. Paper deepens
-  the pair, and the tube shows it raw and makes it glow. It is pure Kotlin.
-  **`TokensTest`** holds every token, on both faces, to what Chromium computes from `hub.css`
+  the pair, and the tube shows it raw and makes it glow. **`TokensTest`** holds every token, on
+  both faces, to what Chromium computes from `hub.css`
   (`packages/design/tokens/computed-baseline.json`, written by `test/token-identity.mjs`).
-  Change `hub.css`, regenerate the baseline, and the native test fails until the app follows.
-- **`Type.kt`** sets up the four typefaces: Fraunces (two optical cuts, text and display), IBM
-  Plex Sans, IBM Plex Mono, and Big Shoulders Display for the tube's readouts. They are bundled
-  in `res/font` and pinned in `native/android/fonts.json` (upstream commit + sha256, OFL licence
-  in `assets/licenses/`). `check:native` § 5 holds every font file to that list. Material's type
-  roles are filled from them, so a stock dialog still prints like the suite.
-- **`Atmosphere.kt`** paints the ground (`Ground`). Film grain is multiplied into paper and
-  screened onto the tube. With halation on there is the rake on paper and the buzz on the tube,
-  plus the scan-line veil when the person turns it on. `LocalStill` holds the rake still for
-  the renders.
-- **`Kit.kt`** holds the primitives, named after `@jkos/ui`'s: `Sheet`, `Chip` (tinted, solid,
-  done), `Well`, `Check`, `Bar`, `VU`, `Eyebrow`, `Lab`, `PressTitle` / `Wordmark`, `Seg`,
-  `Folio`, `TButton`, `Field`, `Pill`, `Lamp`, `MastTab`, `JkSlider` (the fader) and `Knob` (the
-  transport button). Each follows its hub.css recipe: paper presses and debosses, the tube
-  glows. **A screen builds from these, never from Material's defaults.** Material components
-  that remain (dialogs, menus, switches) take their colours and shapes from the theme.
+- **`Type.kt`** sets up the four typefaces: Fraunces (text and display cuts), IBM Plex Sans,
+  IBM Plex Mono, and Big Shoulders Display for the tube's readouts, bundled in `res/font` and
+  pinned in `native/android/fonts.json` (upstream commit + sha256, OFL licence).
+- **`Atmosphere.kt`** paints the ground: film grain, the rake and buzz with halation on, the
+  scan-line veil when the person turns it on. `LocalStill` holds it still for the renders.
+- **`Kit.kt`** holds the primitives, named after `@jkos/ui`'s (`Sheet`, `Chip`, `Well`, `Check`,
+  `Bar`, `VU`, `Eyebrow`, `Lab`, `PressTitle`, `Seg`, `TButton`, `Field`, `Pill`, `Lamp`,
+  `JkSlider`, `Knob`). ORDECK's cards (`ordeck/HudCards.kt`) follow the widget renderer's chrome
+  at ORDECK's radius; BeigeBoard's Workshop cards (`beigeboard/WorkshopCards.kt`) and KourOS's
+  book and queue screens follow their web views. **A screen builds from these, never from
+  Material's defaults.** Material components that remain take their colours and shapes from
+  the theme, which is built from the face.
 - **`Look`** (`auth/AccountModels.kt`) is the person's mode, accent pair and effects, read from
-  `/auth/profile` as auth-client reads them. A stored colour is drawn, so anything but a hex is
-  refused. The last look seen is kept in the sealed prefs file, so the app opens in it.
+  `/auth/profile` as auth-client reads them.
 
-Render after any visual change, in both faces, and put the renders beside the web's. For the
-web side, use `pnpm widget shot --routes <app>` for the widget pages. For the rest, use a
-scratchpad mock backend, `vite build` and headless Chromium with `--force-prefers-reduced-motion`.
+Render after any visual change, in both faces, and put the renders beside the web's: phone
+views where the web has them (BeigeBoard's `src/mobile/`, the HUD's mobile tier through
+`pnpm widget shot`), the desktop web where it doesn't (the Workshop). For a web app's own
+views, use a scratchpad mock backend, `vite build` and headless Chromium.
 
 ### What hasn't been seen yet
 
-**It has never run on a device.** Gradle first built it on 2026-11-16, against the real Media3
-1.11.1, Compose 1.12.1 and activity 1.13.0, and its 17 JVM tests pass (PKCE against RFC 7636's own
-vector, redirect parsing, the ledger, the JSON shapes, the play context vectors). No Media3
-signature was wrong.
-
-That first build found two things the source alone couldn't show:
-
-- **Compose 1.12 needs compileSdk 37.** compileSdk moved to 37 (§ 2); targetSdk stays 36.
-- **The APK asked for six permissions, not four.** Media3 merges in `ACCESS_NETWORK_STATE`,
-  only to guess a bandwidth estimate from the network type, and it catches the
-  `SecurityException` when the permission is missing, so the app's manifest removes it.
-  androidx.core adds `<package>.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`, a signature-level
-  permission the app defines for itself. It stays: it keeps the app's receivers private on
-  Android 8–12, and no other app can hold it. The build now refuses an APK whose merged
-  manifest asks for anything else (`checkDebugPermissions` / `checkReleasePermissions`, which
-  `assemble` depends on).
+**It has never run on a device.** Everything is held by its JVM tests (83 on 2026-11-18: PKCE
+against RFC 7636's own vector, redirect parsing, the ledger, the JSON shapes, the shared case
+files, the HUD's order and slices, the cadence) and looked at in the renders (27 screens,
+including landscape and a 1.5× font scale). The first Gradle build (2026-11-16) found that
+Compose 1.12 needs compileSdk 37 and that Media3 merges in `ACCESS_NETWORK_STATE`, which the
+manifest now removes; the build refuses an APK whose merged manifest asks for anything beyond
+the four permissions and androidx.core's signature-level self permission.
 
 ## 6 · Building
 
@@ -391,8 +378,8 @@ pnpm native:gen                         # after editing shells.js or a start app
 pnpm android:build                      # staging APKs → native/android/out/*-staging.apk
 pnpm android:build -- assembleRelease   # production (signed if the keystore env is set)
 pnpm android:build -- :home:testDebugUnitTest   # OriginPolicy vs origin-cases.json
-pnpm android:build -- :ordeck:testDebugUnitTest # KourOS Alpha's pure core vs play-context-cases.json
-pnpm android:build -- :ordeck:assembleDebug     # → out/jkos-alpha-0.1.0-staging.apk
+pnpm android:build -- :ordeck:testDebugUnitTest # jkOS Alpha's pure core vs the shared case files
+pnpm android:build -- :ordeck:assembleDebug     # → out/jkos-alpha-0.2.0-staging.apk
 pnpm android:build -- :ordeck:testDebugUnitTest -Pjkos.screens  # → ordeck/build/screens/*.png
 ```
 
@@ -435,12 +422,12 @@ or give the dev binary a profile as root. Don't add `--no-sandbox`.
 
 | Check | Where | What |
 |---|---|---|
-| `pnpm check:native` | `native/gen-native.mjs --check` + `test/native.mjs` | generated files in sync (and no stale variant dirs, and jkAuth's `native-clients.json`); desktop policy vs origin-cases; webPreferences, permissions, external schemes; main.js applies the policy; fuses; .deb-only; manifests least-privilege; no `addJavascriptInterface`/`proceed()`/file access/mixed content; signing from env; wrapper, dependencies, toolchain and image pinned; staging URLs routed; **KourOS Alpha (§ 7 of the test):** exactly four permissions, Media3's `ACCESS_NETWORK_STATE` removed, the build's merged-manifest allow-list equal to the four, exactly three exported components, the redirect filter's scheme = `${applicationId}`, no WebView, tokens written only Keystore-sealed into `noBackupFilesDir`, every refresh under the Mutex, store-before-use, the state check, no redirect following, Bearer only to `api_base`, play-context vectors vs the server's parser; **native sign-in (§ 8):** staging jkAuth alone sets `JKOS_NATIVE_ENV`, the edge gate forwards `Authorization`, every native app's staging API base is routed |
+| `pnpm check:native` | `native/gen-native.mjs --check` + `test/native.mjs` | generated files in sync (and no stale variant dirs, and jkAuth's `native-clients.json`); desktop policy vs origin-cases; webPreferences, permissions, external schemes; main.js applies the policy; fuses; .deb-only; manifests least-privilege; no `addJavascriptInterface`/`proceed()`/file access/mixed content; signing from env; wrapper, dependencies, toolchain and image pinned; staging URLs routed; **jkOS Alpha (§ 7 of the test):** exactly four permissions, Media3's `ACCESS_NETWORK_STATE` removed, the build's merged-manifest allow-list equal to the four, exactly three exported components, the redirect filter's scheme = `${applicationId}`, no WebView, tokens written only Keystore-sealed into `noBackupFilesDir`, every refresh under the Mutex, store-before-use, the state check, no redirect following, the Bearer token only to a derived base or a gated health probe, every `/api/` path declared, the tabs from `aud`, and the shared case files (play contexts, the session, the HUD shelf, the HUD's order through the web's own `loadHudState`, BeigeBoard's bodies, source tints); **native sign-in (§ 8):** staging jkAuth alone sets `JKOS_NATIVE_ENV`, the edge gate forwards `Authorization`, every native app's staging API base is routed, every health probe routed and carrying the token exactly where the edge gates it |
 | `apps/jkauth/test/native.mjs` | `npm test` in jkAuth (gate step 2) | the native sign-in, over real HTTP: dead-end refusals, the login round trip, consent bound to person and request, the scheme in `form-action`, codes single-use / verifier-bound / short-lived / replay-burns, refresh rotation + 409 race + reuse burn, the transport binding both ways (and its triggers), an S256-shaped challenge held by a CHECK, a role the app doesn't admit refused before consent, the Bearer gate, revoke, the audit trail, off when `JKOS_NATIVE_ENV` is unset and no boot on an unknown value |
-| Gradle unit test | `:ordeck:testDebugUnitTest` | PKCE (RFC 7636 vector), redirect parsing, `ListenLedger`, JSON shapes, `PlayContext` vs play-context-cases |
+| Gradle unit test | `:ordeck:testDebugUnitTest` | PKCE (RFC 7636 vector), redirect parsing, `ListenLedger`, JSON shapes, the shared case files, the HUD's order and slices, the cadence |
 | Token parity | `:ordeck:testDebugUnitTest` (`TokensTest`) | every colour token on both faces equals what Chromium computes from hub.css (`computed-baseline.json`); seen to fail on a changed mix before it was trusted |
 | Font pinning | `pnpm check:native` § 5 | every file under a module's `res/font` is in `fonts.json`, matches its sha256, comes from a pinned google/fonts commit, and ships its OFL licence; seen to fail on an unlisted file and on a changed hash |
-| Screen renders | `:ordeck:testDebugUnitTest -Pjkos.screens` | `ScreensTest`: the real Compose screens drawn on Robolectric (Roborazzi) from sample data, as PNGs to look at: BeigeBoard's, and KourOS's library, Now Playing and mini player. Test-only dependencies (none reaches an APK); Robolectric's Android runtime is resolved and checksum-pinned by Gradle and loaded offline (`robolectric.offline`), never fetched by Robolectric itself. Out of the normal test run unless asked for. Their first run found two app-wide theme bugs (TRAPS.md § Native shells). |
+| Screen renders | `:ordeck:testDebugUnitTest -Pjkos.screens` | `ScreensTest`: the real Compose screens drawn on Robolectric (Roborazzi) from sample data, as PNGs to look at: the Home (light, dark, focus, landscape, a 1.5× font scale, an item's sheet), BeigeBoard's, and KourOS's library, Now Playing, mini player, books, a book, the book player and the queue. Test-only dependencies (none reaches an APK); Robolectric's Android runtime is resolved and checksum-pinned by Gradle and loaded offline (`robolectric.offline`), never fetched by Robolectric itself. Out of the normal test run unless asked for. Their first run found two app-wide theme bugs (TRAPS.md § Native shells). |
 | `pnpm check:nginx` | `infra/nginx/gen-nginx-weave.mjs --check` | every origin a TWA trusts serves `/.well-known/assetlinks.json` |
 | `pnpm check:audit` | `test/supply-chain.mjs` | **every tracked** `pnpm-lock.yaml`, so the desktop's too, at the `high` floor |
 | Gradle unit test | `:home:testDebugUnitTest` | `OriginPolicy` vs origin-cases (not on the node gate: it needs the JDK) |
@@ -455,7 +442,7 @@ Each `check:native` assertion was seen to fail on a mutated copy before it was t
    `any` and `maskable` PNGs and a `theme_color`.
 2. `pnpm native:gen`. A TWA becomes a new flavor automatically. A second `home` shell isn't
    supported (the generator refuses it). A **native** shell (`android: 'native'`, plus a
-   `channel`) needs its own module at `native/android/<start>/` (copy `kouros/`'s shape), and
+   `channel`) needs its own module at `native/android/<start>/` (copy `ordeck/`'s shape), and
    its client lands in jkAuth's `native-clients.json`. Deploying jkAuth is what lets it sign in.
 3. For a TWA: `pnpm android:signing`, which adds its package to `assetlinks.json`. Then
    `node infra/nginx/gen-nginx-weave.mjs` and deploy.

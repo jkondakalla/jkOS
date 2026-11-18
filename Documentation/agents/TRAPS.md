@@ -943,7 +943,7 @@ Every trap here was hit building `native/` on 2026-09-24; see [NATIVE.md](NATIVE
 - **An intent filter's `android:path` is ignored when the filter names no `host`.** Android
   only matches a path when both the scheme and the host are given. A private-use redirect
   (`<package>:/oauth2redirect`) has no host, so `path="/oauth2redirect"` there reads like a
-  restriction and matches every URI of the scheme. KourOS Alpha's filter is the scheme alone,
+  restriction and matches every URI of the scheme. jkOS Alpha's filter is the scheme alone,
   and the path is checked in code (`parseRedirect`).
 
 - **An API call behind the staging edge gate gets a 302, not a 401.** `/_auth_admin_check`'s

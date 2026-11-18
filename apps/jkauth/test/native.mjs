@@ -3,7 +3,7 @@
 //
 //   node apps/jkauth/test/native.mjs
 //
-// A native app (KourOS Alpha) signs in through a Custom Tab and keeps its tokens itself.
+// A native app (jkOS Alpha) signs in through a Custom Tab and keeps its tokens itself.
 // Every control below is one that would fail SILENTLY if it went missing — sign-in would
 // still "work", for the app and for whoever else had the code or the token:
 //   A  an unknown client, a redirect URI that is not the registered one, a client of the
