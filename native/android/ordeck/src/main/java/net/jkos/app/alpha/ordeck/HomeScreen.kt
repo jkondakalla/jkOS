@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -36,6 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -89,11 +91,11 @@ val DRAWN = setOf("clock", "today", "calendar", "bb-week", "focus", "pinned", "s
  * and the health probes. Held by the shell, so going back to Home redraws at once and refreshes
  * behind it.
  */
-class HudModel(private val scope: CoroutineScope, val reachesBoard: Boolean) {
+class HudModel(private val scope: CoroutineScope, val reachesBoard: Boolean, private val cache: OrderCache? = null) {
     val board = Board(scope)
 
-    /** The card ids in order; null until the profile has answered once. */
-    var order by mutableStateOf<List<String>?>(null)
+    /** The card ids in order: the arrangement last seen on this device at once, then the profile's. Null only before either. */
+    var order by mutableStateOf(cache?.read())
         private set
     /** Set when the arrangement couldn't be read and the default is showing. */
     var orderNote by mutableStateOf<String?>(null)
@@ -120,7 +122,9 @@ class HudModel(private val scope: CoroutineScope, val reachesBoard: Boolean) {
     private suspend fun readProfile() {
         when (val r = attempt { AccountApi.preferences() }) {
             is Load.Ready -> {
-                order = HudOrder.order(r.value)
+                val next = HudOrder.order(r.value)
+                if (next != order) cache?.write(next)
+                order = next
                 orderNote = null
                 board.adopt(HudShelf.read(r.value))
                 aiEnabled = AiSwitch.enabled(r.value)
@@ -144,6 +148,28 @@ class HudModel(private val scope: CoroutineScope, val reachesBoard: Boolean) {
         this.order = order
         board.preload(items, shelf)
         this.systems = systems
+    }
+}
+
+/**
+ * The arrangement last seen, kept on the device so a cold start draws the cards before the
+ * network answers. Keyed by the person: the device's sealed prefs survive a sign-out, and
+ * another account must never be shown this one's. It holds card ids, nothing else.
+ */
+interface OrderCache {
+    fun read(): List<String>?
+    fun write(order: List<String>)
+
+    companion object {
+        /** The sealed prefs file (Auth.pref), under `hud.order.<user id>`. */
+        fun forUser(userId: Long): OrderCache = object : OrderCache {
+            private val key = "hud.order.$userId"
+            override fun read(): List<String>? = runCatching {
+                val a = org.json.JSONArray(Auth.pref(key) ?: return null)
+                (0 until a.length()).map { a.getString(it) }
+            }.getOrNull()
+            override fun write(order: List<String>) { runCatching { Auth.setPref(key, org.json.JSONArray(order).toString()) } }
+        }
     }
 }
 
@@ -216,14 +242,18 @@ fun HomeTab(user: User, model: HudModel, build: String, openApp: (String, Screen
                 return@PullToRefreshBox
             }
             val drawn = order.filter { it in DRAWN }
+            // One column, at most a card's comfortable width: in landscape or on a tablet the
+            // cards sit centred instead of stretching edge to edge.
+            val column = Modifier.widthIn(max = 600.dp).fillMaxWidth()
             LazyColumn(
                 Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 28.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                model.orderNote?.let { note -> item(key = "note") { Hush(note) } }
+                model.orderNote?.let { note -> item(key = "note") { Hush(note, column) } }
                 items(drawn, key = { it }) { id ->
-                    Box(Modifier.alpha(if (dimOthers && id != "focus") 0.32f else 1f)) {
+                    Box(column.alpha(if (dimOthers && id != "focus") 0.32f else 1f)) {
                         when (id) {
                             "clock" -> ClockCard(clock)
                             "today" -> TodayCard(day, { itemId, _ -> model.board.byId[itemId]?.let(model.board::toggleDone) }, { t -> model.board.add(t, "task", clock.iso, null) }, openBoard, openItem)
@@ -236,9 +266,9 @@ fun HomeTab(user: User, model: HudModel, build: String, openApp: (String, Screen
                         }
                     }
                 }
-                model.board.note?.let { note -> item(key = "board-note") { Hush(note) } }
-                item(key = "foot") { Foot(order, arrange) }
-                item(key = "strip") { BottomStrip(user, build) }
+                model.board.note?.let { note -> item(key = "board-note") { Hush(note, column) } }
+                item(key = "foot") { Box(column) { Foot(order, arrange) } }
+                item(key = "strip") { Box(column) { BottomStrip(user, build) } }
             }
         }
     }
@@ -256,9 +286,12 @@ private fun TopStrip(systems: SystemsState, arrange: () -> Unit) {
             Modifier.size(28.dp).clip(RoundedCornerShape(8.dp)).background(face.accent),
             contentAlignment = Alignment.Center,
         ) { Text("jk", style = TextStyle(fontFamily = JkFonts.Mono, fontWeight = FontWeight.SemiBold, fontSize = 11.5.sp, color = face.accentContrast)) }
-        Spacer(Modifier.width(12.dp))
-        Text("ORDECK", style = TextStyle(fontFamily = JkFonts.Mono, fontWeight = FontWeight.SemiBold, fontSize = 10.5.sp, letterSpacing = 0.24.em, color = face.faint))
-        Spacer(Modifier.weight(1f))
+        // The wordmark is decoration: at a large font scale it gives its room to the systems count.
+        if (LocalDensity.current.fontScale <= 1.15f) {
+            Spacer(Modifier.width(12.dp))
+            Text("ORDECK", style = TextStyle(fontFamily = JkFonts.Mono, fontWeight = FontWeight.SemiBold, fontSize = 10.5.sp, letterSpacing = 0.24.em, color = face.faint), maxLines = 1)
+        }
+        Spacer(Modifier.weight(1f).width(8.dp))
         val dot = when {
             systems.total == 0 -> face.ghost
             systems.up == systems.total -> face.ok
@@ -267,7 +300,9 @@ private fun TopStrip(systems: SystemsState, arrange: () -> Unit) {
         }
         Box(Modifier.size(6.dp).clip(RoundedCornerShape(50)).background(dot))
         Spacer(Modifier.width(7.dp))
-        StripText(if (systems.total == 0) "Probing" else "${systems.up} of ${systems.total} systems up")
+        // The count gives way before the button does: at a large font scale on a small phone the
+        // strip has no room to spare, and the button must keep its whole target.
+        StripText(if (systems.total == 0) "Probing" else "${systems.up} of ${systems.total} up", modifier = Modifier.weight(1f, fill = false))
         Spacer(Modifier.width(10.dp))
         Box(
             Modifier.size(40.dp).clip(RoundedCornerShape(JkRadius.button)).clickable(role = Role.Button, onClick = arrange)

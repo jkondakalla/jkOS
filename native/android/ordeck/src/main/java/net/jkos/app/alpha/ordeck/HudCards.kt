@@ -38,6 +38,9 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -152,6 +155,7 @@ fun HudRow(
     first: Boolean = false,
 ) {
     val face = Jk.face
+    val haptic = LocalHapticFeedback.current
     Row(
         modifier
             .fillMaxWidth()
@@ -165,7 +169,10 @@ fun HudRow(
         Box(Modifier.width(18.dp), contentAlignment = Alignment.Center) {
             if (onCheck != null) {
                 Box(Modifier.wrapContentWidth(unbounded = true)) {
-                    Check(done, onCheck, tint = toneColor(tone), size = 18.dp, label = if (done) "Mark not done" else "Mark done")
+                    Check(done, { on ->
+                        haptic.performHapticFeedback(if (on) HapticFeedbackType.ToggleOn else HapticFeedbackType.ToggleOff)
+                        onCheck(on)
+                    }, tint = toneColor(tone), size = 18.dp, label = if (done) "Mark not done" else "Mark done")
                 }
             } else {
                 Mark(tone)
@@ -203,7 +210,11 @@ fun CardNote(text: String, modifier: Modifier = Modifier) = Hush(text, modifier.
 @Composable
 fun ClockCard(face0: ClockFace) {
     val face = Jk.face
-    val big = TextStyle(fontFamily = JkFonts.Mono, fontWeight = FontWeight.SemiBold, fontSize = 72.sp, lineHeight = 72.sp, letterSpacing = (-0.01).em, fontFeatureSettings = "tnum")
+    // The readout is sized in dp, not sp: it is a display, and at a large font scale an sp-sized
+    // time would run off the screen. The date lines under it still follow the font scale.
+    val px = with(LocalDensity.current) { 72.dp.toSp() }
+    val ssSize = with(LocalDensity.current) { 24.dp.toSp() }
+    val big = TextStyle(fontFamily = JkFonts.Mono, fontWeight = FontWeight.SemiBold, fontSize = px, lineHeight = px, letterSpacing = (-0.01).em, fontFeatureSettings = "tnum")
     Column(Modifier.fillMaxWidth().padding(start = 6.dp, end = 6.dp, top = 6.dp, bottom = 2.dp)) {
         Row(verticalAlignment = Alignment.Bottom) {
             if (face.dark) {
@@ -214,7 +225,7 @@ fun ClockCard(face0: ClockFace) {
                     Text(face0.hm, style = big.copy(color = face.accent, shadow = Shadow(face.accent.mix(58.0, face.deepenInk), Offset(0f, 2f), 0f)))
                 }
             }
-            Text(face0.ss, Modifier.padding(start = 10.dp, bottom = 9.dp), style = mono.copy(fontSize = 24.sp, fontWeight = FontWeight.Medium, color = face.faint, fontFeatureSettings = "tnum"))
+            Text(face0.ss, Modifier.padding(start = 10.dp, bottom = 9.dp), style = mono.copy(fontSize = ssSize, fontWeight = FontWeight.Medium, color = face.faint, fontFeatureSettings = "tnum"))
         }
         Text(face0.dateLine, Modifier.padding(top = 10.dp), style = mono.copy(fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.16.em, color = face.muted))
         Text(face0.utcLine, Modifier.padding(top = 4.dp), style = mono.copy(fontSize = 11.sp, letterSpacing = 0.12.em, color = face.faint))
@@ -255,7 +266,7 @@ private fun QuickAdd(onAdd: (String) -> Unit) {
     Row(Modifier.fillMaxWidth().padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Field(
             title, { title = it }, Modifier.weight(1f), singleLine = true,
-            placeholder = { Text("Add a task for today…", style = mono.copy(fontSize = 14.sp)) },
+            placeholder = { Text("Add a task for today…", style = mono.copy(fontSize = 14.sp), maxLines = 1, overflow = TextOverflow.Ellipsis) },
             textStyle = mono.copy(fontSize = 14.sp),
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
             keyboardActions = KeyboardActions(onDone = { submit() }),
@@ -316,6 +327,10 @@ fun CalendarCard(month: MonthSlice, today: LocalDate) {
 @Composable
 fun WeekCard(days: List<Pair<LocalDate, List<Item>>>, today: LocalDate, openBoard: (() -> Unit)?, openItem: (Long) -> Unit = {}) {
     val face = Jk.face
+    // The time column in the text's own units, so a large font scale widens it instead of clipping
+    // "09:00". The size is converted before it is multiplied: Android 14's font scaling is
+    // non-linear, and a 50sp width would scale less than the 11.5sp text it holds.
+    val timeWidth = with(LocalDensity.current) { 11.5.sp.toDp() * 4.4f }
     HudCard {
         CardHead("Week", "BeigeBoard", openBoard)
         days.forEachIndexed { k, (date, items) ->
@@ -338,7 +353,7 @@ fun WeekCard(days: List<Pair<LocalDate, List<Item>>>, today: LocalDate, openBoar
                     if (items.isEmpty()) Text("—", style = mono.copy(fontSize = 12.sp, color = face.ghost))
                     for (it in items.take(4)) {
                         Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(4.dp)).clickable { openItem(it.id) }.defaultMinSize(minHeight = 28.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text(it.scheduledTime?.take(5) ?: "", Modifier.width(48.dp), style = mono.copy(fontSize = 11.5.sp, color = face.faint, fontFeatureSettings = "tnum"), maxLines = 1)
+                            Text(it.scheduledTime?.take(5) ?: "", Modifier.width(timeWidth), style = mono.copy(fontSize = 11.5.sp, color = face.faint, fontFeatureSettings = "tnum"), maxLines = 1)
                             Text(
                                 it.title, Modifier.weight(1f),
                                 style = TextStyle(fontFamily = JkFonts.Sans, fontWeight = FontWeight.Medium, fontSize = 13.5.sp,

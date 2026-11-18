@@ -58,6 +58,7 @@ import net.jkos.app.alpha.kouros.rememberNowPlaying
 import net.jkos.app.alpha.ordeck.HomeRoot
 import net.jkos.app.alpha.ordeck.HomeTab
 import net.jkos.app.alpha.ordeck.HudModel
+import net.jkos.app.alpha.ordeck.OrderCache
 import net.jkos.app.alpha.look.TButton
 
 // The app's shell: sign-in, then a bottom bar of tabs, one back stack per tab, and the mini
@@ -151,7 +152,7 @@ private fun SignedIn(user: User, aud: Set<String>) {
     // The home's data outlives a visit to another tab, so Home redraws at once and refreshes behind it.
     val shellScope = rememberCoroutineScope()
     val reachesBoard = tabs.any { it.app == "beigeboard" }
-    val hud = remember(user.id, reachesBoard) { HudModel(shellScope, reachesBoard) }
+    val hud = remember(user.id, reachesBoard) { HudModel(shellScope, reachesBoard, OrderCache.forUser(user.id)) }
 
     // The player belongs to KourOS, and exists only when this person can enter KourOS.
     val kouros = tabs.firstOrNull { it.app == "kouros" }

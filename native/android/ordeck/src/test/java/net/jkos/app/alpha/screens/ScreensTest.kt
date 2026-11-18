@@ -257,6 +257,10 @@ class ScreensTest {
     @Test @Config(qualifiers = "w411dp-h3400dp-xxhdpi") fun homeEveryCard() = home("18-home-every-card", everyCard, focus = false)
     @Test @Config(qualifiers = "w411dp-h3400dp-xxhdpi") fun homeEveryCardDark() = home("19-home-every-card-dark", everyCard, dark = true, focus = false)
     @Test fun homeFocus() = home("20-home-focus", everyCard)
+    /** Landscape: the cards stay a card's width, centred. */
+    @Test @Config(qualifiers = "w891dp-h411dp-land-xxhdpi") fun homeLandscape() = home("22-home-landscape", everyCard, focus = false)
+    /** A small phone at a large font scale: the clock keeps to the screen; the rows wrap. */
+    @Test @Config(qualifiers = "w360dp-h1600dp-xxhdpi", fontScale = 1.5f) fun homeLargeText() = home("23-home-large-text", everyCard, focus = false)
 
     /** A tap on an item opens BeigeBoard's own sheet over the home (a dialog: its own window). */
     @Test fun homeItemSheet() {
