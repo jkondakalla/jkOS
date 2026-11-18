@@ -19,7 +19,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
@@ -28,9 +27,16 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.CancellationException
+import net.jkos.app.alpha.look.*
 import net.jkos.app.alpha.auth.Auth
 import net.jkos.app.alpha.auth.SignedOutException
+import net.jkos.app.alpha.look.TButton
 
 // What every tab's screens share: the back stack, the header, and the one way a load is drawn.
 
@@ -56,30 +62,31 @@ fun Context.activity(): Activity? = when (this) {
 fun buildLabel() = with(Auth.config) { "${channel.uppercase()} · $environment · $versionName" }
 
 @Composable
-fun BuildBadge() {
-    Text(
-        buildLabel(),
-        style = MaterialTheme.typography.labelMedium,
-        color = MaterialTheme.colorScheme.onSecondary,
-        modifier = Modifier
-            .clip(RoundedCornerShape(4.dp))
-            .background(MaterialTheme.colorScheme.secondary)
-            .padding(horizontal = 8.dp, vertical = 2.dp),
-    )
-}
+fun BuildBadge() = Pill(buildLabel(), tint = Jk.face.accent)
 
+/**
+ * A pushed page's head: back, the page's name pressed in Fraunces, its actions, over the
+ * masthead's feathered rule.
+ */
 @Composable
 fun Header(title: String, onBack: (() -> Unit)?, actions: @Composable () -> Unit = {}) {
-    Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+    val face = Jk.face
+    Row(
+        Modifier.fillMaxWidth().mastheadRule(face.ink).padding(start = 4.dp, end = 8.dp, top = 6.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         if (onBack != null) {
-            IconButton(onClick = onBack) { Icon(Glyphs.Back, contentDescription = "Back") }
+            IconButton(onClick = onBack) { Icon(Glyphs.Back, contentDescription = "Back", tint = face.muted) }
         } else {
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(14.dp))
         }
-        Text(
-            title, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onBackground,
-            maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
-        )
+        Box(Modifier.weight(1f)) {
+            if (onBack == null) Wordmark(title, size = 24.sp)
+            else Text(
+                title, style = MaterialTheme.typography.titleLarge, color = face.ink,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+        }
         actions()
     }
 }
@@ -104,25 +111,38 @@ suspend fun <T> attempt(block: suspend () -> T): Load<T> = try {
 @Composable
 fun <T> Loaded(state: Load<T>, retry: () -> Unit, content: @Composable (T) -> Unit) {
     when (state) {
-        Load.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+        Load.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Lamp("Loading") }
         is Load.Failed -> Column(
             Modifier.fillMaxSize().padding(24.dp),
             verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text(state.message, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            TextButton(onClick = retry) { Text("Retry") }
+            Hush(state.message)
+            Gap(10)
+            TButton(onClick = retry) { Text("Retry") }
         }
         is Load.Ready -> content(state.value)
     }
 }
 
+/**
+ * One half of a toggle group (Task / Event, a weekday): chosen is a solid chip in the accent with
+ * its name knocked out; not chosen is an absence — a hairline and faint ink (.jk-chip-off).
+ */
 @Composable
 fun Choice(label: String, selected: Boolean, onClick: () -> Unit) {
-    TextButton(onClick = onClick) {
+    val face = Jk.face
+    val shape = RoundedCornerShape(JkRadius.xs)
+    if (selected) {
+        Chip(face.accent, solid = true, onClick = onClick, padding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)) {
+            Text(label.uppercase(), style = MaterialTheme.typography.labelMedium.copy(
+                color = if (face.dark) face.accent else Color(0xFFF7EFDC), fontWeight = FontWeight.SemiBold, shadow = haloText(face.accent),
+            ))
+        }
+    } else {
         Text(
-            label,
-            color = if (selected) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+            label.uppercase(),
+            Modifier.clip(shape).border(1.dp, face.line, shape).clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 8.dp),
+            style = MaterialTheme.typography.labelMedium.copy(color = face.faint),
         )
     }
 }

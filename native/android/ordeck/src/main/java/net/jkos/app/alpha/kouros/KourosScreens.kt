@@ -34,17 +34,13 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -73,17 +69,40 @@ import androidx.media3.session.MediaController
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.sp
+import net.jkos.app.alpha.look.*
 
-/** A track's cover ([id] is a track id), or a book's when [book]. No id: the empty tile. */
+/**
+ * A track's cover ([id] is a track id), or a book's when [book]: a sleeve on card stock with a
+ * soft shadow (the web's CoverArt). With no art, the tile shows the title's initial ([title]).
+ */
 @Composable
-fun Cover(id: Long?, size: Dp, modifier: Modifier = Modifier, book: Boolean = false) {
+fun Cover(id: Long?, size: Dp, modifier: Modifier = Modifier, book: Boolean = false, title: String? = null) {
     val px = with(LocalDensity.current) { size.roundToPx() }
     val bitmap by produceState<ImageBitmap?>(null, id, px, book) {
         value = id?.let { Covers.load(it, px, book)?.asImageBitmap() }
     }
-    Box(modifier.clip(RoundedCornerShape(6.dp)).background(MaterialTheme.colorScheme.surfaceVariant)) {
-        bitmap?.let {
-            Image(bitmap = it, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+    val face = Jk.face
+    val r = if (size >= 96.dp) 10.dp else 6.dp
+    Box(
+        modifier
+            .drawBehind { boxShadow(Color.Black.copy(alpha = if (face.dark) 0.45f else 0.18f), r, if (size >= 96.dp) 18.dp else 6.dp, dy = if (size >= 96.dp) 6.dp else 2.dp) }
+            .clip(RoundedCornerShape(r))
+            .background(Brush.linearGradient(listOf(face.card2, face.card.mix(70.0, face.paper2)))),
+        contentAlignment = Alignment.Center,
+    ) {
+        val art = bitmap
+        if (art != null) {
+            Image(bitmap = art, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        } else if (!title.isNullOrBlank() && size >= 40.dp) {
+            Text(
+                title.trim().take(1).uppercase(),
+                style = MaterialTheme.typography.titleMedium.copy(fontSize = (size.value * 0.16f).coerceIn(12f, 40f).sp, color = face.faint),
+            )
         }
     }
 }
@@ -125,8 +144,9 @@ fun KourosTab(screen: Screen, nav: Nav, controller: MediaController?, now: NowPl
 
 private const val PAGE = 120
 
+/** The library. [preAlbums] draws the grid from a sample instead of asking KourOS (ScreensTest). */
 @Composable
-private fun LibraryScreen(push: (Screen) -> Unit) {
+internal fun LibraryScreen(push: (Screen) -> Unit, preAlbums: List<Album>? = null) {
     var tab by remember { mutableIntStateOf(0) }
     var query by remember { mutableStateOf("") }
     var sort by remember { mutableStateOf("added") }
@@ -137,23 +157,24 @@ private fun LibraryScreen(push: (Screen) -> Unit) {
             IconButton(onClick = { push(KourosScreen.PlaylistsPage) }) { Icon(Glyphs.Playlist, contentDescription = "Playlists") }
             IconButton(onClick = { push(KourosScreen.QueuePage) }) { Icon(Glyphs.Queue, contentDescription = "Queue") }
         }
-        Row(Modifier.padding(horizontal = 8.dp)) {
-            Choice("Albums", tab == 0) { tab = 0 }
-            Choice("Artists", tab == 1) { tab = 1 }
-            Choice("Books", tab == 2) { tab = 2 }
+        Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            MastTab("Albums", tab == 0, { tab = 0 }, Modifier.weight(1f), sub = "Sleeves")
+            MastTab("Artists", tab == 1, { tab = 1 }, Modifier.weight(1f), sub = "A–Z")
+            MastTab("Books", tab == 2, { tab = 2 }, Modifier.weight(1f), sub = "Audiobooks")
         }
-        OutlinedTextField(
+        Field(
             value = query, onValueChange = { query = it }, singleLine = true,
             placeholder = { Text(when (tab) { 0 -> "Search albums"; 1 -> "Search artists"; else -> "Search books by title" }) },
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
         )
         if (tab == 0) {
-            Row(Modifier.padding(horizontal = 8.dp)) {
+            Row(Modifier.padding(horizontal = 16.dp, vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 for ((key, label) in listOf("added" to "Added", "title" to "Title", "artist" to "Artist", "year" to "Year")) {
                     Choice(label, sort == key) { sort = key }
                 }
             }
-            AlbumGrid(query = query, artist = null, sort = sort, push = push)
+            if (preAlbums != null) AlbumTiles(preAlbums, showArtist = true, more = false, push = push) {}
+            else AlbumGrid(query = query, artist = null, sort = sort, push = push)
         } else if (tab == 1) {
             ArtistList(query, push)
         } else {
@@ -182,40 +203,46 @@ private fun AlbumGrid(query: String, artist: String?, sort: String, push: (Scree
     }
     Loaded(state, retry = { attemptNo++ }) {
         if (albums.isEmpty()) {
-            Text("No albums.", Modifier.padding(24.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Hush("No albums.", Modifier.padding(24.dp))
             return@Loaded
         }
-        LazyVerticalGrid(
-            columns = GridCells.Adaptive(150.dp),
-            contentPadding = PaddingValues(12.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-            modifier = Modifier.fillMaxSize(),
-        ) {
-            items(albums, key = { "${it.artist}\u0000${it.album}" }) { a ->
-                Column(Modifier.clickable { push(KourosScreen.AlbumPage(a.album, a.artist)) }) {
-                    Cover(a.coverId, 150.dp, Modifier.fillMaxWidth().aspectRatio(1f))
-                    Spacer(Modifier.height(6.dp))
-                    Text(a.album, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(
-                        listOfNotNull(a.artist.takeIf { artist == null }, a.year?.toString()).joinToString(" · "),
-                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    )
+        AlbumTiles(albums, showArtist = artist == null, more = more, push = push) {
+            scope.launch {
+                val next = attempt { KourosApi.albums(q = query, artist = artist, sort = sort, limit = PAGE, offset = albums.size) }
+                if (next is Load.Ready) {
+                    albums.addAll(next.value)
+                    more = next.value.size == PAGE
                 }
             }
-            if (more) {
-                item(span = { GridItemSpan(maxLineSpan) }) {
-                    TextButton(onClick = {
-                        scope.launch {
-                            val next = attempt { KourosApi.albums(q = query, artist = artist, sort = sort, limit = PAGE, offset = albums.size) }
-                            if (next is Load.Ready) {
-                                albums.addAll(next.value)
-                                more = next.value.size == PAGE
-                            }
-                        }
-                    }) { Text("Load more") }
-                }
+        }
+    }
+}
+
+/** The album grid itself: sleeves on their shadows, the title in Fraunces, artist and year under it. */
+@Composable
+internal fun AlbumTiles(albums: List<Album>, showArtist: Boolean, more: Boolean, push: (Screen) -> Unit, onMore: () -> Unit) {
+    LazyVerticalGrid(
+        columns = GridCells.Adaptive(150.dp),
+        contentPadding = PaddingValues(16.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        verticalArrangement = Arrangement.spacedBy(18.dp),
+        modifier = Modifier.fillMaxSize(),
+    ) {
+        items(albums, key = { "${it.artist}\u0000${it.album}" }) { a ->
+            Column(Modifier.clickable { push(KourosScreen.AlbumPage(a.album, a.artist)) }) {
+                Cover(a.coverId, 150.dp, Modifier.fillMaxWidth().aspectRatio(1f), title = a.album)
+                Spacer(Modifier.height(8.dp))
+                Text(a.album, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    listOfNotNull(a.artist.takeIf { showArtist }, a.year?.toString()).joinToString(" · "),
+                    style = MaterialTheme.typography.bodySmall, color = Jk.face.muted,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        if (more) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                TButton(quiet = true, onClick = onMore) { Text("Load more") }
             }
         }
     }
@@ -236,14 +263,11 @@ private fun ArtistList(query: String, push: (Screen) -> Unit) {
                     Modifier.fillMaxWidth().clickable { push(KourosScreen.ArtistPage(a.artist)) }.padding(horizontal = 16.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Cover(a.coverId, 48.dp, Modifier.size(48.dp))
+                    Cover(a.coverId, 48.dp, Modifier.size(48.dp), title = a.artist)
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
-                        Text(a.artist, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(
-                            "${a.albums} album${if (a.albums == 1) "" else "s"} · ${a.tracks} tracks",
-                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        Text(a.artist, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Eyebrow("${a.albums} album${if (a.albums == 1) "" else "s"} · ${a.tracks} tracks", size = 9.sp)
                     }
                 }
             }
@@ -283,14 +307,14 @@ private fun AlbumScreen(album: String, artist: String, controller: MediaControll
             LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 8.dp)) {
                 item {
                     Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Cover(tracks.firstOrNull { it.hasCover }?.id, 120.dp, Modifier.size(120.dp))
-                        Spacer(Modifier.width(16.dp))
+                        Cover(tracks.firstOrNull { it.hasCover }?.id, 128.dp, Modifier.size(128.dp), title = album)
+                        Spacer(Modifier.width(18.dp))
                         Column {
-                            Text(artist, style = MaterialTheme.typography.titleMedium)
-                            Text(
-                                listOfNotNull(tracks.firstNotNullOfOrNull { it.year }?.toString(), "${tracks.size} tracks").joinToString(" · "),
-                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
+                            Eyebrow("Album")
+                            Gap(4)
+                            Text(artist, style = MaterialTheme.typography.headlineSmall)
+                            Gap(4)
+                            Eyebrow(listOfNotNull(tracks.firstNotNullOfOrNull { it.year }?.toString(), "${tracks.size} tracks").joinToString(" · "))
                         }
                     }
                 }
@@ -304,7 +328,7 @@ private fun AlbumScreen(album: String, artist: String, controller: MediaControll
                         onClick = controller?.let { c -> { c.playQueue(tracks, i, context) } },
                         onMenu = { menu = TrackTarget(listOf(t), t.title, t.byline(), null, artist, null) },
                     )
-                    HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
+                    Rule(Modifier.padding(horizontal = 16.dp))
                 }
             }
         }
@@ -317,26 +341,26 @@ private fun AlbumScreen(album: String, artist: String, controller: MediaControll
 @Composable
 private fun TransportButton(glyph: ImageVector, label: String, enabled: Boolean = true, size: Dp = 48.dp, onClick: () -> Unit) {
     IconButton(onClick = onClick, enabled = enabled, modifier = Modifier.size(size)) {
-        Icon(glyph, contentDescription = label, modifier = Modifier.size(size * 0.6f))
+        Icon(glyph, contentDescription = label, modifier = Modifier.size(size * 0.5f), tint = if (enabled) Jk.face.ink else Jk.face.ghost)
     }
 }
 
 @Composable
 fun MiniPlayer(now: NowPlaying, controller: MediaController?, open: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).clickable(onClick = open).padding(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Cover(now.coverId, 44.dp, Modifier.size(44.dp), book = now.book != null)
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(now.title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium)
-            Text(now.artist, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    // The web's now card: a sheet with the sleeve, the title in Fraunces and the artist under it.
+    Sheet(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp), padding = PaddingValues(0.dp)) {
+        Row(Modifier.fillMaxWidth().clickable(onClick = open).padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Cover(now.coverId, 44.dp, Modifier.size(44.dp), book = now.book != null, title = now.title)
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(now.title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleSmall)
+                Text(now.artist, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall, color = Jk.face.muted)
+            }
+            Knob({ controller?.let { if (it.isPlaying) it.pause() else it.play() } }, if (now.isPlaying) "Pause" else "Play", size = 40.dp) {
+                Icon(if (now.isPlaying) Glyphs.Pause else Glyphs.Play, contentDescription = null, modifier = Modifier.size(18.dp))
+            }
+            TransportButton(Glyphs.Next, "Next", enabled = now.hasNext) { controller?.seekToNextMediaItem() }
         }
-        TransportButton(if (now.isPlaying) Glyphs.Pause else Glyphs.Play, if (now.isPlaying) "Pause" else "Play") {
-            controller?.let { if (it.isPlaying) it.pause() else it.play() }
-        }
-        TransportButton(Glyphs.Next, "Next", enabled = now.hasNext) { controller?.seekToNextMediaItem() }
     }
 }
 
@@ -349,7 +373,7 @@ private fun NowPlayingScreen(controller: MediaController?, now: NowPlaying?, onB
     if (devices) DevicesDialog { devices = false }
     Column(Modifier.fillMaxSize()) {
         Header("Now playing", onBack) {
-            TextButton(onClick = { devices = true }) { Text("Devices") }
+            TButton(quiet = true, onClick = { devices = true }) { Text("Devices") }
             IconButton(onClick = { push(KourosScreen.QueuePage) }) { Icon(Glyphs.Queue, contentDescription = "Queue") }
         }
         if (remote) {
@@ -357,7 +381,7 @@ private fun NowPlayingScreen(controller: MediaController?, now: NowPlaying?, onB
             return@Column
         }
         if (now == null || controller == null) {
-            Text("Nothing is playing.", Modifier.padding(24.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Hush("Nothing is playing.", Modifier.padding(24.dp))
             return@Column
         }
         if (now.book != null) {
@@ -365,64 +389,93 @@ private fun NowPlayingScreen(controller: MediaController?, now: NowPlaying?, onB
             return@Column
         }
         val position = rememberPosition(controller, now.isPlaying)
-        var dragging by remember { mutableStateOf<Float?>(null) }
-        Column(
-            Modifier.fillMaxSize().padding(horizontal = 24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Cover(now.coverId, 320.dp, Modifier.fillMaxWidth().aspectRatio(1f))
-            Spacer(Modifier.height(20.dp))
-            Text(now.title, style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Text(
-                listOf(now.artist, now.album).filter { it.isNotEmpty() }.joinToString(" · "),
-                style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1, overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(Modifier.height(12.dp))
-            val duration = now.durationMs.coerceAtLeast(1L)
-            Slider(
+        NowPlayingBody(
+            now, position, radioNote,
+            onSeek = { controller.seekTo(it) },
+            onToggle = { if (controller.isPlaying) controller.pause() else controller.play() },
+            onPrevious = { controller.seekToPrevious() },
+            onNext = { controller.seekToNextMediaItem() },
+            onRadio = {
+                val seed = now.trackId
+                if (seed != null) {
+                    radioNote = "Building a station…"
+                    scope.launch {
+                        when (val r = attempt { KourosApi.radio(seed) }) {
+                            is Load.Ready -> {
+                                controller.continueAsStation(seed, r.value)
+                                radioNote = if (r.value.isEmpty()) "No station for this track yet." else "Station: ${r.value.size} tracks queued."
+                            }
+                            is Load.Failed -> radioNote = r.message
+                            Load.Loading -> Unit
+                        }
+                    }
+                }
+            },
+        )
+    }
+}
+
+/**
+ * The player's face (the web's kouros-now page): the sleeve large on its shadow, the title in
+ * Fraunces over the artist and album, the fader with mono times, the transport with the lit knob
+ * at its centre, and "start a station" in tracked caps. Plain values in, so it can be drawn
+ * without a player (ScreensTest).
+ */
+@Composable
+internal fun NowPlayingBody(
+    now: NowPlaying, position: Long, radioNote: String?,
+    onSeek: (Long) -> Unit, onToggle: () -> Unit, onPrevious: () -> Unit, onNext: () -> Unit, onRadio: () -> Unit,
+) {
+    val face = Jk.face
+    var dragging by remember { mutableStateOf<Float?>(null) }
+    Column(
+        Modifier.fillMaxSize().padding(horizontal = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Gap(8)
+        Cover(now.coverId, 320.dp, Modifier.fillMaxWidth().aspectRatio(1f), book = now.book != null, title = now.title)
+        Gap(22)
+        Text(now.title, style = MaterialTheme.typography.headlineMedium, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
+        Gap(2)
+        Text(
+            listOf(now.artist, now.album).filter { it.isNotEmpty() }.joinToString(" · "),
+            style = MaterialTheme.typography.bodyMedium, color = face.muted,
+            maxLines = 1, overflow = TextOverflow.Ellipsis,
+        )
+        Gap(14)
+        val duration = now.durationMs.coerceAtLeast(1L)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Eyebrow(formatTime(dragging?.let { (it * duration).toLong() } ?: position), size = 9.sp)
+            JkSlider(
                 value = dragging ?: (position.toFloat() / duration).coerceIn(0f, 1f),
                 onValueChange = { dragging = it },
                 onValueChangeFinished = {
-                    dragging?.let { controller.seekTo((it * duration).toLong()) }
+                    dragging?.let { onSeek((it * duration).toLong()) }
                     dragging = null
                 },
                 enabled = now.durationMs > 0,
+                modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
             )
-            Row(Modifier.fillMaxWidth()) {
-                Text(formatTime(dragging?.let { (it * duration).toLong() } ?: position), style = MaterialTheme.typography.bodySmall)
-                Spacer(Modifier.weight(1f))
-                Text(formatTime(now.durationMs), style = MaterialTheme.typography.bodySmall)
-            }
-            Spacer(Modifier.height(8.dp))
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                TransportButton(Glyphs.Previous, "Previous", enabled = now.hasPrevious, size = 56.dp) { controller.seekToPrevious() }
-                TransportButton(if (now.isPlaying) Glyphs.Pause else Glyphs.Play, if (now.isPlaying) "Pause" else "Play", size = 72.dp) {
-                    if (controller.isPlaying) controller.pause() else controller.play()
-                }
-                TransportButton(Glyphs.Next, "Next", enabled = now.hasNext, size = 56.dp) { controller.seekToNextMediaItem() }
-            }
-            Spacer(Modifier.height(16.dp))
-            OutlinedButton(onClick = {
-                val seed = now.trackId ?: return@OutlinedButton
-                radioNote = "Building a station…"
-                scope.launch {
-                    when (val r = attempt { KourosApi.radio(seed) }) {
-                        is Load.Ready -> {
-                            controller.continueAsStation(seed, r.value)
-                            radioNote = if (r.value.isEmpty()) "No station for this track yet." else "Station: ${r.value.size} tracks queued."
-                        }
-                        is Load.Failed -> radioNote = r.message
-                        Load.Loading -> Unit
-                    }
-                }
-            }) {
-                Icon(Glyphs.Radio, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("Start radio")
-            }
-            radioNote?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            Eyebrow(formatTime(now.durationMs), size = 9.sp)
         }
+        Gap(6)
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceEvenly) {
+            TransportButton(Glyphs.Previous, "Previous", enabled = now.hasPrevious, size = 56.dp, onClick = onPrevious)
+            Knob(onToggle, if (now.isPlaying) "Pause" else "Play", size = 68.dp) {
+                Icon(if (now.isPlaying) Glyphs.Pause else Glyphs.Play, contentDescription = null, modifier = Modifier.size(28.dp))
+            }
+            TransportButton(Glyphs.Next, "Next", enabled = now.hasNext, size = 56.dp, onClick = onNext)
+        }
+        Gap(14)
+        Row(
+            Modifier.clip(RoundedCornerShape(JkRadius.sm)).clickable(enabled = now.trackId != null, onClick = onRadio).padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Glyphs.Radio, contentDescription = null, modifier = Modifier.size(18.dp), tint = face.muted)
+            Spacer(Modifier.width(10.dp))
+            Text("START A STATION FROM THIS", style = MaterialTheme.typography.labelMedium.copy(color = face.ink, fontFamily = JkFonts.Sans, fontWeight = FontWeight.Medium))
+        }
+        radioNote?.let { Hush(it) }
     }
 }
 

@@ -19,14 +19,9 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -48,6 +43,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 import java.time.LocalDate
+import net.jkos.app.alpha.look.*
 
 // Routines and the library (TODO §10 H4). A routine's sessions are ordinary tasks, minted under
 // it with ext_ref routine:<id>:<date>: they show on Today and the calendar, and are ticked and
@@ -82,8 +78,8 @@ private fun RoutineList(push: (Screen) -> Unit, preloaded: List<Routine>?) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { push(BeigeBoardScreen.DocumentPage(null)) }) { Text("New or import") }
-                    TextButton(onClick = { attemptNo++ }) { Text("Refresh") }
+                    TButton(onClick = { push(BeigeBoardScreen.DocumentPage(null)) }) { Text("New or import") }
+                    TButton(quiet = true, onClick = { attemptNo++ }) { Text("Refresh") }
                 }
                 if (routines.isEmpty()) Text("No routines yet. Write one, or paste a document an assistant wrote.", Modifier.padding(top = 12.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
@@ -133,7 +129,7 @@ internal fun RoutineScreen(
     val title = (state as? Load.Ready)?.value?.doc?.item?.title ?: "Routine"
     Column(Modifier.fillMaxSize()) {
         Header(title, onBack) {
-            TextButton(onClick = { push(BeigeBoardScreen.DocumentPage(id)) }) { Text("Edit") }
+            TButton(quiet = true, onClick = { push(BeigeBoardScreen.DocumentPage(id)) }) { Text("Edit") }
         }
         Loaded(state, retry = { attemptNo++ }) { v ->
             val today = LocalDate.now().toString()
@@ -145,7 +141,7 @@ internal fun RoutineScreen(
                     item {
                         Label(m.label ?: "Goal")
                         Text("${fmt(m.value)} of ${fmt(m.target)} ${m.unit ?: ""}", style = MaterialTheme.typography.titleMedium)
-                        LinearProgressIndicator(progress = { m.pct / 100f }, modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp).height(8.dp))
+                        Bar(m.pct / 100f, Modifier.padding(vertical = 7.dp))
                     }
                 }
                 item { Box(Modifier.padding(top = 16.dp)) { Label("Next sessions") } }
@@ -165,7 +161,7 @@ internal fun RoutineScreen(
                 }
                 when (val s = series) {
                     Load.Loading -> item { Text("…") }
-                    is Load.Failed -> item { TextButton(onClick = { attemptNo++ }) { Text("Retry: ${s.message}") } }
+                    is Load.Failed -> item { TButton(quiet = true, onClick = { attemptNo++ }) { Text("Retry: ${s.message}") } }
                     is Load.Ready -> items(s.value, key = { "g${it.key}" }) { SeriesChart(it) }
                 }
                 if (v.revisions.isNotEmpty()) {
@@ -302,15 +298,15 @@ internal fun DocumentScreen(routineId: Long?, board: Board, onBack: () -> Unit, 
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp)) {
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = {
+                    TButton(onClick = {
                         val clip = (context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).primaryClip
                         clip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(context)?.toString()?.let { text = it; checked = null; report = null }
                     }) { Text("Paste") }
-                    Button(enabled = !busy && !text.isNullOrBlank(), onClick = { run(dryRun = true) }) { Text("Check") }
-                    Button(enabled = !busy && checked != null && checked == text, onClick = { run(dryRun = false) }) { Text("Import") }
+                    TButton(primary = true, enabled = !busy && !text.isNullOrBlank(), onClick = { run(dryRun = true) }) { Text("Check") }
+                    TButton(primary = true, enabled = !busy && checked != null && checked == text, onClick = { run(dryRun = false) }) { Text("Import") }
                 }
                 if (routineId != null) {
-                    OutlinedTextField(value = note, onValueChange = { note = it.take(500) }, singleLine = true, label = { Text("What changed (kept in its versions)") }, modifier = Modifier.fillMaxWidth())
+                    Field(value = note, onValueChange = { note = it.take(500) }, singleLine = true, label = { Text("What changed (kept in its versions)") }, modifier = Modifier.fillMaxWidth())
                 }
                 message?.let { Text(it, Modifier.padding(vertical = 6.dp), color = MaterialTheme.colorScheme.secondary) }
                 if (notSent.isNotEmpty()) Text("Not sent (the import doesn't take them): ${notSent.joinToString(", ")}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
@@ -325,7 +321,7 @@ internal fun DocumentScreen(routineId: Long?, board: Board, onBack: () -> Unit, 
                 }
             }
             item {
-                OutlinedTextField(
+                Field(
                     value = text ?: "", onValueChange = { text = it; report = null },
                     textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
                     modifier = Modifier.fillMaxWidth().heightIn(min = 320.dp),

@@ -171,6 +171,21 @@ class Tree(val items: List<Item>) {
         return false
     }
 
+    /**
+     * getLooseTasks: every task filed under no goal (a routine's sessions are filed under their
+     * routine, which is their home). Open first; then dated, benched, undated; then by date.
+     */
+    fun loose(): List<Item> = items
+        .filter { it.isTask && !underRoutine(it) && !underGoal(it) }
+        .sortedWith(compareBy<Item>({ it.completed }, { if (it.dueDate != null) 0 else if (it.weekStart != null) 1 else 2 }, { it.dueDate ?: it.weekStart ?: "" }))
+
+    private fun underGoal(i: Item): Boolean {
+        val seen = hashSetOf(i.id)
+        var cur = i.parentId?.let(byId::get)
+        while (cur != null && seen.add(cur.id)) { if (cur.kind == "goal") return true; cur = cur.parentId?.let(byId::get) }
+        return false
+    }
+
     /** getProgress: the leaf tasks under [id], less a routine's sessions (they are a pattern, not a plan). */
     fun progress(id: Long): Progress {
         val leaves = descendants(id).filter { it.isTask && kids[it.id].isNullOrEmpty() && !underRoutine(it) }
@@ -233,6 +248,30 @@ data class Today(
                 events = items.filter { it.isEvent && it.dueDate != null && it.dueDate <= todayIso && (it.endDate ?: it.dueDate) >= todayIso }.sortedBy(::byTime),
             )
         }
+    }
+}
+
+/** The desk's annotations, as the web's TodayView words them (looseState, the bench). */
+object Desk {
+    private val SHORT = java.time.format.DateTimeFormatter.ofPattern("MMM d", java.util.Locale.US)
+
+    /** "Nov 20" from "2026-11-20". */
+    fun short(iso: String): String = runCatching { java.time.LocalDate.parse(iso).format(SHORT) }.getOrDefault(iso)
+
+    /** Where a loose task sits, as one tag; only OVERDUE is a problem, so only it is urgent. */
+    fun looseState(t: Item, today: String): Pair<String, Boolean> = when {
+        t.completed -> "DONE" to false
+        t.dueDate != null && t.dueDate < today -> "OVERDUE" to true
+        t.dueDate == today -> "TODAY" to false
+        t.dueDate != null -> short(t.dueDate).uppercase() to false
+        t.weekStart != null -> "BENCHED" to false
+        else -> "NO DATE" to false
+    }
+
+    /** The bench: tasks committed to this week (its Monday) with no day yet. Open first. */
+    fun bench(items: List<Item>, today: String): List<Item> {
+        val monday = Days.weekStart(today)
+        return items.filter { it.isTask && it.weekStart == monday && it.dueDate == null }.sortedBy { it.completed }
     }
 }
 

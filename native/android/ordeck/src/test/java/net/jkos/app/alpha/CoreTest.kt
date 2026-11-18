@@ -718,4 +718,21 @@ class BeigeBoardTest {
         assertNull(net.jkos.app.alpha.beigeboard.accentOf(item(4), byId))
         assertEquals("9:05 AM", net.jkos.app.alpha.beigeboard.fmtTime("09:05")); assertEquals("12:30 PM", net.jkos.app.alpha.beigeboard.fmtTime("12:30"))
     }
+
+    @Test fun looseLeavesAreTasksUnderNoGoal() {
+        val bb = net.jkos.app.alpha.beigeboard.Tree(listOf(
+            item(1, kind = "goal"), item(2, kind = "milestone", parent = 1), item(3, parent = 2),   // under a goal: filed
+            item(4, due = "2026-11-20"), item(5, done = true, due = "2026-11-01"), item(6),          // loose
+            item(7, kind = "routine"), item(8, parent = 7, due = "2026-11-18"),                      // a routine's session: its home
+            item(9, kind = "milestone"), item(10, parent = 9),                                       // under a list but no goal: loose
+        ))
+        assertEquals(listOf(4L, 6L, 10L, 5L), bb.loose().map { it.id })   // open first; dated, then undated (ties keep their order); done last
+        val desk = net.jkos.app.alpha.beigeboard.Desk
+        val today = "2026-11-18"
+        assertEquals("OVERDUE" to true, desk.looseState(item(11, due = "2026-11-17"), today))
+        assertEquals("TODAY" to false, desk.looseState(item(12, due = today), today))
+        assertEquals("NOV 20" to false, desk.looseState(item(13, due = "2026-11-20"), today))
+        assertEquals("DONE" to false, desk.looseState(item(14, due = "2026-11-17", done = true), today))
+        assertEquals("NO DATE" to false, desk.looseState(item(15), today))
+    }
 }

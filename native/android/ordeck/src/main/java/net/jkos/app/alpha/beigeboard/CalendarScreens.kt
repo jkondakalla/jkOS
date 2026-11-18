@@ -21,9 +21,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -43,6 +41,7 @@ import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import net.jkos.app.alpha.look.TButton
 
 // The calendar (TODO §10 H3): a week as a list of days (the web's MobileWeekAgenda) and a month
 // as a grid with the chosen day's agenda under it (MobileCalendarMonth), over the same items.
@@ -67,7 +66,7 @@ fun CalendarPane(board: Board, push: (Screen) -> Unit, startOnMonth: Boolean = f
             Choice("Week", !month) { month = false }
             Choice("Month", month) { month = true }
             Spacer(Modifier.weight(1f))
-            TextButton(onClick = { calendars = true }) { Text("Calendars") }
+            TButton(quiet = true, onClick = { calendars = true }) { Text("Calendars") }
         }
         Loaded(board.state, retry = { board.load() }) { items ->
             val byId = board.byId
@@ -76,14 +75,14 @@ fun CalendarPane(board: Board, push: (Screen) -> Unit, startOnMonth: Boolean = f
                 LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp)) {
                     item {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            TextButton(onClick = { weekOf = LocalDate.parse(weekOf).minusWeeks(1).toString() }) { Text("‹") }
+                            TButton(quiet = true, onClick = { weekOf = LocalDate.parse(weekOf).minusWeeks(1).toString() }) { Text("‹") }
                             Text(
                                 "${LocalDate.parse(days.first()).format(SHORT)} – ${LocalDate.parse(days.last()).format(SHORT)}",
                                 Modifier.weight(1f), textAlign = TextAlign.Center, style = MaterialTheme.typography.titleMedium,
                             )
-                            TextButton(onClick = { weekOf = LocalDate.parse(weekOf).plusWeeks(1).toString() }) { Text("›") }
+                            TButton(quiet = true, onClick = { weekOf = LocalDate.parse(weekOf).plusWeeks(1).toString() }) { Text("›") }
                         }
-                        if (today !in days) TextButton(onClick = { weekOf = today }) { Text("This week") }
+                        if (today !in days) TButton(quiet = true, onClick = { weekOf = today }) { Text("This week") }
                     }
                     for (iso in days) {
                         item(key = "h$iso") {
@@ -120,9 +119,9 @@ private fun MonthGrid(items: List<Item>, ym: YearMonth, day: String, today: Stri
     val cells = Days.monthCells(ym.year, ym.monthValue)
     Column(Modifier.padding(horizontal = 12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = { onMonth(ym.minusMonths(1)) }) { Text("‹") }
+            TButton(quiet = true, onClick = { onMonth(ym.minusMonths(1)) }) { Text("‹") }
             Text(ym.atDay(1).format(MONTH), Modifier.weight(1f), textAlign = TextAlign.Center, style = MaterialTheme.typography.titleMedium)
-            TextButton(onClick = { onMonth(ym.plusMonths(1)) }) { Text("›") }
+            TButton(quiet = true, onClick = { onMonth(ym.plusMonths(1)) }) { Text("›") }
         }
         Row {
             for (d in listOf("M", "T", "W", "T", "F", "S", "S")) {
@@ -188,7 +187,7 @@ private fun CalendarsDialog(board: Board, onDismiss: () -> Unit) {
             Column {
                 when (val s = state) {
                     Load.Loading -> Text("…")
-                    is Load.Failed -> TextButton(onClick = { attemptNo++ }) { Text("Retry: ${s.message}") }
+                    is Load.Failed -> TButton(quiet = true, onClick = { attemptNo++ }) { Text("Retry: ${s.message}") }
                     is Load.Ready -> for (c in s.value) {
                         val name = NAMES[c.provider] ?: c.provider
                         Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
@@ -196,14 +195,14 @@ private fun CalendarsDialog(board: Board, onDismiss: () -> Unit) {
                             if (c.connected) {
                                 Text(c.email ?: "Connected", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    OutlinedButton(onClick = { act { "$name: " + BeigeBoardApi.syncCalendar(c.provider) } }) { Text("Sync now") }
-                                    TextButton(onClick = { forgetting = c.provider }) { Text("Disconnect", color = MaterialTheme.colorScheme.error) }
+                                    TButton(onClick = { act { "$name: " + BeigeBoardApi.syncCalendar(c.provider) } }) { Text("Sync now") }
+                                    TButton(quiet = true, onClick = { forgetting = c.provider }) { Text("Disconnect", color = MaterialTheme.colorScheme.error) }
                                 }
                                 if (forgetting == c.provider) {
                                     Text("Disconnect $name? Its events leave the board too.", style = MaterialTheme.typography.bodySmall)
                                     Row {
-                                        TextButton(onClick = { forgetting = null; act { BeigeBoardApi.disconnectCalendar(c.provider); "$name disconnected." } }) { Text("Disconnect it", color = MaterialTheme.colorScheme.error) }
-                                        TextButton(onClick = { forgetting = null }) { Text("Keep it") }
+                                        TButton(quiet = true, onClick = { forgetting = null; act { BeigeBoardApi.disconnectCalendar(c.provider); "$name disconnected." } }) { Text("Disconnect it", color = MaterialTheme.colorScheme.error) }
+                                        TButton(quiet = true, onClick = { forgetting = null }) { Text("Keep it") }
                                     }
                                 }
                             } else {
@@ -215,6 +214,6 @@ private fun CalendarsDialog(board: Board, onDismiss: () -> Unit) {
                 note?.let { Text(it, Modifier.padding(top = 8.dp), color = MaterialTheme.colorScheme.secondary) }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Done") } },
+        confirmButton = { TButton(quiet = true, onClick = onDismiss) { Text("Done") } },
     )
 }

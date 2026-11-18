@@ -15,16 +15,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -39,6 +36,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.media3.session.MediaController
 import kotlinx.coroutines.launch
+import net.jkos.app.alpha.look.Field
+import net.jkos.app.alpha.look.TButton
 
 private fun count(n: Int) = "$n track${if (n == 1) "" else "s"}"
 
@@ -73,15 +72,15 @@ fun PlaylistsScreen(onBack: () -> Unit, push: (Screen) -> Unit) {
 
     Column(Modifier.fillMaxSize()) {
         Header("Playlists", onBack) {
-            TextButton(onClick = { creating = !creating }) { Text(if (creating) "Cancel" else "New") }
+            TButton(quiet = true, onClick = { creating = !creating }) { Text(if (creating) "Cancel" else "New") }
         }
         if (creating) {
             Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
+                Field(
                     value = newName, onValueChange = { newName = it.take(200) }, singleLine = true,
                     placeholder = { Text("Playlist name") }, modifier = Modifier.weight(1f),
                 )
-                Button(enabled = newName.isNotBlank() && !busy, onClick = {
+                TButton(primary = true, enabled = newName.isNotBlank() && !busy, onClick = {
                     val name = newName.trim()
                     write(after = { newName = ""; creating = false }) { KourosApi.createPlaylist(name) }
                 }) { Text("Create") }
@@ -107,14 +106,14 @@ fun PlaylistsScreen(onBack: () -> Unit, push: (Screen) -> Unit) {
         AlertDialog(
             onDismissRequest = { renaming = null },
             title = { Text("Rename playlist") },
-            text = { OutlinedTextField(value = name, onValueChange = { name = it.take(200) }, singleLine = true) },
+            text = { Field(value = name, onValueChange = { name = it.take(200) }, singleLine = true) },
             confirmButton = {
-                TextButton(enabled = name.isNotBlank() && !busy, onClick = {
+                TButton(quiet = true, enabled = name.isNotBlank() && !busy, onClick = {
                     val n = name.trim()
                     write(after = { renaming = null }) { KourosApi.updatePlaylist(p.id, name = n) }
                 }) { Text("Save") }
             },
-            dismissButton = { TextButton(onClick = { renaming = null }) { Text("Cancel") } },
+            dismissButton = { TButton(quiet = true, onClick = { renaming = null }) { Text("Cancel") } },
         )
     }
     deleting?.let { p ->
@@ -123,9 +122,9 @@ fun PlaylistsScreen(onBack: () -> Unit, push: (Screen) -> Unit) {
             title = { Text("Delete “${p.name}”?") },
             text = { Text("The playlist goes. Its tracks stay in your library.") },
             confirmButton = {
-                TextButton(enabled = !busy, onClick = { write(after = { deleting = null }) { KourosApi.deletePlaylist(p.id) } }) { Text("Delete") }
+                TButton(quiet = true, enabled = !busy, onClick = { write(after = { deleting = null }) { KourosApi.deletePlaylist(p.id) } }) { Text("Delete") }
             },
-            dismissButton = { TextButton(onClick = { deleting = null }) { Text("Cancel") } },
+            dismissButton = { TButton(quiet = true, onClick = { deleting = null }) { Text("Cancel") } },
         )
     }
 }
@@ -211,7 +210,7 @@ fun PlaylistScreen(page: KourosScreen.PlaylistPage, controller: MediaController?
                                 "${count(rows.size)} · ${formatTime(rows.sumOf { it.durationMs })}",
                                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
-                            Button(enabled = rows.isNotEmpty() && controller != null, onClick = { controller?.playQueue(rows, 0, context) }) {
+                            TButton(primary = true, enabled = rows.isNotEmpty() && controller != null, onClick = { controller?.playQueue(rows, 0, context) }) {
                                 Icon(Glyphs.Play, contentDescription = null)
                                 Text("Play")
                             }

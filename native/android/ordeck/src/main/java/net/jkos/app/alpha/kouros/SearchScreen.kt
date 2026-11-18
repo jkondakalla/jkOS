@@ -19,7 +19,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -37,6 +36,7 @@ import androidx.media3.session.MediaController
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import net.jkos.app.alpha.look.Field
 
 /** What one search found, in the three shapes the web's Search.tsx shows. */
 private data class Found(val artists: List<Artist>, val albums: List<Album>, val tracks: List<Track>) {
@@ -82,7 +82,7 @@ fun SearchScreen(page: KourosScreen.Search, controller: MediaController?, now: N
 
     Column(Modifier.fillMaxSize()) {
         Header("Search", onBack)
-        OutlinedTextField(
+        Field(
             value = page.query, onValueChange = { page.query = it }, singleLine = true,
             placeholder = { Text("Artists, albums, tracks…") },
             trailingIcon = {

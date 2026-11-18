@@ -22,9 +22,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -45,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.json.JSONObject
+import net.jkos.app.alpha.look.*
 
 // The phone as a REMOTE (TODO §10 G3): another device is the session's output, and this one
 // draws what it is doing, on the server's clock, and sends every verb to it as a command.
@@ -150,7 +149,7 @@ fun RemoteNowPlaying() {
         val chapter = now?.chapters?.firstOrNull { position / 1000.0 >= it.startSec && position / 1000.0 < it.endSec }
         Text(chapter?.title ?: now?.subtitle ?: "", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
         val total = (now?.durationMs ?: 0L).coerceAtLeast(1L)
-        Slider(
+        JkSlider(
             value = dragging ?: (position.toFloat() / total).coerceIn(0f, 1f),
             onValueChange = { dragging = it },
             onValueChangeFinished = { dragging?.let { send("seek", SessionCore.Commands.seek((it * total).toLong())) }; dragging = null },
@@ -164,7 +163,7 @@ fun RemoteNowPlaying() {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (now?.isBook == true) {
                 IconButton(onClick = { send("segment", SessionCore.Commands.segment(next = false)) }) { Icon(Glyphs.Previous, contentDescription = "Previous chapter") }
-                TextButton(onClick = { send("skip", SessionCore.Commands.skip(-30_000)) }) { Text("−30 s") }
+                TButton(quiet = true, onClick = { send("skip", SessionCore.Commands.skip(-30_000)) }) { Text("−30 s") }
             } else {
                 IconButton(onClick = { send("prev") }) { Icon(Glyphs.Previous, contentDescription = "Previous") }
             }
@@ -172,7 +171,7 @@ fun RemoteNowPlaying() {
                 Icon(if (playing) Glyphs.Pause else Glyphs.Play, contentDescription = if (playing) "Pause" else "Play", modifier = Modifier.size(44.dp))
             }
             if (now?.isBook == true) {
-                TextButton(onClick = { send("skip", SessionCore.Commands.skip(30_000)) }) { Text("+30 s") }
+                TButton(quiet = true, onClick = { send("skip", SessionCore.Commands.skip(30_000)) }) { Text("+30 s") }
                 IconButton(onClick = { send("segment", SessionCore.Commands.segment(next = true)) }) { Icon(Glyphs.Next, contentDescription = "Next chapter") }
             } else {
                 IconButton(onClick = { send("next") }) { Icon(Glyphs.Next, contentDescription = "Next") }
@@ -180,7 +179,7 @@ fun RemoteNowPlaying() {
         }
         if (now?.isBook == true && s != null) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = { send("rate") }) { Text(Rates.label(s.rate.toFloat())) }
+                TButton(quiet = true, onClick = { send("rate") }) { Text(Rates.label(s.rate.toFloat())) }
                 Text(s.sleepMode?.let { if (it == SleepState.CHAPTER) "Sleep: chapter" else "Sleep: $it min" } ?: "", Modifier.align(Alignment.CenterVertically), style = MaterialTheme.typography.bodySmall)
             }
         }
@@ -225,7 +224,7 @@ fun DevicesDialog(onDismiss: () -> Unit) {
                             )
                             if (d.online && d.id != me) {
                                 var level by remember(d.id) { mutableFloatStateOf((d.volume ?: 1.0).toFloat()) }
-                                Slider(
+                                JkSlider(
                                     value = level, onValueChange = { level = it },
                                     onValueChangeFinished = { send("volume", SessionCore.Commands.volume(d.id, level)) },
                                 )
@@ -235,7 +234,7 @@ fun DevicesDialog(onDismiss: () -> Unit) {
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Done") } },
+        confirmButton = { TButton(quiet = true, onClick = onDismiss) { Text("Done") } },
     )
 }
 

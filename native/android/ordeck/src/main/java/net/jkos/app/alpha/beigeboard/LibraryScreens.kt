@@ -21,10 +21,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -39,6 +36,8 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
+import net.jkos.app.alpha.look.Field
+import net.jkos.app.alpha.look.TButton
 
 // The library (TODO §10 H4): the reusable sub-tasks routines are built from (exercises,
 // recipes, practice pieces, chores). A step names one by its slug (`ref`) and inherits its
@@ -66,13 +65,13 @@ fun LibraryPane(preloaded: List<LibraryEntry>? = null) {
     }
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(value = q, onValueChange = { q = it }, singleLine = true, placeholder = { Text("Search the library") }, modifier = Modifier.weight(1f))
-            TextButton(onClick = { adding = true }) { Text("+ Entry") }
+            Field(value = q, onValueChange = { q = it }, singleLine = true, placeholder = { Text("Search the library") }, modifier = Modifier.weight(1f))
+            TButton(quiet = true, onClick = { adding = true }) { Text("+ Entry") }
         }
         Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp)) {
             Choice("All", collection == null) { collection = null }
             for (c in Library.COLLECTIONS) Choice(c.replaceFirstChar { it.uppercase() }, collection == c) { collection = c }
-            TextButton(onClick = { importing = true }) { Text("Import…") }
+            TButton(quiet = true, onClick = { importing = true }) { Text("Import…") }
         }
         note?.let { Text(it, Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.secondary) }
         Loaded(state, retry = { attemptNo++ }) { entries ->
@@ -112,7 +111,7 @@ private fun Pick(label: String, value: String?, options: List<String>, none: Boo
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(label, Modifier.weight(1f))
         Box {
-            TextButton(onClick = { open = true }) { Text(value ?: "None") }
+            TButton(quiet = true, onClick = { open = true }) { Text(value ?: "None") }
             DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
                 if (none) DropdownMenuItem(text = { Text("None") }, onClick = { open = false; onPick(null) })
                 for (o in options) DropdownMenuItem(text = { Text(o) }, onClick = { open = false; onPick(o) })
@@ -144,27 +143,27 @@ private fun EntryDialog(entry: LibraryEntry?, onSave: (Map<String, Any?>) -> Uni
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 Pick("Collection", collection, Library.COLLECTIONS, none = false) { collection = it ?: "exercise" }
-                OutlinedTextField(value = title, onValueChange = { title = it.take(200) }, label = { Text("Title") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                if (entry == null) OutlinedTextField(value = slug, onValueChange = { slug = it.take(60) }, label = { Text("Slug (from the title if empty)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                Field(value = title, onValueChange = { title = it.take(200) }, label = { Text("Title") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                if (entry == null) Field(value = slug, onValueChange = { slug = it.take(60) }, label = { Text("Slug (from the title if empty)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 else Text("Slug: ${entry.slug}", style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace))
-                OutlinedTextField(value = notes, onValueChange = { notes = it.take(2000) }, label = { Text("Notes") }, modifier = Modifier.fillMaxWidth())
+                Field(value = notes, onValueChange = { notes = it.take(2000) }, label = { Text("Notes") }, modifier = Modifier.fillMaxWidth())
                 Pick("Counts in", unit, Library.UNITS, none = true) { unit = it }
                 Pick("Load in", loadUnit, Library.LOAD_UNITS, none = true) { loadUnit = it }
-                OutlinedTextField(value = tags, onValueChange = { tags = it }, label = { Text("Tags, comma-separated") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = variants, onValueChange = { variants = it }, label = { Text("Ladder: one rung a line, easiest first") }, minLines = 2, modifier = Modifier.fillMaxWidth())
+                Field(value = tags, onValueChange = { tags = it }, label = { Text("Tags, comma-separated") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                Field(value = variants, onValueChange = { variants = it }, label = { Text("Ladder: one rung a line, easiest first") }, minLines = 2, modifier = Modifier.fillMaxWidth())
                 if (entry != null) {
                     if (confirm) {
                         Text("Delete “${entry.title}”? A routine step that refs ${entry.slug} can no longer find it.", style = MaterialTheme.typography.bodySmall)
                         Row {
-                            TextButton(onClick = onDelete) { Text("Delete it", color = MaterialTheme.colorScheme.error) }
-                            TextButton(onClick = { confirm = false }) { Text("Keep it") }
+                            TButton(quiet = true, onClick = onDelete) { Text("Delete it", color = MaterialTheme.colorScheme.error) }
+                            TButton(quiet = true, onClick = { confirm = false }) { Text("Keep it") }
                         }
-                    } else TextButton(onClick = { confirm = true }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
+                    } else TButton(quiet = true, onClick = { confirm = true }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
                 }
             }
         },
         confirmButton = {
-            TextButton(enabled = title.isNotBlank(), onClick = {
+            TButton(quiet = true, enabled = title.isNotBlank(), onClick = {
                 val all = mapOf<String, Any?>(
                     "collection" to collection, "title" to title.trim(), "notes" to notes.trim().ifEmpty { null },
                     "unit" to unit, "load_unit" to loadUnit, "tags" to tagList(), "variants" to variantList(),
@@ -180,7 +179,7 @@ private fun EntryDialog(entry: LibraryEntry?, onSave: (Map<String, Any?>) -> Uni
                 }
             }) { Text("Save") }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { TButton(quiet = true, onClick = onDismiss) { Text("Cancel") } },
     )
 }
 
@@ -195,17 +194,17 @@ private fun LibraryImportDialog(onImport: (org.json.JSONObject) -> Unit, onDismi
         text = {
             Column {
                 Text("An export file, or an array of entries. Entries with a collection and slug already here are updated.", style = MaterialTheme.typography.bodySmall)
-                OutlinedTextField(value = text, onValueChange = { text = it; error = null }, minLines = 6,
+                Field(value = text, onValueChange = { text = it; error = null }, minLines = 6,
                     textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace), modifier = Modifier.fillMaxWidth())
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             }
         },
         confirmButton = {
-            OutlinedButton(enabled = text.isNotBlank(), onClick = {
+            TButton(enabled = text.isNotBlank(), onClick = {
                 val body = runCatching { Library.importBody(text) }.getOrNull()
                 if (body == null) error = "That isn't a library document." else onImport(body)
             }) { Text("Import") }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { TButton(quiet = true, onClick = onDismiss) { Text("Cancel") } },
     )
 }

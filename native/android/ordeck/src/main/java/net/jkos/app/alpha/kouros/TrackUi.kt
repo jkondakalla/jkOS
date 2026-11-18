@@ -20,10 +20,8 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -41,6 +39,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.media3.session.MediaController
 import kotlinx.coroutines.launch
+import androidx.compose.ui.unit.sp
+import net.jkos.app.alpha.look.*
 
 // What every list of tracks shares: the row, and the one action sheet a row's ⋮ opens.
 
@@ -72,26 +72,25 @@ fun TrackRow(
         start()
         if (showCover) {
             Spacer(Modifier.width(8.dp))
-            Cover(coverId, 40.dp, Modifier.size(40.dp), book = coverIsBook)
+            Cover(coverId, 40.dp, Modifier.size(40.dp), book = coverIsBook, title = title)
             Spacer(Modifier.width(12.dp))
         } else {
-            Text(
-                lead ?: "·", modifier = Modifier.width(40.dp).padding(start = 12.dp),
-                color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall,
-            )
+            Eyebrow(lead ?: "·", Modifier.width(40.dp).padding(start = 12.dp), color = if (playing) Jk.face.accent else Jk.face.faint)
         }
         Column(Modifier.weight(1f).padding(vertical = 8.dp)) {
             Text(
                 title, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                color = if (playing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground,
-                fontWeight = if (playing) FontWeight.Bold else FontWeight.Normal,
+                style = MaterialTheme.typography.titleSmall.copy(
+                    color = if (playing) Jk.face.accent else Jk.face.ink,
+                    shadow = if (playing) haloText(Jk.face.accent) else null,
+                ),
             )
             if (!subtitle.isNullOrEmpty()) {
-                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = Jk.face.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
         if (durationMs > 0) {
-            Text(formatTime(durationMs), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Eyebrow(formatTime(durationMs), size = 9.sp)
         }
         if (onMenu != null) {
             IconButton(onClick = onMenu) { Icon(Glyphs.More, contentDescription = "More for $title") }
@@ -170,9 +169,9 @@ fun TrackActions(target: TrackTarget?, controller: MediaController?, push: (Scre
                     HorizontalDivider(Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.surfaceVariant)
                     Row(Modifier.padding(horizontal = 8.dp)) {
                         if (target.album != null) {
-                            TextButton(onClick = { onDismiss(); push(KourosScreen.AlbumPage(target.album, target.artist)) }) { Text("Go to album") }
+                            TButton(quiet = true, onClick = { onDismiss(); push(KourosScreen.AlbumPage(target.album, target.artist)) }) { Text("Go to album") }
                         }
-                        TextButton(onClick = { onDismiss(); push(KourosScreen.ArtistPage(target.artist)) }) { Text("Go to artist") }
+                        TButton(quiet = true, onClick = { onDismiss(); push(KourosScreen.ArtistPage(target.artist)) }) { Text("Go to artist") }
                     }
                 }
             }
@@ -226,7 +225,7 @@ private fun PlaylistPicker(trackIds: List<Long>, onDone: () -> Unit, onBack: () 
             Load.Loading -> CircularProgressIndicator(Modifier.padding(16.dp))
             is Load.Failed -> {
                 Text(s.message, Modifier.padding(8.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                TextButton(onClick = { attemptNo++ }) { Text("Retry") }
+                TButton(quiet = true, onClick = { attemptNo++ }) { Text("Retry") }
             }
             is Load.Ready -> {
                 if (s.value.isEmpty()) Text("No playlists yet. Make one below.", Modifier.padding(8.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -250,19 +249,19 @@ private fun PlaylistPicker(trackIds: List<Long>, onDone: () -> Unit, onBack: () 
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(
+            Field(
                 value = newName, onValueChange = { newName = it.take(200) }, singleLine = true,
                 placeholder = { Text("New playlist") }, modifier = Modifier.weight(1f),
             )
-            TextButton(enabled = newName.isNotBlank() && !busy, onClick = {
+            TButton(quiet = true, enabled = newName.isNotBlank() && !busy, onClick = {
                 val name = newName.trim()
                 run { val p = KourosApi.createPlaylist(name, trackIds); newName = ""; "Made “${p.name}” with ${trackIds.size} track${if (trackIds.size == 1) "" else "s"}." }
             }) { Text("Create") }
         }
         Row {
-            TextButton(onClick = onBack) { Text("Back") }
+            TButton(quiet = true, onClick = onBack) { Text("Back") }
             Spacer(Modifier.weight(1f))
-            TextButton(onClick = onDone) { Text("Done") }
+            TButton(quiet = true, onClick = onDone) { Text("Done") }
         }
     }
 }

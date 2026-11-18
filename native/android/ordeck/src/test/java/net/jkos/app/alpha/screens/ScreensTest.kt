@@ -26,6 +26,11 @@ import net.jkos.app.alpha.auth.Shelf
 import net.jkos.app.alpha.auth.Look
 import net.jkos.app.alpha.auth.ThemeMode
 import net.jkos.app.alpha.beigeboard.*
+import net.jkos.app.alpha.kouros.Album
+import net.jkos.app.alpha.kouros.LibraryScreen
+import net.jkos.app.alpha.kouros.MiniPlayer
+import net.jkos.app.alpha.kouros.NowPlaying
+import net.jkos.app.alpha.kouros.NowPlayingBody
 import org.json.JSONObject
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -202,5 +207,38 @@ class ScreensTest {
                 LibraryEntry(5, "practice", "c-major-scale", "C Major Scale", null, "min", null, emptyList(), emptyList(), "you"),
             ), startOnLibrary = true)
         }
+    }
+
+    // ── KourOS: covers are drawn as their empty tiles (no network here), as the web's fixtures are.
+
+    private val albums = listOf(
+        Album("Substance", "New Order", 1987, 12, 0, 1, null), Album("So Tonight That I Might See", "Mazzy Star", 1993, 10, 0, 2, null),
+        Album("Ceremony", "New Order", 1981, 2, 0, 3, null), Album("Treasure", "Cocteau Twins", 1984, 10, 0, 4, null),
+        Album("Low", "David Bowie", 1977, 11, 0, 5, null), Album("Disintegration", "The Cure", 1989, 12, 0, 6, null),
+    )
+
+    private val playing = NowPlaying(
+        trackId = 7, book = null, rate = 1f, title = "Ceremony", artist = "New Order", album = "Substance",
+        hasArtwork = false, isPlaying = true, durationMs = 264_000, hasNext = true, hasPrevious = true,
+    )
+
+    @Test fun kourosLibrary() = captureRoboImage(out("13-kouros-library")) {
+        Face { androidx.compose.foundation.layout.Column { LibraryScreen({}, preAlbums = albums) } }
+    }
+
+    @Test fun kourosNowPlaying() = captureRoboImage(out("14-kouros-now")) {
+        Face { NowPlayingBody(playing, 97_000, null, {}, {}, {}, {}, {}) }
+    }
+
+    @Test fun kourosNowPlayingDark() = captureRoboImage(out("15-kouros-now-dark")) {
+        Face(dark = true) {
+            androidx.compose.foundation.layout.Column {
+                NowPlayingBody(playing, 97_000, null, {}, {}, {}, {}, {})
+            }
+        }
+    }
+
+    @Test fun kourosMiniPlayer() = captureRoboImage(out("16-kouros-mini")) {
+        Face(dark = true) { androidx.compose.foundation.layout.Column { androidx.compose.foundation.layout.Spacer(Modifier.weight(1f)); MiniPlayer(playing, null) {} } }
     }
 }

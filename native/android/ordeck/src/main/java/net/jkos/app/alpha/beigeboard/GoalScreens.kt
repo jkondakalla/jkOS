@@ -16,12 +16,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -32,6 +28,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import net.jkos.app.alpha.look.*
 
 // Goals and their lists (TODO §10 H2): the tree the web's mobile tasks view draws
 // (apps/beigeboard/src/mobile/views/MobileTasksView.tsx). A goal holds lists (milestones) and
@@ -39,7 +37,7 @@ import androidx.compose.ui.unit.dp
 
 @Composable
 private fun Meter(p: Progress, color: Color) {
-    LinearProgressIndicator(progress = { p.pct / 100f }, color = color, modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp).height(8.dp))
+    Bar(p.pct / 100f, Modifier.padding(vertical = 7.dp), tint = color)
 }
 
 /** A title field and an Add button, for a goal, a list or a task under one. */
@@ -47,8 +45,8 @@ private fun Meter(p: Progress, color: Color) {
 fun InlineAdd(placeholder: String, onAdd: (String) -> Unit) {
     var title by remember { mutableStateOf("") }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        OutlinedTextField(value = title, onValueChange = { title = it.take(500) }, singleLine = true, placeholder = { Text(placeholder) }, modifier = Modifier.weight(1f))
-        Button(enabled = title.isNotBlank(), onClick = { onAdd(title); title = "" }) { Text("Add") }
+        Field(value = title, onValueChange = { title = it.take(500) }, singleLine = true, placeholder = { Text(placeholder) }, modifier = Modifier.weight(1f))
+        TButton(primary = true, enabled = title.isNotBlank(), onClick = { onAdd(title); title = "" }) { Text("Add") }
     }
 }
 
@@ -62,32 +60,38 @@ fun GoalsPane(board: Board, push: (Screen) -> Unit) {
         val all = Progress(tasks.count { it.completed }, tasks.size)
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
             item {
+                Gap(14)
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Goals", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
-                    TextButton(onClick = { adding = !adding }) { Text(if (adding) "Cancel" else "+ Goal") }
+                    PressTitle("The workshop.", Modifier.weight(1f), size = 30.sp)
+                    TButton(quiet = true, onClick = { adding = !adding }) { Text(if (adding) "Cancel" else "+ Goal") }
                 }
-                Text("THE YEAR · ${all.done}/${all.total}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Meter(all, MaterialTheme.colorScheme.primary)
+                Row(Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 10.dp)) {
+                    Eyebrow("The year · ${tree.goals.size} goals", Modifier.weight(1f)); Eyebrow("${all.done}/${all.total}", color = Jk.face.muted)
+                }
+                Rule(strong = true)
+                Gap(12)
+                VU(all.pct / 100f)
+                Gap(8)
                 if (adding) InlineAdd("A goal for the year") { board.add(it, "goal", null, null); adding = false }
                 board.note?.let { Text(it, color = MaterialTheme.colorScheme.secondary) }
                 Spacer(Modifier.height(8.dp))
             }
-            if (tree.goals.isEmpty()) item { Text("No goals yet. Add one with + Goal.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            if (tree.goals.isEmpty()) item { Hush("No goals in the press yet. Forge one with + Goal.") }
             items(tree.goals, key = { it.id }) { g ->
                 val accent = accentOf(g, board.byId)?.let { Color(it) } ?: MaterialTheme.colorScheme.primary
                 val p = tree.progress(g.id)
-                Column(
-                    Modifier.fillMaxWidth().padding(vertical = 6.dp).border(1.dp, accent, RoundedCornerShape(4.dp))
-                        .clickable { push(BeigeBoardScreen.GoalPage(g.id)) }.padding(14.dp),
-                ) {
-                    Text(g.title, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                // The workshop's goal card: a sheet in the goal's own hue down its edge.
+                Sheet(Modifier.fillMaxWidth().padding(vertical = 7.dp).clickable { push(BeigeBoardScreen.GoalPage(g.id)) }) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(g.title, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                        Seg("${p.pct}%", size = 16.sp)
+                    }
                     Meter(p, accent)
                     Row {
-                        Text("${p.done} of ${p.total} done", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Spacer(Modifier.weight(1f))
-                        Text(
-                            when { p.total > 0 && p.pct == 100 -> "Complete"; p.pct > 0 -> "Under way"; else -> "Not started" },
-                            style = MaterialTheme.typography.bodySmall, color = if (p.pct in 1..99) accent else MaterialTheme.colorScheme.onSurfaceVariant,
+                        Eyebrow("${p.done} of ${p.total} leaves", Modifier.weight(1f))
+                        Eyebrow(
+                            g.targetDate?.let { "Due ${Desk.short(it)}" } ?: when { p.total > 0 && p.pct == 100 -> "Complete"; p.pct > 0 -> "Under way"; else -> "Not started" },
+                            color = if (p.pct in 1..99) accent else Jk.face.faint,
                         )
                     }
                 }
@@ -104,7 +108,7 @@ fun GoalScreen(id: Long, board: Board, onBack: () -> Unit, push: (Screen) -> Uni
     val goal = board.byId[id]
     Column(Modifier.fillMaxSize()) {
         Header(goal?.title ?: "Goal", onBack) {
-            if (goal != null) TextButton(onClick = { open = goal.id }) { Text("Details") }
+            if (goal != null) TButton(quiet = true, onClick = { open = goal.id }) { Text("Details") }
         }
         Loaded(board.state, retry = { board.load() }) { items ->
             if (goal == null) { Text("This goal is gone.", Modifier.padding(24.dp)); return@Loaded }
@@ -146,7 +150,7 @@ fun GoalScreen(id: Long, board: Board, onBack: () -> Unit, push: (Screen) -> Uni
                 item {
                     Spacer(Modifier.height(16.dp))
                     if (addingList) InlineAdd("A list (a milestone)") { board.add(it, "milestone", null, null, parentId = id); addingList = false }
-                    else TextButton(onClick = { addingList = true }) { Text("+ Add list") }
+                    else TButton(quiet = true, onClick = { addingList = true }) { Text("+ Add list") }
                 }
             }
         }

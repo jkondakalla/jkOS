@@ -17,11 +17,8 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -37,6 +34,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import net.jkos.app.alpha.look.Field
+import net.jkos.app.alpha.look.TButton
 
 // Editing an item (TODO §10 H2): its fields through updateItem (only what changed, only what
 // updateItem declares), what it waits on through addDependency / removeDependency, and a
@@ -47,11 +46,11 @@ private fun DateField(label: String, value: String?, onChange: (String?) -> Unit
     val context = LocalContext.current
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(label, Modifier.weight(1f))
-        TextButton(onClick = {
+        TButton(quiet = true, onClick = {
             val d = value?.let { runCatching { LocalDate.parse(it) }.getOrNull() } ?: LocalDate.now()
             DatePickerDialog(context, { _, y, m, day -> onChange(LocalDate.of(y, m + 1, day).toString()) }, d.year, d.monthValue - 1, d.dayOfMonth).show()
         }) { Text(value ?: "None") }
-        if (value != null) TextButton(onClick = { onChange(null) }) { Text("Clear") }
+        if (value != null) TButton(quiet = true, onClick = { onChange(null) }) { Text("Clear") }
     }
 }
 
@@ -60,11 +59,11 @@ private fun TimeField(label: String, value: String?, onChange: (String?) -> Unit
     val context = LocalContext.current
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(label, Modifier.weight(1f))
-        TextButton(onClick = {
+        TButton(quiet = true, onClick = {
             val (h, m) = value?.split(":")?.let { (it.getOrNull(0)?.toIntOrNull() ?: 9) to (it.getOrNull(1)?.toIntOrNull() ?: 0) } ?: (9 to 0)
             TimePickerDialog(context, { _, hh, mm -> onChange("%02d:%02d".format(hh, mm)) }, h, m, false).show()
         }) { Text(fmtTime(value) ?: "None") }
-        if (value != null) TextButton(onClick = { onChange(null) }) { Text("Clear") }
+        if (value != null) TButton(quiet = true, onClick = { onChange(null) }) { Text("Clear") }
     }
 }
 
@@ -83,8 +82,8 @@ fun EditDialog(item: Item, board: Board, onDismiss: () -> Unit) {
         title = { Text("Edit ${item.kind}") },
         text = {
             Column {
-                OutlinedTextField(value = title, onValueChange = { title = it.take(500) }, label = { Text("Title") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = notes, onValueChange = { notes = it.take(5000) }, label = { Text("Notes") }, minLines = 2, modifier = Modifier.fillMaxWidth())
+                Field(value = title, onValueChange = { title = it.take(500) }, label = { Text("Title") }, modifier = Modifier.fillMaxWidth())
+                Field(value = notes, onValueChange = { notes = it.take(5000) }, label = { Text("Notes") }, minLines = 2, modifier = Modifier.fillMaxWidth())
                 if (dated) {
                     DateField("Date", due) { due = it }
                     TimeField("Time", time) { time = it }
@@ -96,7 +95,7 @@ fun EditDialog(item: Item, board: Board, onDismiss: () -> Unit) {
             }
         },
         confirmButton = {
-            TextButton(enabled = title.isNotBlank(), onClick = {
+            TButton(quiet = true, enabled = title.isNotBlank(), onClick = {
                 val changes = buildMap<String, Any?> {
                     if (title.trim() != item.title) put("title", title.trim())
                     if (notes.trim() != (item.notes ?: "")) put("notes", notes.trim().ifEmpty { null })
@@ -119,7 +118,7 @@ fun EditDialog(item: Item, board: Board, onDismiss: () -> Unit) {
                 onDismiss()
             }) { Text("Save") }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { TButton(quiet = true, onClick = onDismiss) { Text("Cancel") } },
     )
 }
 
@@ -160,7 +159,7 @@ fun DepsSection(item: Item, board: Board, preloaded: Deps? = null) {
     Label("Waits on")
     when (val d = deps) {
         Load.Loading -> Text("…")
-        is Load.Failed -> TextButton(onClick = { attemptNo++ }) { Text("Retry: ${d.message}") }
+        is Load.Failed -> TButton(quiet = true, onClick = { attemptNo++ }) { Text("Retry: ${d.message}") }
         is Load.Ready -> {
             if (d.value.blocked) Text("Blocked: something it waits on isn't done.", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
             if (d.value.blockedBy.isEmpty()) Text("Nothing.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -172,7 +171,7 @@ fun DepsSection(item: Item, board: Board, preloaded: Deps? = null) {
                     }
                 }
             }
-            OutlinedButton(onClick = { picking = true }) { Text("+ Waits on…") }
+            TButton(onClick = { picking = true }) { Text("+ Waits on…") }
             if (d.value.blocks.isNotEmpty()) {
                 Spacer(Modifier.padding(4.dp))
                 Label("Waiting on this")
@@ -199,7 +198,7 @@ private fun DependencyPicker(candidates: List<Item>, onPick: (Item) -> Unit, onD
         title = { Text("Waits on…") },
         text = {
             Column {
-                OutlinedTextField(value = q, onValueChange = { q = it }, singleLine = true, placeholder = { Text("Find a task or list") }, modifier = Modifier.fillMaxWidth())
+                Field(value = q, onValueChange = { q = it }, singleLine = true, placeholder = { Text("Find a task or list") }, modifier = Modifier.fillMaxWidth())
                 LazyColumn(Modifier.heightIn(max = 360.dp)) {
                     items(shown, key = { it.id }) { c ->
                         Column(Modifier.fillMaxWidth().clickable { onPick(c) }.padding(vertical = 8.dp)) {
@@ -210,6 +209,6 @@ private fun DependencyPicker(candidates: List<Item>, onPick: (Item) -> Unit, onD
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        confirmButton = { TButton(quiet = true, onClick = onDismiss) { Text("Cancel") } },
     )
 }

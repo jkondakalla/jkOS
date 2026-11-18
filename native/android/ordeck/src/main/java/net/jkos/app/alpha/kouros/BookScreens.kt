@@ -28,19 +28,13 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -61,6 +55,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import net.jkos.app.alpha.look.*
 
 // Audiobooks (TODO §10 G2): the library, a book's page with its chapters, and the book player
 // with speed, sleep and bookmarks. Resume is the server's `progress` row, which BookKeeper
@@ -115,11 +110,8 @@ fun BooksPane(query: String, push: (Screen) -> Unit) {
                             items(shelf, key = { it.first.id }) { (b, p) ->
                                 Column(Modifier.width(132.dp).clickable { push(KourosScreen.BookPage(b.id, b.title)) }) {
                                     BookCover(b, 132.dp)
-                                    LinearProgressIndicator(
-                                        progress = { if (p.durationSec > 0) (p.positionSec / p.durationSec).toFloat().coerceIn(0f, 1f) else 0f },
-                                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                                    )
-                                    Text(b.title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall)
+                                    Bar(if (p.durationSec > 0) (p.positionSec / p.durationSec).toFloat() else 0f, Modifier.padding(vertical = 6.dp), height = 3.dp, radius = 1.dp)
+                                    Text(b.title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleSmall)
                                 }
                             }
                         }
@@ -148,7 +140,7 @@ private fun fmtSeq(n: Double) = if (n % 1.0 == 0.0) n.toLong().toString() else n
 
 @Composable
 private fun BookCover(b: Book, size: Dp) {
-    Cover(b.id.takeIf { b.hasCover }, size, Modifier.fillMaxWidth().aspectRatio(1f), book = true)
+    Cover(b.id.takeIf { b.hasCover }, size, Modifier.fillMaxWidth().aspectRatio(1f), book = true, title = b.title)
 }
 
 // ── one book ───────────────────────────────────────────────────────────────────
@@ -201,7 +193,7 @@ fun BookScreen(page: KourosScreen.BookPage, controller: MediaController?, now: N
                 }
                 item {
                     Column(Modifier.padding(horizontal = 16.dp)) {
-                        Button(enabled = controller != null && detail.files.isNotEmpty(), onClick = {
+                        TButton(primary = true, enabled = controller != null && detail.files.isNotEmpty(), onClick = {
                             if (playingThis) { if (!now!!.isPlaying) controller?.play() } else playAt(savedMs ?: 0L)
                         }) {
                             Icon(Glyphs.Play, contentDescription = null)
@@ -216,10 +208,7 @@ fun BookScreen(page: KourosScreen.BookPage, controller: MediaController?, now: N
                             )
                         }
                         if (layout.totalMs > 0 && positionMs > 0) {
-                            LinearProgressIndicator(
-                                progress = { (positionMs.toFloat() / layout.totalMs).coerceIn(0f, 1f) },
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                            )
+                            Bar(positionMs.toFloat() / layout.totalMs, Modifier.padding(vertical = 8.dp))
                         }
                         BookModels.plain(detail.description)?.let {
                             Text(it, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(vertical = 8.dp))
@@ -292,7 +281,7 @@ fun BookNowPlaying(controller: MediaController, now: NowPlaying, book: BookInfo)
         )
         Spacer(Modifier.height(8.dp))
         val total = book.totalMs.coerceAtLeast(1L)
-        Slider(
+        JkSlider(
             value = dragging ?: (global.toFloat() / total).coerceIn(0f, 1f),
             onValueChange = { dragging = it },
             onValueChangeFinished = { dragging?.let { seek((it * total).toLong()) }; dragging = null },
@@ -306,23 +295,23 @@ fun BookNowPlaying(controller: MediaController, now: NowPlaying, book: BookInfo)
             IconButton(enabled = layout.previousChapterStart(global) != null, onClick = { layout.previousChapterStart(global)?.let(::seek) }) {
                 Icon(Glyphs.Previous, contentDescription = "Previous chapter")
             }
-            TextButton(onClick = { seek(global - SKIP_MS) }) { Text("−30 s") }
+            TButton(quiet = true, onClick = { seek(global - SKIP_MS) }) { Text("−30 s") }
             IconButton(onClick = { if (controller.isPlaying) controller.pause() else controller.play() }, modifier = Modifier.size(72.dp)) {
                 Icon(if (now.isPlaying) Glyphs.Pause else Glyphs.Play, contentDescription = if (now.isPlaying) "Pause" else "Play", modifier = Modifier.size(44.dp))
             }
-            TextButton(onClick = { seek(global + SKIP_MS) }) { Text("+30 s") }
+            TButton(quiet = true, onClick = { seek(global + SKIP_MS) }) { Text("+30 s") }
             IconButton(enabled = layout.nextChapterStart(global) != null, onClick = { layout.nextChapterStart(global)?.let(::seek) }) {
                 Icon(Glyphs.Next, contentDescription = "Next chapter")
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = {
+            TButton(onClick = {
                 val r = Rates.next(now.rate)
                 BookRate.set(r)
                 controller.setPlaybackSpeed(r)
             }) { Text(Rates.label(now.rate)) }
             SleepButton(sleep, chapterEndMs = book.layoutChapterEnd(global))
-            OutlinedButton(onClick = { bookmarks = true }) { Text("Bookmarks") }
+            TButton(onClick = { bookmarks = true }) { Text("Bookmarks") }
         }
     }
     if (bookmarks) BookmarksDialog(book.bookId, global, onSeek = ::seek) { bookmarks = false }
@@ -336,7 +325,7 @@ private fun SleepButton(sleep: SleepState, chapterEndMs: Long?) {
     var nowMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(sleep) { while (sleep.deadlineMs != null) { nowMs = System.currentTimeMillis(); delay(1000) } }
     Box {
-        OutlinedButton(onClick = { open = true }) {
+        TButton(onClick = { open = true }) {
             Text(
                 when {
                     sleep.mode == SleepState.CHAPTER -> "Sleep: chapter"
@@ -378,16 +367,16 @@ private fun BookmarksDialog(bookId: Long, globalMs: Long, onSeek: (Long) -> Unit
         text = {
             Column {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedTextField(
+                    Field(
                         value = title, onValueChange = { title = it.take(200) }, singleLine = true,
                         placeholder = { Text("At ${formatTime(at)}") }, modifier = Modifier.weight(1f),
                     )
-                    TextButton(onClick = { val t = title; title = ""; write { KourosApi.addBookmark(bookId, at, t) } }) { Text("Add") }
+                    TButton(quiet = true, onClick = { val t = title; title = ""; write { KourosApi.addBookmark(bookId, at, t) } }) { Text("Add") }
                 }
                 note?.let { Text(it, color = MaterialTheme.colorScheme.secondary) }
                 when (val s = state) {
                     Load.Loading -> Text("Loading…", Modifier.padding(8.dp))
-                    is Load.Failed -> TextButton(onClick = { attemptNo++ }) { Text("Retry: ${s.message}") }
+                    is Load.Failed -> TButton(quiet = true, onClick = { attemptNo++ }) { Text("Retry: ${s.message}") }
                     is Load.Ready -> if (s.value.isEmpty()) {
                         Text("No bookmarks in this book yet.", Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
                     } else {
@@ -410,6 +399,6 @@ private fun BookmarksDialog(bookId: Long, globalMs: Long, onSeek: (Long) -> Unit
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Done") } },
+        confirmButton = { TButton(quiet = true, onClick = onDismiss) { Text("Done") } },
     )
 }

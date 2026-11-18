@@ -16,13 +16,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -40,7 +36,10 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
+import net.jkos.app.alpha.look.*
 import net.jkos.app.alpha.auth.AccountApi
 import net.jkos.app.alpha.auth.AccountRoot
 import net.jkos.app.alpha.auth.AccountTab
@@ -58,6 +57,7 @@ import net.jkos.app.alpha.kouros.rememberController
 import net.jkos.app.alpha.kouros.rememberNowPlaying
 import net.jkos.app.alpha.ordeck.HomeRoot
 import net.jkos.app.alpha.ordeck.HomeTab
+import net.jkos.app.alpha.look.TButton
 
 // The app's shell: sign-in, then a bottom bar of tabs, one back stack per tab, and the mini
 // player above the bar. Each tab's screens live in that app's own package.
@@ -65,15 +65,13 @@ import net.jkos.app.alpha.ordeck.HomeTab
 @Composable
 fun JkosRoot() {
     val auth by Auth.state.collectAsState()
-    Box(
-        Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .windowInsetsPadding(WindowInsets.safeDrawing),
-    ) {
+    // The ground runs under the system bars (edge to edge); the content keeps clear of them.
+    Ground(Modifier.fillMaxSize()) {
+        Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
         when (val a = auth) {
             is AuthState.SignedIn -> SignedIn(a.user, a.aud)
             AuthState.SignedOut -> SignInScreen()
+        }
         }
     }
 }
@@ -89,19 +87,15 @@ private fun SignInScreen() {
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text("jkOS", style = MaterialTheme.typography.displayMedium, color = MaterialTheme.colorScheme.onBackground)
-        Spacer(Modifier.height(8.dp))
+        Wordmark("jkOS", size = 56.sp)
+        Spacer(Modifier.height(14.dp))
         BuildBadge()
         Spacer(Modifier.height(40.dp))
-        Button(onClick = { context.activity()?.let { Auth.beginSignIn(it) } }) {
+        TButton(primary = true, onClick = { context.activity()?.let { Auth.beginSignIn(it) } }) {
             Text("Sign in with jkOS")
         }
         Spacer(Modifier.height(16.dp))
-        Text(
-            "Opens ${Auth.config.authOrigin} in your browser. Your password never enters this app.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        Hush("Opens ${Auth.config.authOrigin} in your browser. Your password never enters this app.")
         message?.let {
             Spacer(Modifier.height(16.dp))
             Text(it, color = MaterialTheme.colorScheme.secondary)
@@ -135,11 +129,11 @@ private fun SignedIn(user: User, aud: Set<String>) {
         return
     }
 
-    // The person's theme mode, as soon as they are in: the profile is theirs to read with the
+    // The person's look (mode, accent pair, effects), as soon as they are in: the profile is theirs to read with the
     // app's token. A jkAuth that doesn't take the token yet answers 401, and the last mode
     // seen stays.
     LaunchedEffect(user.id) {
-        runCatching { Auth.themeModeSeen(AccountApi.profile().themeMode) }
+        runCatching { Auth.lookSeen(AccountApi.profile().look) }
     }
 
     var selected by remember { mutableStateOf(tabs.first()) }
@@ -184,22 +178,35 @@ private fun SignedIn(user: User, aud: Set<String>) {
         } else if (!remote && kouros != null && now != null && !onNowPlaying) {
             MiniPlayer(now, controller, openNowPlaying)
         }
-        HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
-        Row(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface)) {
+        // The tab bar: a masthead turned to the foot — the suite's nav tabs, the current one a well.
+        val face = Jk.face
+        Row(
+            Modifier.fillMaxWidth().drawBehind {
+                drawRect(face.ink.copy(alpha = 0.3f), size = androidx.compose.ui.geometry.Size(size.width, 1.dp.toPx()))
+            }.padding(horizontal = 8.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
             for (tab in tabs) {
-                val face = faceOf(tab) ?: continue
+                val face0 = faceOf(tab) ?: continue
                 val on = tab == current
-                val tint = if (on) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                Column(
-                    Modifier
-                        .weight(1f)
-                        .clickable(role = Role.Tab) { if (on) nav.popToRoot() else selected = tab }
-                        .padding(vertical = 8.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Icon(face.glyph, contentDescription = null, tint = tint, modifier = Modifier.size(24.dp))
-                    Text(face.label, style = MaterialTheme.typography.labelSmall, color = tint, maxLines = 1)
+                val tint = if (on) face.accent else face.muted
+                val cell: @Composable () -> Unit = {
+                    Column(
+                        Modifier
+                            .fillMaxWidth()
+                            .clickable(role = Role.Tab) { if (on) nav.popToRoot() else selected = tab }
+                            .padding(vertical = 6.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Icon(face0.glyph, contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.height(3.dp))
+                        Text(
+                            face0.label.uppercase(), maxLines = 1,
+                            style = MaterialTheme.typography.labelSmall.copy(color = tint, fontSize = 9.sp, shadow = if (on) haloText(face.accent) else null),
+                        )
+                    }
                 }
+                if (on) Well(Modifier.weight(1f), radius = JkRadius.sm) { cell() } else Box(Modifier.weight(1f)) { cell() }
             }
         }
     }
@@ -225,11 +232,11 @@ private fun LearningAudience() {
     ) {
         val message = failed
         if (message == null) {
-            CircularProgressIndicator()
+            Lamp("Asking jkAuth")
         } else {
-            Text(message, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            TextButton(onClick = { attemptNo++ }) { Text("Retry") }
-            TextButton(onClick = { scope.launch { Auth.signOut() } }) { Text("Sign out") }
+            Hush(message)
+            TButton(quiet = true, onClick = { attemptNo++ }) { Text("Retry") }
+            TButton(quiet = true, onClick = { scope.launch { Auth.signOut() } }) { Text("Sign out") }
         }
     }
 }

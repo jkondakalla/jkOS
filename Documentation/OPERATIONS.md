@@ -303,7 +303,7 @@ from sample data (no sign-in, no network, no tab bar):
 
 ```bash
 pnpm android:build -- :ordeck:testDebugUnitTest -Pjkos.screens
-ls native/android/ordeck/build/screens/        # 01-today.png … 12-goal-dark.png
+ls native/android/ordeck/build/screens/        # 01-today.png … 16-kouros-mini.png
 ```
 
 **After bumping an Android dependency**, regenerate the checksums and **read the diff**: every new
