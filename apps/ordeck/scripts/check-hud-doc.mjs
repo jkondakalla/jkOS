@@ -40,7 +40,7 @@ import { loadHudGraph } from './hud-graph.mjs';
 const { tmp, ok, fail, emitTs, done } = unit('check-hud-doc');
 
 // ── The pure HUD-state graph, transpiled in memory (./hud-graph.mjs) ─────────
-const { types, engine, state, bbDelta } = await loadHudGraph({ tmp, emitTs });
+const { types, engine, state, bbDelta, hudData } = await loadHudGraph({ tmp, emitTs });
 const { HUD_STATE_VERSION, BREAKPOINTS } = types;
 const { minSize } = engine;
 const { mergePublished, defaultHudState } = state;
@@ -240,6 +240,25 @@ if (args.includes('--live')) {
   else fail(`delta: full response left ${afterFull.length} row(s)`);
   if (c.sinceResync === 0) ok('delta: a full response resets the resync counter');
   else fail(`delta: sinceResync is ${c.sinceResync} after a full fetch`);
+}
+
+// ── the clock slice — the day of the year is a calendar count ───────────────
+// It was a day ahead all day but at midnight (Math.ceil over the instant since Dec 31), and an
+// instant-based count also moves an hour across DST. Local times, so it holds in any TZ.
+{
+  const { clockState } = await hudData();
+  const at = (y, m, d, h, mi) => clockState(new Date(y, m, d, h, mi)).jday;
+  const days = [
+    [[2026, 0, 1, 0, 0], '001'], [[2026, 0, 1, 9, 41], '001'], [[2026, 8, 28, 9, 41], '271'],
+    [[2026, 2, 8, 23, 30], '067'], [[2026, 2, 9, 9, 0], '068'], [[2026, 10, 1, 9, 0], '305'],
+    [[2024, 11, 31, 23, 59], '366'],
+  ];
+  const wrong = days.filter(([t, want]) => at(...t) !== want).map(([t, want]) => `${t.join('-')} → ${at(...t)}, want ${want}`);
+  if (wrong.length === 0) ok(`clock: the day of the year is the calendar day on all ${days.length} dates, across DST and a leap year`);
+  else fail(`clock: the day of the year is wrong: ${wrong.join('; ')}`);
+  const c = clockState(new Date(2026, 8, 28, 9, 41, 27));
+  if (c.hm === '09:41' && c.ss === '27' && c.dateLine === 'MONDAY · SEP 28' && c.iso === '2026-09-28' && c.utcLine.endsWith(' · DAY 271')) ok('clock: the slice reads "09:41", "27", "MONDAY · SEP 28", "… · DAY 271"');
+  else fail(`clock: the slice reads ${JSON.stringify(c)}`);
 }
 
 // ── retired built-ins — a dead app's card must leave stored docs ────────────

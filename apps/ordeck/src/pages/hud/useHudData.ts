@@ -51,7 +51,11 @@ export function useClock(): ClockState {
 /** The clock slice at one instant — pure, so a preview can pin the time. */
 export function clockState(now: Date): ClockState {
   const utcShort = `${pad(now.getUTCHours())}:${pad(now.getUTCMinutes())}`;
-  const jday = String(Math.ceil((now.getTime() - new Date(now.getFullYear(), 0, 0).getTime()) / 86400000)).padStart(3, '0');
+  /* The day of the year, counted on calendar dates (UTC midnights of the local Y/M/D), not
+     on the instant: the instant made it a day ahead all day but at midnight, and a DST shift
+     moves an instant-based count by an hour. */
+  const jday = String(Math.round((Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())
+    - Date.UTC(now.getFullYear(), 0, 0)) / 86400000)).padStart(3, '0');
   return {
     hm: `${pad(now.getHours())}:${pad(now.getMinutes())}`,
     ss: pad(now.getSeconds()),

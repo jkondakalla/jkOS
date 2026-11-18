@@ -40,6 +40,7 @@ export async function loadHudGraph({ tmp, emitTs }) {
   writeFileSync(join(tmp, 'stub-auth-client.mjs'),
     'export const getProfile = async () => globalThis.__jkosHudProfile ?? {};\n'
     + 'export const patchProfile = async () => ({});\n'
+    + 'export const authFetch = async () => { throw new Error("no network in a check"); };\n'
     + "export { readHudPref, writeHudPref } from './hudPrefs.mjs';\n");
   writeFileSync(join(tmp, 'stub-weave.mjs'),
     "export const appOrigin = (id) => 'https://' + id + '.jkos.net';\n");
@@ -63,5 +64,37 @@ export async function loadHudGraph({ tmp, emitTs }) {
     bbDelta: await load('bbDelta.mjs'),
     /** What the stubbed getProfile answers next: a profile, `{ preferences }`. */
     setProfile: (profile) => { globalThis.__jkosHudProfile = profile; },
+    /** The HUD's data hooks file (pages/hud/useHudData.ts), for its PURE functions only — the
+     *  slices' selectors (clockState, selectToday, deriveNotifications…). Its hooks are not
+     *  callable here: React and Weave's poller are stubs that do nothing. */
+    hudData: () => loadHudData({ tmp, emitTs }),
   };
+}
+
+async function loadHudData({ tmp, emitTs }) {
+  const real = (rel) => pathToFileURL(resolve(import.meta.dirname, '../../..', rel)).href;
+  writeFileSync(join(tmp, 'stub-react.mjs'),
+    'const none = () => { throw new Error("a React hook is not callable in a check"); };\n'
+    + 'export const useState = none, useEffect = none, useCallback = none, useMemo = none, useRef = none;\n');
+  // Weave: its id derivations and extRef are real; the poller and the bus are inert (the file
+  // subscribes at import, which must not throw).
+  writeFileSync(join(tmp, 'stub-weave-data.mjs'),
+    `export { extRef } from '${real('packages/weave/src/shared/extref.js')}';\n`
+    + "export const apiBase = (id) => '/api/' + id;\n"
+    + "export const resourceKey = (id, r) => id + '.' + r;\n"
+    + 'export const subscribe = () => () => {};\n'
+    + 'export const invalidate = () => {};\n'
+    + 'export const usePolledResource = () => { throw new Error("a React hook is not callable in a check"); };\n'
+    + 'export const probeApps = () => [];\n');
+  emitTs('packages/cards/src/datetime.ts', 'cards-datetime.mjs');
+  emitTs('packages/widget-render/src/tone.ts', 'widget-render-tone.mjs');
+  emitTs('apps/ordeck/src/pages/hud/useHudData.ts', 'useHudData.mjs', {
+    react: './stub-react.mjs',
+    '@jkos/auth-client': './stub-auth-client.mjs',
+    '@jkos/weave': './stub-weave-data.mjs',
+    '@jkos/cards': './cards-datetime.mjs',
+    '@jkos/widget-render': './widget-render-tone.mjs',
+    './bbDelta': './bbDelta.mjs',
+  });
+  return import(pathToFileURL(join(tmp, 'useHudData.mjs')).href);
 }
