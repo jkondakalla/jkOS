@@ -312,6 +312,52 @@ class ScreensTest {
         }
     }
 
+    // ── KourOS: books and the queue ──
+
+    private val books = listOf(
+        net.jkos.app.alpha.kouros.Book(1, "The Left Hand of Darkness", null, "Ursula K. Le Guin", "George Guidall", "Hainish Cycle", 4.0, 1969, 51_840.0, false),
+        net.jkos.app.alpha.kouros.Book(2, "Piranesi", null, "Susanna Clarke", "Chiwetel Ejiofor", null, null, 2020, 30_600.0, false),
+        net.jkos.app.alpha.kouros.Book(3, "A Wizard of Earthsea", null, "Ursula K. Le Guin", "Rob Inglis", "Earthsea", 1.0, 1968, 27_000.0, false),
+        net.jkos.app.alpha.kouros.Book(4, "The Dispossessed", "An Ambiguous Utopia", "Ursula K. Le Guin", "Don Leslie", "Hainish Cycle", 5.0, 1974, 64_800.0, false),
+    )
+    private val chapters = listOf("Prologue", "A Parade in Erhenrang", "The Mad King", "The Fortieth Day", "Domestication", "One Way into Orgoreyn", "The Question of Sex", "Another Way into Orgoreyn")
+        .mapIndexed { i, t -> net.jkos.app.alpha.kouros.Chapter(i * 6480.0, (i + 1) * 6480.0, t) }
+    private val bookDetail = net.jkos.app.alpha.kouros.BookDetail(books[0],
+        "<p>A lone human emissary is sent to Winter, a world whose people can choose — and change — their gender. A landmark of science fiction.</p>",
+        listOf(net.jkos.app.alpha.kouros.BookFile(0, 51_840.0)), chapters)
+    private val bookProgress = net.jkos.app.alpha.kouros.Progress(9, 1, 16_200.0, 51_840.0, false, "2026-11-17T21:04:00.000Z")
+
+    @Test fun kourosBooks() = captureRoboImage(out("24-kouros-books")) {
+        Face { net.jkos.app.alpha.kouros.BooksPane("", {}, pre = books to listOf(bookProgress)) }
+    }
+
+    @Test @Config(qualifiers = "w411dp-h1400dp-xxhdpi") fun kourosBook() = captureRoboImage(out("25-kouros-book")) {
+        Face { net.jkos.app.alpha.kouros.BookScreen(net.jkos.app.alpha.kouros.KourosScreen.BookPage(1, books[0].title), null, null, {}, pre = bookDetail to bookProgress) }
+    }
+
+    @Test fun kourosBookPlayer() = captureRoboImage(out("26-kouros-book-player")) {
+        Face(dark = true) {
+            val info = net.jkos.app.alpha.kouros.BookInfo(1, 0, 51_840_000, chapters)
+            val now = NowPlaying(trackId = null, book = info, rate = 1.25f, title = books[0].title, artist = "Ursula K. Le Guin", album = books[0].title,
+                hasArtwork = false, isPlaying = true, durationMs = 51_840_000, hasNext = false, hasPrevious = false)
+            net.jkos.app.alpha.kouros.BookPlayerBody(now, info, 16_200_000, {}, {}, {}, {})
+        }
+    }
+
+    @Test fun kourosQueue() = captureRoboImage(out("27-kouros-queue")) {
+        Face {
+            val q = net.jkos.app.alpha.kouros.QueueState(listOf(
+                net.jkos.app.alpha.kouros.QueueEntry("1", 1, false, "Elegia", "New Order", false, 293_000),
+                net.jkos.app.alpha.kouros.QueueEntry("2", 2, false, "Ceremony", "New Order", false, 264_000),
+                net.jkos.app.alpha.kouros.QueueEntry("3", 3, false, "Fade Into You", "Mazzy Star", false, 295_000),
+                net.jkos.app.alpha.kouros.QueueEntry("4", 4, false, "Lorelei", "Cocteau Twins", false, 223_000),
+                net.jkos.app.alpha.kouros.QueueEntry("5", 5, false, "Warszawa", "David Bowie", false, 380_000),
+                net.jkos.app.alpha.kouros.QueueEntry("6", 6, false, "Plainsong", "The Cure", false, 312_000),
+            ), current = 1)
+            net.jkos.app.alpha.kouros.QueueBody(q, {}, onMove = { _, _ -> }, onPlay = {}, onRemove = {})
+        }
+    }
+
     @Test fun kourosMiniPlayer() = captureRoboImage(out("16-kouros-mini")) {
         Face(dark = true) { androidx.compose.foundation.layout.Column { androidx.compose.foundation.layout.Spacer(Modifier.weight(1f)); MiniPlayer(playing, null) {} } }
     }

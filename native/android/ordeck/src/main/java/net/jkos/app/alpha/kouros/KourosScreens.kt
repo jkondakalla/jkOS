@@ -339,7 +339,7 @@ private fun AlbumScreen(album: String, artist: String, controller: MediaControll
 // ── the player: a bar at the bottom, and a full screen ─────────────────────────
 
 @Composable
-private fun TransportButton(glyph: ImageVector, label: String, enabled: Boolean = true, size: Dp = 48.dp, onClick: () -> Unit) {
+internal fun TransportButton(glyph: ImageVector, label: String, enabled: Boolean = true, size: Dp = 48.dp, onClick: () -> Unit) {
     IconButton(onClick = onClick, enabled = enabled, modifier = Modifier.size(size)) {
         Icon(glyph, contentDescription = label, modifier = Modifier.size(size * 0.5f), tint = if (enabled) Jk.face.ink else Jk.face.ghost)
     }
