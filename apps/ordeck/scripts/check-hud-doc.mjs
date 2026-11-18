@@ -32,58 +32,15 @@
 // NOTE: "no flex:none card root" is a CSS-render invariant (hud.css § "a card root
 // must never opt out with flex:none"), not representable in the doc JSON, so it is
 // pinned by that stylesheet comment + the grid CSS, not here.
-import { readFileSync, writeFileSync } from 'node:fs';
-import { pathToFileURL } from 'node:url';
-import { resolve, join } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { unit } from '../../../test/lib/unit.mjs';
-import { catalogModuleSource } from '../../../scripts/widget/catalog.mjs';
+import { loadHudGraph } from './hud-graph.mjs';
 
 const { tmp, ok, fail, emitTs, done } = unit('check-hud-doc');
 
-// ── In-memory transpile of the pure HUD-state graph ─────────────────────────
-// Rewrite the graph's bare import specifiers to the temp-dir siblings / stubs,
-// then transpile TS → ESM (type-only imports are erased) and write it out.
-const REWRITES = {
-  './types': './types.mjs',
-  './engine': './engine.mjs',
-  '@jkos/design': './jkos-design.mjs',
-  '@jkos/auth-client': './stub-auth-client.mjs',
-  '@jkos/weave': './stub-weave.mjs',
-  // The widget vocabulary is plain JS with no imports of its own — the REAL package,
-  // by absolute URL, never a stub (state.ts asks it which slices a def binds).
-  '@jkos/widgets': pathToFileURL(resolve(import.meta.dirname, '../../../packages/widgets/src/index.js')).href,
-  // hud/catalog.ts is a Vite glob; the SAME widget files, as data (scripts/widget/catalog.mjs).
-  './catalog': './catalog.mjs',
-};
-const transpileTo = (srcRel, outName) => emitTs(srcRel, outName, REWRITES);
-
-// Stubs for the two non-pure leaf imports (never called on the merge path).
-/* ⚠️ getProfile/patchProfile are stubbed (they are the network); readHudPref and
-   writeHudPref are NOT — the REAL ones are transpiled in below and re-exported here.
-   They are a data migration over live user data whose every failure mode is silent,
-   and a stub would have this check exercising a fiction of them. */
-writeFileSync(join(tmp, 'stub-auth-client.mjs'),
-  'export const getProfile = async () => ({});\n'
-  + 'export const patchProfile = async () => ({});\n'
-  + "export { readHudPref, writeHudPref } from './hudPrefs.mjs';\n");
-writeFileSync(join(tmp, 'stub-weave.mjs'),
-  "export const appOrigin = (id) => 'https://' + id + '.jkos.net';\n");
-// Real suite breakpoints — the same pure source @jkos/design re-exports (kept
-// drift-free by test/responsive.mjs), transpiled rather than hand-inlined.
-transpileTo('packages/design/responsive/breakpoints.ts', 'jkos-design.mjs');
-// XC-5's read-fallback / lazy re-write, real rather than stubbed (see above).
-transpileTo('packages/auth-client/src/hudPrefs.ts', 'hudPrefs.mjs');
-transpileTo('apps/ordeck/src/hud/types.ts', 'types.mjs');
-transpileTo('apps/ordeck/src/hud/engine.ts', 'engine.mjs');
-writeFileSync(join(tmp, 'catalog.mjs'), await catalogModuleSource());
-transpileTo('apps/ordeck/src/hud/state.ts', 'state.mjs');
-// XC-3: the BeigeBoard delta merge — pure by construction, no imports at all.
-transpileTo('apps/ordeck/src/pages/hud/bbDelta.ts', 'bbDelta.mjs');
-
-const types = await import(pathToFileURL(join(tmp, 'types.mjs')).href);
-const engine = await import(pathToFileURL(join(tmp, 'engine.mjs')).href);
-const state = await import(pathToFileURL(join(tmp, 'state.mjs')).href);
-const bbDelta = await import(pathToFileURL(join(tmp, 'bbDelta.mjs')).href);
+// ── The pure HUD-state graph, transpiled in memory (./hud-graph.mjs) ─────────
+const { types, engine, state, bbDelta } = await loadHudGraph({ tmp, emitTs });
 const { HUD_STATE_VERSION, BREAKPOINTS } = types;
 const { minSize } = engine;
 const { mergePublished, defaultHudState } = state;

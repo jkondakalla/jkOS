@@ -1,0 +1,1016 @@
+{
+  "_comment": "The order jkOS Alpha's home draws the HUD's cards in: the person's saved arrangement, as the web draws it on a phone (the mobile tier, read top to bottom, left to right). check:native runs every case through ORDECK's real loadHudState and layoutForBreakpoint (apps/ordeck/scripts/hud-graph.mjs); the JVM test runs the same file through HudOrder.kt. `preferences` is the profile's preferences blob; `expect` is the card ids in order.",
+  "cases": [
+    {
+      "name": "nothing saved: the default arrangement",
+      "preferences": {},
+      "expect": [
+        "clock",
+        "today",
+        "systems",
+        "weather",
+        "notifications",
+        "calendar"
+      ]
+    },
+    {
+      "name": "no preferences at all",
+      "preferences": null,
+      "expect": [
+        "clock",
+        "today",
+        "systems",
+        "weather",
+        "notifications",
+        "calendar"
+      ]
+    },
+    {
+      "name": "a desktop arrangement, read in its reading order",
+      "preferences": {
+        "ordeck": {
+          "hud": {
+            "version": 5,
+            "widgets": {},
+            "layouts": {
+              "desktop": [
+                {
+                  "i": "today",
+                  "x": 0,
+                  "y": 0,
+                  "w": 6,
+                  "h": 10
+                },
+                {
+                  "i": "clock",
+                  "x": 6,
+                  "y": 0,
+                  "w": 3,
+                  "h": 3
+                },
+                {
+                  "i": "focus",
+                  "x": 9,
+                  "y": 0,
+                  "w": 3,
+                  "h": 4
+                },
+                {
+                  "i": "bb-week",
+                  "x": 6,
+                  "y": 3,
+                  "w": 6,
+                  "h": 8
+                },
+                {
+                  "i": "pinned",
+                  "x": 0,
+                  "y": 10,
+                  "w": 4,
+                  "h": 5
+                }
+              ]
+            },
+            "shelf": []
+          }
+        }
+      },
+      "expect": [
+        "today",
+        "clock",
+        "focus",
+        "bb-week",
+        "pinned"
+      ]
+    },
+    {
+      "name": "the legacy top-level key, when nothing is namespaced",
+      "preferences": {
+        "hud": {
+          "version": 5,
+          "widgets": {},
+          "layouts": {
+            "desktop": [
+              {
+                "i": "today",
+                "x": 0,
+                "y": 0,
+                "w": 6,
+                "h": 10
+              },
+              {
+                "i": "clock",
+                "x": 6,
+                "y": 0,
+                "w": 3,
+                "h": 3
+              },
+              {
+                "i": "focus",
+                "x": 9,
+                "y": 0,
+                "w": 3,
+                "h": 4
+              },
+              {
+                "i": "bb-week",
+                "x": 6,
+                "y": 3,
+                "w": 6,
+                "h": 8
+              },
+              {
+                "i": "pinned",
+                "x": 0,
+                "y": 10,
+                "w": 4,
+                "h": 5
+              }
+            ]
+          },
+          "shelf": []
+        }
+      },
+      "expect": [
+        "today",
+        "clock",
+        "focus",
+        "bb-week",
+        "pinned"
+      ]
+    },
+    {
+      "name": "the namespaced key wins over the legacy one",
+      "preferences": {
+        "ordeck": {
+          "hud": {
+            "version": 5,
+            "widgets": {},
+            "layouts": {
+              "desktop": [
+                {
+                  "i": "systems",
+                  "x": 0,
+                  "y": 0,
+                  "w": 3,
+                  "h": 5
+                },
+                {
+                  "i": "clock",
+                  "x": 3,
+                  "y": 0,
+                  "w": 4,
+                  "h": 3
+                }
+              ]
+            },
+            "shelf": []
+          }
+        },
+        "hud": {
+          "version": 5,
+          "widgets": {},
+          "layouts": {
+            "desktop": [
+              {
+                "i": "today",
+                "x": 0,
+                "y": 0,
+                "w": 6,
+                "h": 10
+              },
+              {
+                "i": "clock",
+                "x": 6,
+                "y": 0,
+                "w": 3,
+                "h": 3
+              },
+              {
+                "i": "focus",
+                "x": 9,
+                "y": 0,
+                "w": 3,
+                "h": 4
+              },
+              {
+                "i": "bb-week",
+                "x": 6,
+                "y": 3,
+                "w": 6,
+                "h": 8
+              },
+              {
+                "i": "pinned",
+                "x": 0,
+                "y": 10,
+                "w": 4,
+                "h": 5
+              }
+            ]
+          },
+          "shelf": []
+        }
+      },
+      "expect": [
+        "systems",
+        "clock"
+      ]
+    },
+    {
+      "name": "a null namespaced hud falls back to the legacy key (only hudFocus treats null as a value)",
+      "preferences": {
+        "ordeck": {
+          "hud": null
+        },
+        "hud": {
+          "version": 5,
+          "widgets": {},
+          "layouts": {
+            "desktop": [
+              {
+                "i": "pinned",
+                "x": 0,
+                "y": 0,
+                "w": 4,
+                "h": 5
+              },
+              {
+                "i": "clock",
+                "x": 0,
+                "y": 5,
+                "w": 4,
+                "h": 3
+              }
+            ]
+          },
+          "shelf": []
+        }
+      },
+      "expect": [
+        "pinned",
+        "clock"
+      ]
+    },
+    {
+      "name": "a stale version is replaced by the default",
+      "preferences": {
+        "ordeck": {
+          "hud": {
+            "version": 4,
+            "widgets": {},
+            "layouts": {
+              "desktop": [
+                {
+                  "i": "today",
+                  "x": 0,
+                  "y": 0,
+                  "w": 6,
+                  "h": 10
+                },
+                {
+                  "i": "clock",
+                  "x": 6,
+                  "y": 0,
+                  "w": 3,
+                  "h": 3
+                },
+                {
+                  "i": "focus",
+                  "x": 9,
+                  "y": 0,
+                  "w": 3,
+                  "h": 4
+                },
+                {
+                  "i": "bb-week",
+                  "x": 6,
+                  "y": 3,
+                  "w": 6,
+                  "h": 8
+                },
+                {
+                  "i": "pinned",
+                  "x": 0,
+                  "y": 10,
+                  "w": 4,
+                  "h": 5
+                }
+              ]
+            },
+            "shelf": []
+          }
+        }
+      },
+      "expect": [
+        "clock",
+        "today",
+        "systems",
+        "weather",
+        "notifications",
+        "calendar"
+      ]
+    },
+    {
+      "name": "a version written as text is not the version",
+      "preferences": {
+        "ordeck": {
+          "hud": {
+            "version": "5",
+            "widgets": {},
+            "layouts": {
+              "desktop": [
+                {
+                  "i": "today",
+                  "x": 0,
+                  "y": 0,
+                  "w": 6,
+                  "h": 10
+                },
+                {
+                  "i": "clock",
+                  "x": 6,
+                  "y": 0,
+                  "w": 3,
+                  "h": 3
+                },
+                {
+                  "i": "focus",
+                  "x": 9,
+                  "y": 0,
+                  "w": 3,
+                  "h": 4
+                },
+                {
+                  "i": "bb-week",
+                  "x": 6,
+                  "y": 3,
+                  "w": 6,
+                  "h": 8
+                },
+                {
+                  "i": "pinned",
+                  "x": 0,
+                  "y": 10,
+                  "w": 4,
+                  "h": 5
+                }
+              ]
+            },
+            "shelf": []
+          }
+        }
+      },
+      "expect": [
+        "clock",
+        "today",
+        "systems",
+        "weather",
+        "notifications",
+        "calendar"
+      ]
+    },
+    {
+      "name": "a document without widgets is not a document",
+      "preferences": {
+        "ordeck": {
+          "hud": {
+            "version": 5,
+            "layouts": {
+              "desktop": [
+                {
+                  "i": "today",
+                  "x": 0,
+                  "y": 0,
+                  "w": 6,
+                  "h": 10
+                },
+                {
+                  "i": "clock",
+                  "x": 6,
+                  "y": 0,
+                  "w": 3,
+                  "h": 3
+                },
+                {
+                  "i": "focus",
+                  "x": 9,
+                  "y": 0,
+                  "w": 3,
+                  "h": 4
+                },
+                {
+                  "i": "bb-week",
+                  "x": 6,
+                  "y": 3,
+                  "w": 6,
+                  "h": 8
+                },
+                {
+                  "i": "pinned",
+                  "x": 0,
+                  "y": 10,
+                  "w": 4,
+                  "h": 5
+                }
+              ]
+            },
+            "shelf": []
+          }
+        }
+      },
+      "expect": [
+        "clock",
+        "today",
+        "systems",
+        "weather",
+        "notifications",
+        "calendar"
+      ]
+    },
+    {
+      "name": "a document with no layouts is re-seeded",
+      "preferences": {
+        "ordeck": {
+          "hud": {
+            "version": 5,
+            "widgets": {},
+            "shelf": []
+          }
+        }
+      },
+      "expect": [
+        "clock",
+        "today",
+        "systems",
+        "weather",
+        "notifications",
+        "calendar"
+      ]
+    },
+    {
+      "name": "a document that places nothing is re-seeded",
+      "preferences": {
+        "ordeck": {
+          "hud": {
+            "version": 5,
+            "widgets": {},
+            "layouts": {
+              "desktop": [],
+              "mobile": []
+            },
+            "shelf": []
+          }
+        }
+      },
+      "expect": [
+        "clock",
+        "today",
+        "systems",
+        "weather",
+        "notifications",
+        "calendar"
+      ]
+    },
+    {
+      "name": "an explicit phone arrangement wins over the desktop one",
+      "preferences": {
+        "ordeck": {
+          "hud": {
+            "version": 5,
+            "widgets": {},
+            "layouts": {
+              "desktop": [
+                {
+                  "i": "today",
+                  "x": 0,
+                  "y": 0,
+                  "w": 6,
+                  "h": 10
+                },
+                {
+                  "i": "clock",
+                  "x": 6,
+                  "y": 0,
+                  "w": 3,
+                  "h": 3
+                },
+                {
+                  "i": "focus",
+                  "x": 9,
+                  "y": 0,
+                  "w": 3,
+                  "h": 4
+                },
+                {
+                  "i": "bb-week",
+                  "x": 6,
+                  "y": 3,
+                  "w": 6,
+                  "h": 8
+                },
+                {
+                  "i": "pinned",
+                  "x": 0,
+                  "y": 10,
+                  "w": 4,
+                  "h": 5
+                }
+              ],
+              "mobile": [
+                {
+                  "i": "pinned",
+                  "x": 0,
+                  "y": 0,
+                  "w": 2,
+                  "h": 4
+                },
+                {
+                  "i": "clock",
+                  "x": 0,
+                  "y": 4,
+                  "w": 2,
+                  "h": 3
+                },
+                {
+                  "i": "today",
+                  "x": 0,
+                  "y": 7,
+                  "w": 2,
+                  "h": 8
+                }
+              ]
+            },
+            "shelf": []
+          }
+        }
+      },
+      "expect": [
+        "pinned",
+        "clock",
+        "today"
+      ]
+    },
+    {
+      "name": "cards side by side on the phone read left to right",
+      "preferences": {
+        "ordeck": {
+          "hud": {
+            "version": 5,
+            "widgets": {},
+            "layouts": {
+              "mobile": [
+                {
+                  "i": "focus",
+                  "x": 1,
+                  "y": 0,
+                  "w": 1,
+                  "h": 4
+                },
+                {
+                  "i": "clock",
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 3
+                },
+                {
+                  "i": "systems",
+                  "x": 0,
+                  "y": 3,
+                  "w": 1,
+                  "h": 4
+                },
+                {
+                  "i": "today",
+                  "x": 0,
+                  "y": 9,
+                  "w": 2,
+                  "h": 8
+                }
+              ]
+            },
+            "shelf": []
+          }
+        }
+      },
+      "expect": [
+        "clock",
+        "focus",
+        "systems",
+        "today"
+      ]
+    },
+    {
+      "name": "gaps on the phone close upward before the order is read",
+      "preferences": {
+        "ordeck": {
+          "hud": {
+            "version": 5,
+            "widgets": {},
+            "layouts": {
+              "mobile": [
+                {
+                  "i": "clock",
+                  "x": 0,
+                  "y": 0,
+                  "w": 1,
+                  "h": 3
+                },
+                {
+                  "i": "today",
+                  "x": 0,
+                  "y": 20,
+                  "w": 2,
+                  "h": 8
+                },
+                {
+                  "i": "focus",
+                  "x": 1,
+                  "y": 12,
+                  "w": 1,
+                  "h": 4
+                }
+              ]
+            },
+            "shelf": []
+          }
+        }
+      },
+      "expect": [
+        "clock",
+        "focus",
+        "today"
+      ]
+    },
+    {
+      "name": "an empty phone tier falls back to the desktop one",
+      "preferences": {
+        "ordeck": {
+          "hud": {
+            "version": 5,
+            "widgets": {},
+            "layouts": {
+              "desktop": [
+                {
+                  "i": "today",
+                  "x": 0,
+                  "y": 0,
+                  "w": 6,
+                  "h": 10
+                },
+                {
+                  "i": "clock",
+                  "x": 6,
+                  "y": 0,
+                  "w": 3,
+                  "h": 3
+                },
+                {
+                  "i": "focus",
+                  "x": 9,
+                  "y": 0,
+                  "w": 3,
+                  "h": 4
+                },
+                {
+                  "i": "bb-week",
+                  "x": 6,
+                  "y": 3,
+                  "w": 6,
+                  "h": 8
+                },
+                {
+                  "i": "pinned",
+                  "x": 0,
+                  "y": 10,
+                  "w": 4,
+                  "h": 5
+                }
+              ],
+              "mobile": []
+            },
+            "shelf": []
+          }
+        }
+      },
+      "expect": [
+        "today",
+        "clock",
+        "focus",
+        "bb-week",
+        "pinned"
+      ]
+    },
+    {
+      "name": "only a tablet arrangement: the phone reflows the (missing) desktop, which is nothing",
+      "preferences": {
+        "ordeck": {
+          "hud": {
+            "version": 5,
+            "widgets": {},
+            "layouts": {
+              "tablet": [
+                {
+                  "i": "clock",
+                  "x": 0,
+                  "y": 0,
+                  "w": 3,
+                  "h": 3
+                },
+                {
+                  "i": "today",
+                  "x": 3,
+                  "y": 0,
+                  "w": 3,
+                  "h": 8
+                }
+              ]
+            },
+            "shelf": []
+          }
+        }
+      },
+      "expect": []
+    },
+    {
+      "name": "a static card keeps its row",
+      "preferences": {
+        "ordeck": {
+          "hud": {
+            "version": 5,
+            "widgets": {},
+            "layouts": {
+              "mobile": [
+                {
+                  "i": "clock",
+                  "x": 0,
+                  "y": 0,
+                  "w": 2,
+                  "h": 3
+                },
+                {
+                  "i": "pinned",
+                  "x": 0,
+                  "y": 6,
+                  "w": 2,
+                  "h": 4,
+                  "static": true
+                },
+                {
+                  "i": "today",
+                  "x": 0,
+                  "y": 10,
+                  "w": 2,
+                  "h": 8
+                },
+                {
+                  "i": "focus",
+                  "x": 0,
+                  "y": 3,
+                  "w": 2,
+                  "h": 4
+                }
+              ]
+            },
+            "shelf": []
+          }
+        }
+      },
+      "expect": [
+        "clock",
+        "focus",
+        "pinned",
+        "today"
+      ]
+    },
+    {
+      "name": "the retired study card is dropped when it still binds its slice",
+      "preferences": {
+        "ordeck": {
+          "hud": {
+            "version": 5,
+            "widgets": {
+              "study": {
+                "id": "study",
+                "label": "Study",
+                "sizing": {
+                  "desktop": {
+                    "w": 4,
+                    "h": 3
+                  },
+                  "mobile": {
+                    "w": 2,
+                    "h": 3
+                  }
+                },
+                "spec": {
+                  "body": {
+                    "t": "text",
+                    "text": {
+                      "src": "study",
+                      "path": "title"
+                    }
+                  }
+                }
+              }
+            },
+            "layouts": {
+              "desktop": [
+                {
+                  "i": "study",
+                  "x": 0,
+                  "y": 0,
+                  "w": 4,
+                  "h": 3
+                },
+                {
+                  "i": "clock",
+                  "x": 4,
+                  "y": 0,
+                  "w": 4,
+                  "h": 3
+                },
+                {
+                  "i": "today",
+                  "x": 0,
+                  "y": 3,
+                  "w": 5,
+                  "h": 13
+                }
+              ]
+            },
+            "shelf": []
+          }
+        }
+      },
+      "expect": [
+        "clock",
+        "today"
+      ]
+    },
+    {
+      "name": "a widget published under the freed id study is kept",
+      "preferences": {
+        "ordeck": {
+          "hud": {
+            "version": 5,
+            "widgets": {
+              "study": {
+                "id": "study",
+                "label": "Study notes",
+                "sizing": {
+                  "desktop": {
+                    "w": 4,
+                    "h": 3
+                  },
+                  "mobile": {
+                    "w": 2,
+                    "h": 3
+                  }
+                },
+                "spec": {
+                  "body": {
+                    "t": "text",
+                    "text": {
+                      "src": "today",
+                      "path": "emptyLabel"
+                    }
+                  }
+                }
+              }
+            },
+            "layouts": {
+              "desktop": [
+                {
+                  "i": "study",
+                  "x": 0,
+                  "y": 0,
+                  "w": 4,
+                  "h": 3
+                },
+                {
+                  "i": "clock",
+                  "x": 4,
+                  "y": 0,
+                  "w": 4,
+                  "h": 3
+                }
+              ]
+            },
+            "shelf": []
+          }
+        }
+      },
+      "expect": [
+        "study",
+        "clock"
+      ]
+    },
+    {
+      "name": "another app's card keeps its place (the home screen decides what it draws)",
+      "preferences": {
+        "ordeck": {
+          "hud": {
+            "version": 5,
+            "widgets": {
+              "kouros-recent": {
+                "id": "kouros-recent",
+                "label": "kouros-recent",
+                "sizing": {
+                  "desktop": {
+                    "w": 4,
+                    "h": 4
+                  },
+                  "mobile": {
+                    "w": 2,
+                    "h": 4
+                  }
+                },
+                "spec": {
+                  "body": {
+                    "t": "text",
+                    "text": "kouros-recent"
+                  }
+                }
+              }
+            },
+            "layouts": {
+              "desktop": [
+                {
+                  "i": "kouros-recent",
+                  "x": 0,
+                  "y": 0,
+                  "w": 4,
+                  "h": 5
+                },
+                {
+                  "i": "clock",
+                  "x": 4,
+                  "y": 0,
+                  "w": 4,
+                  "h": 3
+                },
+                {
+                  "i": "weather",
+                  "x": 8,
+                  "y": 0,
+                  "w": 4,
+                  "h": 4
+                }
+              ]
+            },
+            "shelf": []
+          }
+        }
+      },
+      "expect": [
+        "kouros-recent",
+        "clock",
+        "weather"
+      ]
+    },
+    {
+      "name": "a card wider than the phone shrinks into its column without moving sideways",
+      "preferences": {
+        "ordeck": {
+          "hud": {
+            "version": 5,
+            "widgets": {},
+            "layouts": {
+              "desktop": [
+                {
+                  "i": "notifications",
+                  "x": 10,
+                  "y": 0,
+                  "w": 2,
+                  "h": 4
+                },
+                {
+                  "i": "clock",
+                  "x": 0,
+                  "y": 0,
+                  "w": 12,
+                  "h": 3
+                },
+                {
+                  "i": "focus",
+                  "x": 5,
+                  "y": 2,
+                  "w": 4,
+                  "h": 4
+                }
+              ]
+            },
+            "shelf": []
+          }
+        }
+      },
+      "expect": [
+        "notifications",
+        "clock",
+        "focus"
+      ]
+    }
+  ]
+}

@@ -1,13 +1,38 @@
 package net.jkos.app.alpha
 
+import net.jkos.app.alpha.ordeck.HudOrder
 import net.jkos.app.alpha.ordeck.SysRow
 import net.jkos.app.alpha.ordeck.SysStatus
 import net.jkos.app.alpha.ordeck.Systems
 import net.jkos.app.alpha.ordeck.SystemsState
 import net.jkos.app.alpha.ordeck.Tone
+import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.File
+
+/** The HUD's order on the phone, held to the web's loadHudState + layoutForBreakpoint by the shared vectors. */
+class HudOrderTest {
+    private val doc = JSONObject(File(System.getProperty("jkos.hudOrderCases") ?: error("jkos.hudOrderCases not set")).readText())
+
+    @Test fun everyCaseIsTheWebsOrder() {
+        val cases = doc.getJSONArray("cases")
+        assertTrue(cases.length() >= 12)
+        for (k in 0 until cases.length()) {
+            val c = cases.getJSONObject(k)
+            val prefs = if (c.isNull("preferences")) null else c.getJSONObject("preferences")
+            val want = c.getJSONArray("expect").let { a -> (0 until a.length()).map { a.getString(it) } }
+            assertEquals(c.getString("name"), want, HudOrder.order(prefs))
+        }
+    }
+
+    @Test fun compactionPacksUpwardAndNeverSideways() {
+        val out = HudOrder.compactVertical(listOf(HudOrder.Cell("a", 1, 9, 1, 2), HudOrder.Cell("b", 0, 4, 2, 1)), 2)
+        assertEquals(listOf(HudOrder.Cell("b", 0, 0, 2, 1), HudOrder.Cell("a", 1, 1, 1, 2)), out)
+    }
+}
 
 /** ORDECK's home, the pure half: what the HUD's cards read, as the web's useHudData.ts reads it. */
 class SystemsTest {

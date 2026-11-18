@@ -78,6 +78,8 @@ val sessionStateCases: File = rootProject.file("../session-state-cases.json")
 val sessionCommandCases: File = rootProject.file("../session-command-cases.json")
 val hudShelfCases: File = rootProject.file("../hud-shelf-cases.json")
 val beigeboardBodyCases: File = rootProject.file("../beigeboard-body-cases.json")
+// The HUD's order on the phone, which the web's own loadHudState is held to as well (test/native.mjs).
+val hudOrderCases: File = rootProject.file("../hud-order-cases.json")
 // What a real Chromium computes for every suite token (test/token-identity.mjs writes it): the
 // app's palette (look/Tokens.kt) is held to it, so the two faces can't drift from the web's.
 val tokenBaseline: File = rootProject.file("../../packages/design/tokens/computed-baseline.json")
@@ -109,6 +111,8 @@ android {
             test.systemProperty("jkos.hudShelfCases", hudShelfCases.absolutePath)
             test.inputs.file(beigeboardBodyCases)
             test.systemProperty("jkos.beigeboardBodyCases", beigeboardBodyCases.absolutePath)
+            test.inputs.file(hudOrderCases)
+            test.systemProperty("jkos.hudOrderCases", hudOrderCases.absolutePath)
             test.inputs.file(tokenBaseline)
             test.systemProperty("jkos.tokenBaseline", tokenBaseline.absolutePath)
             // Robolectric runs offline, on the runtime jar Gradle resolved and verified.

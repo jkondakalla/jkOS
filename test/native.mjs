@@ -645,6 +645,28 @@ const policy = require(resolve(root, 'native/desktop/src/policy.js'));
   check(shelf.read.length >= 5 && shelf.write.length >= 3 && shelfWrong.length === 0,
     `the HUD shelf: all ${shelf.read.length + shelf.write.length} vectors agree with the web's hudPrefs.ts`,
     `hud-shelf-cases.json disagrees with hudPrefs.ts: ${shelfWrong.join('; ')}`);
+  // The HUD's order: the person's saved arrangement, as the web draws it on a phone. The
+  // vectors run through ORDECK's REAL loadHudState and layoutForBreakpoint (the same graph
+  // check:hud loads); the JVM test runs them through HudOrder.kt. The default arrangement the
+  // app falls back to is state.ts's DEFAULT_DESKTOP, typed twice and held equal here.
+  const { unit } = await import(resolve(root, 'test/lib/unit.mjs'));
+  const { loadHudGraph } = await import(resolve(root, 'apps/ordeck/scripts/hud-graph.mjs'));
+  const hud = await loadHudGraph(unit('native-hud-order'));
+  const mobileTier = hud.types.BREAKPOINTS.find((b) => b.name === 'mobile');
+  const orderCases = JSON.parse(read('native/hud-order-cases.json')).cases;
+  const orderWrong = [];
+  for (const c of orderCases) {
+    hud.setProfile({ preferences: c.preferences });
+    const doc = await hud.state.loadHudState();
+    const got = [...new Set(hud.engine.layoutForBreakpoint(doc, mobileTier).sort((a, b) => a.y - b.y || a.x - b.x).map((it) => it.i))];
+    if (JSON.stringify(got) !== JSON.stringify(c.expect)) orderWrong.push(`${c.name}: the web draws ${JSON.stringify(got)}, the case expects ${JSON.stringify(c.expect)}`);
+  }
+  const ktDefault = [...(/val DEFAULT_DESKTOP = listOf\(([\s\S]*?)\n {4}\)/.exec(read(`${SRC}/ordeck/HudOrder.kt`))?.[1] ?? '')
+    .matchAll(/Cell\("([\w-]+)", (\d+), (\d+), (\d+), (\d+)\)/g)].map((m) => ({ i: m[1], x: +m[2], y: +m[3], w: +m[4], h: +m[5] }));
+  const webDefault = hud.state.defaultHudState().layouts.desktop.map(({ i, x, y, w, h }) => ({ i, x, y, w, h }));
+  check(orderCases.length >= 12 && orderWrong.length === 0 && ktDefault.length > 0 && JSON.stringify(ktDefault) === JSON.stringify(webDefault),
+    `the HUD's order: all ${orderCases.length} vectors agree with the web's loadHudState + layoutForBreakpoint, and HudOrder's default is state.ts's DEFAULT_DESKTOP`,
+    `the phone's HUD order has drifted from the web's:\n    ${[...orderWrong, ...(JSON.stringify(ktDefault) === JSON.stringify(webDefault) ? [] : [`HudOrder.DEFAULT_DESKTOP ${JSON.stringify(ktDefault)} is not state.ts's ${JSON.stringify(webDefault)}`])].join('\n    ')}`);
   // BeigeBoard: every body the app sends carries only what its capability declares. The
   // server's PATCH takes any client column, so the declaration is the only thing saying what a
   // peer may write; an app that sends more is writing past the contract.
@@ -687,10 +709,13 @@ const policy = require(resolve(root, 'native/desktop/src/policy.js'));
   check(listWrong.length === 0,
     `the app's ${lists.length} field lists and vocabularies are their declarations' (${lists.map(([, n, , of]) => `${n} = ${of}`).join(', ')})`,
     `a list the app keeps has drifted from its declaration:\n    ${listWrong.join('\n    ')}`);
+  const hudTest = read(`${MOD}/src/test/java/net/jkos/app/alpha/HudTest.kt`);
   check(/System\.getProperty\(prop\)/.test(pcTest) && ['sessionModeCases', 'sessionStateCases', 'sessionCommandCases', 'hudShelfCases', 'beigeboardBodyCases'].every((k) => pcTest.includes(`cases("jkos.${k}")`)
-      && new RegExp(`systemProperty\\("jkos\\.${k}", ${k}\\.absolutePath\\)`).test(gradle)),
-    'the Kotlin session, shelf and BeigeBoard tests read the same five case files',
-    'CoreTest.kt or the Gradle wiring no longer reads one of native/{session-mode,session-state,session-command,hud-shelf,beigeboard-body}-cases.json — the app and the server can drift apart');
+      && new RegExp(`systemProperty\\("jkos\\.${k}", ${k}\\.absolutePath\\)`).test(gradle))
+      && /System\.getProperty\("jkos\.hudOrderCases"\)/.test(hudTest) && /systemProperty\("jkos\.hudOrderCases", hudOrderCases\.absolutePath\)/.test(gradle)
+      && /rootProject\.file\("\.\.\/hud-order-cases\.json"\)/.test(gradle),
+    'the Kotlin session, shelf, BeigeBoard and HUD-order tests read the same six case files',
+    'CoreTest.kt, HudTest.kt or the Gradle wiring no longer reads one of native/{session-mode,session-state,session-command,hud-shelf,beigeboard-body,hud-order}-cases.json — the app and the web or server can drift apart');
 }
 
 // ── 8. Native sign-in reaches the right jkAuth, through the edge ─────────────
