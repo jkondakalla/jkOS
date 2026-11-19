@@ -14,7 +14,10 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.addPathNodes
 import androidx.compose.ui.graphics.vector.PathBuilder
 import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.unit.dp
@@ -88,6 +91,39 @@ object Glyphs {
         ImageVector.Builder(name = name, defaultWidth = 24.dp, defaultHeight = 24.dp, viewportWidth = 24f, viewportHeight = 24f)
             .path(fill = SolidColor(Color.Black)) { draw() }
             .build()
+
+    /**
+     * A glyph drawn the web's way: SVG path data, [stroked] in round-capped lines of [width] and
+     * [filled] solid, on the same 24-unit grid — so a control the web draws keeps its face here.
+     */
+    private fun svg(name: String, stroked: List<String>, filled: List<String> = emptyList(), width: Float = 1.7f): ImageVector {
+        val b = ImageVector.Builder(name = name, defaultWidth = 24.dp, defaultHeight = 24.dp, viewportWidth = 24f, viewportHeight = 24f)
+        for (d in stroked) b.addPath(addPathNodes(d), fill = null, stroke = SolidColor(Color.Black), strokeLineWidth = width, strokeLineCap = StrokeCap.Round, strokeLineJoin = StrokeJoin.Round)
+        for (d in filled) b.addPath(addPathNodes(d), fill = SolidColor(Color.Black))
+        return b.build()
+    }
+
+    // The player's own controls, from apps/kouros/src/player/icons.tsx and components/icons.tsx.
+    val Shuffle = svg("shuffle", listOf("M3 6h3.5l8 12H18M3 18h3.5l2.4-3.6M14.1 9.6 16.5 6H18"), listOf("M15.5 4.5 18.5 6l-3 1.7zM15.5 19.5l3-1.5-3-1.7z"))
+    val Repeat = svg("repeat", listOf("M6 9V7a2 2 0 0 1 2-2h9M18 5v3M18 15v2a2 2 0 0 1-2 2H7M6 19v-3"), listOf("M15.5 3.5 18.5 6l-3 2.5z", "M8.5 20.5 5.5 18l3-2.5z"))
+    /** Repeat one: the loop with a "1" inside it (the web sets the figure in mono). */
+    val RepeatOne = svg("repeat-one", listOf("M6 9V7a2 2 0 0 1 2-2h9M18 5v3M18 15v2a2 2 0 0 1-2 2H7M6 19v-3", "M10.9 11.3 12.4 10.2V15.6"), listOf("M15.5 3.5 18.5 6l-3 2.5z", "M8.5 20.5 5.5 18l3-2.5z"))
+    val Devices = svg("devices", listOf(
+        "M3.7 5h8.6a1.2 1.2 0 0 1 1.2 1.2v6.1a1.2 1.2 0 0 1-1.2 1.2H3.7a1.2 1.2 0 0 1-1.2-1.2V6.2A1.2 1.2 0 0 1 3.7 5z",
+        "M5.5 17h5M8 13.5V17",
+        "M16.9 4h3.2a1.4 1.4 0 0 1 1.4 1.4v12.7a1.4 1.4 0 0 1-1.4 1.4h-3.2a1.4 1.4 0 0 1-1.4-1.4V5.4A1.4 1.4 0 0 1 16.9 4z",
+        "M16.5 14.8a2 2 0 1 0 4 0a2 2 0 1 0-4 0",
+        "M17.8 8.2a0.7 0.7 0 1 0 1.4 0a0.7 0.7 0 1 0-1.4 0",
+    ))
+    val ChevronDown = svg("chevron-down", listOf("m5.5 9.5 6.5 6.5 6.5-6.5"))
+    val Chevron = svg("chevron", listOf("m9.5 5.5 6.5 6.5-6.5 6.5"))
+    val Book = svg("book", listOf(
+        "M6 3.8h11.5a1 1 0 0 1 1 1v14.4a1 1 0 0 1-1 1H6.8A2.3 2.3 0 0 1 4.5 17.9V6.1A2.3 2.3 0 0 1 6.8 3.8z",
+        "M4.5 17.6a2.3 2.3 0 0 1 2.3-2.3h11.7", "M9 7.8h6",
+    ))
+    val Bookmark = svg("bookmark", listOf("M7 3.5h10a1 1 0 0 1 1 1V20l-6-4-6 4V4.5a1 1 0 0 1 1-1z"))
+    val Moon = svg("moon", listOf("M20 14.5A8 8 0 0 1 9.5 4a7 7 0 1 0 10.5 10.5z"))
+    val Library = svg("library", listOf("M4 4.5h3.5v15H4z", "M9.5 4.5H13v15H9.5z", "m15.2 5.3 3.3-.9 3.3 14.6-3.3.9z"))
 
     val Play = glyph("play") { moveTo(8f, 5f); lineTo(19f, 12f); lineTo(8f, 19f); close() }
     val Pause = glyph("pause") {

@@ -29,8 +29,15 @@ import net.jkos.app.alpha.beigeboard.*
 import net.jkos.app.alpha.kouros.Album
 import net.jkos.app.alpha.kouros.LibraryScreen
 import net.jkos.app.alpha.kouros.MiniPlayer
+import net.jkos.app.alpha.kouros.MiniBar
+import net.jkos.app.alpha.kouros.NoControls
 import net.jkos.app.alpha.kouros.NowPlaying
-import net.jkos.app.alpha.kouros.NowPlayingBody
+import net.jkos.app.alpha.kouros.PlayerTop
+import net.jkos.app.alpha.kouros.QueueEntry
+import net.jkos.app.alpha.kouros.SleepState
+import net.jkos.app.alpha.kouros.TrackFace
+import net.jkos.app.alpha.kouros.BookFace
+import net.jkos.app.alpha.kouros.localFace
 import org.json.JSONObject
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -294,22 +301,38 @@ class ScreensTest {
     private val playing = NowPlaying(
         trackId = 7, book = null, rate = 1f, title = "Ceremony", artist = "New Order", album = "Substance",
         hasArtwork = false, isPlaying = true, durationMs = 264_000, hasNext = true, hasPrevious = true,
+        index = 2, count = 14, upNext = QueueEntry("8", 8, false, "Blue Light", "Mazzy Star", false, 246_000),
     )
+
+    /** Now Playing as the screen draws it: the top row over the face. */
+    @Composable
+    private fun TrackPage(now: NowPlaying, output: String? = null) {
+        val face = localFace(now, SleepState(), 0L).copy(output = output)
+        androidx.compose.foundation.layout.Column {
+            PlayerTop(face, {}, {}, null)
+            TrackFace(face, 97_000, NoControls, {}, {}, {}, {})
+        }
+    }
 
     @Test fun kourosLibrary() = captureRoboImage(out("13-kouros-library")) {
         Face { androidx.compose.foundation.layout.Column { LibraryScreen({}, preAlbums = albums) } }
     }
 
     @Test fun kourosNowPlaying() = captureRoboImage(out("14-kouros-now")) {
-        Face { NowPlayingBody(playing, 97_000, null, {}, {}, {}, {}, {}) }
+        Face { TrackPage(playing) }
     }
 
     @Test fun kourosNowPlayingDark() = captureRoboImage(out("15-kouros-now-dark")) {
-        Face(dark = true) {
-            androidx.compose.foundation.layout.Column {
-                NowPlayingBody(playing, 97_000, null, {}, {}, {}, {}, {})
-            }
-        }
+        Face(dark = true) { TrackPage(playing.copy(shuffle = true, repeat = androidx.media3.common.Player.REPEAT_MODE_ONE, buffering = true)) }
+    }
+
+    /** Another device plays, this phone is its remote; and a stream that dropped. */
+    @Test fun kourosNowPlayingRemote() = captureRoboImage(out("28-kouros-now-remote")) {
+        Face { TrackPage(playing.copy(upNext = null, isPlaying = false), output = "Desktop") }
+    }
+
+    @Test fun kourosNowPlayingError() = captureRoboImage(out("29-kouros-now-error")) {
+        Face(dark = true) { TrackPage(playing.copy(isPlaying = false, error = "Lost the connection to KourOS.")) }
     }
 
     // ── KourOS: books and the queue ──
@@ -335,12 +358,33 @@ class ScreensTest {
         Face { net.jkos.app.alpha.kouros.BookScreen(net.jkos.app.alpha.kouros.KourosScreen.BookPage(1, books[0].title), null, null, {}, pre = bookDetail to bookProgress) }
     }
 
-    @Test fun kourosBookPlayer() = captureRoboImage(out("26-kouros-book-player")) {
+    @Test @Config(qualifiers = "w411dp-h1250dp-xxhdpi") fun kourosBookPlayer() = captureRoboImage(out("26-kouros-book-player")) {
         Face(dark = true) {
             val info = net.jkos.app.alpha.kouros.BookInfo(1, 0, 51_840_000, chapters)
             val now = NowPlaying(trackId = null, book = info, rate = 1.25f, title = books[0].title, artist = "Ursula K. Le Guin", album = books[0].title,
                 hasArtwork = false, isPlaying = true, durationMs = 51_840_000, hasNext = false, hasPrevious = false)
-            net.jkos.app.alpha.kouros.BookPlayerBody(now, info, 16_200_000, {}, {}, {}, {})
+            val face = localFace(now, SleepState(SleepState.CHAPTER, chapterEndMs = 19_440_000), 0L)
+            val marks = listOf(
+                net.jkos.app.alpha.kouros.Bookmark(1, 1, 7_100.0, "Estraven's warning"),
+                net.jkos.app.alpha.kouros.Bookmark(2, 1, 15_950.0, null),
+            )
+            androidx.compose.foundation.layout.Column {
+                PlayerTop(face, {}, {}, {})
+                BookFace(face, info, 16_200_000, NoControls, {}, preBookmarks = marks)
+            }
+        }
+    }
+
+    @Test fun kourosBookMini() = captureRoboImage(out("30-kouros-book-mini")) {
+        Face {
+            val info = net.jkos.app.alpha.kouros.BookInfo(1, 0, 51_840_000, chapters)
+            val now = NowPlaying(trackId = null, book = info, rate = 1.25f, title = books[0].title, artist = "Ursula K. Le Guin", album = books[0].title,
+                hasArtwork = false, isPlaying = false, durationMs = 51_840_000, hasNext = false, hasPrevious = false)
+            androidx.compose.foundation.layout.Column {
+                androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
+                MiniBar(localFace(now, SleepState(), 0L), 16_200_000, NoControls) {}
+                MiniBar(localFace(playing, SleepState(), 0L).copy(output = "Desktop"), 120_000, NoControls) {}
+            }
         }
     }
 

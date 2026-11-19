@@ -42,10 +42,29 @@ data class NowPlaying(
     val durationMs: Long,
     val hasNext: Boolean,
     val hasPrevious: Boolean,
+    /** The album's artist (an album page is found by it), else the track's artist. */
+    val albumArtist: String = artist,
+    /** Waiting for the stream with play pressed. */
+    val buffering: Boolean = false,
+    /** Why playback stopped, as the listener reads it (Recovery.message), or null. */
+    val error: String? = null,
+    val shuffle: Boolean = false,
+    /** Player.REPEAT_MODE_*. */
+    val repeat: Int = Player.REPEAT_MODE_OFF,
+    /** Shuffle is offered: a queue with a book in it plays in order. */
+    val canShuffle: Boolean = true,
+    /** Where the current entry is in the queue's own order (the web's "3 of 14"), and how many there are. */
+    val index: Int = 0,
+    val count: Int = 1,
+    /** What plays next (the shuffle's next while shuffle is on), or null. */
+    val upNext: QueueEntry? = null,
 )
 
 /** The cover to draw: the track's, or the book's (Cover's `book`), or none. */
 val NowPlaying.coverId: Long? get() = if (!hasArtwork) null else trackId ?: book?.bookId
+
+/** "3 of 14", or "Now playing" for a queue of one (the web's `place`). */
+val NowPlaying.place: String get() = if (count > 1) "${index + 1} of $count" else "Now playing"
 
 private val mainExecutor = Executor { Handler(Looper.getMainLooper()).post(it) }
 
@@ -70,6 +89,7 @@ private fun Player.snapshot(): NowPlaying? {
     val item = currentMediaItem ?: return null
     val md = item.mediaMetadata
     val ref = MediaRef.parse(item.mediaId) ?: return null
+    val next = nextMediaItemIndex.takeIf { it != C.INDEX_UNSET && it != currentMediaItemIndex }?.let { entryAt(it) }
     return NowPlaying(
         trackId = (ref as? MediaRef.TrackRef)?.id,
         book = item.bookInfo(),
@@ -82,6 +102,15 @@ private fun Player.snapshot(): NowPlaying? {
         durationMs = duration.takeIf { it != C.TIME_UNSET } ?: 0L,
         hasNext = hasNextMediaItem(),
         hasPrevious = hasPreviousMediaItem() || currentPosition > 3000,
+        albumArtist = (md.albumArtist ?: md.artist)?.toString() ?: "",
+        buffering = playWhenReady && playbackState == Player.STATE_BUFFERING,
+        error = playerError?.let { Recovery.message(it.errorCode) },
+        shuffle = shuffleModeEnabled,
+        repeat = repeatMode,
+        canShuffle = !queuesABook() && mediaItemCount > 1,
+        index = currentMediaItemIndex,
+        count = mediaItemCount,
+        upNext = next?.takeIf { !(it.isBook && ref is MediaRef.BookFileRef && it.coverId == ref.bookId) },
     )
 }
 
@@ -139,22 +168,25 @@ data class QueueState(val entries: List<QueueEntry>, val current: Int) {
     companion object { val Empty = QueueState(emptyList(), -1) }
 }
 
+/** Queue entry [i] as a row, or null for something that is neither a track nor a book's file. */
+private fun Player.entryAt(i: Int): QueueEntry? {
+    val item = getMediaItemAt(i)
+    val md = item.mediaMetadata
+    val ref = MediaRef.parse(item.mediaId) ?: return null
+    return QueueEntry(
+        mediaId = item.mediaId,
+        coverId = when (ref) { is MediaRef.TrackRef -> ref.id; is MediaRef.BookFileRef -> ref.bookId },
+        isBook = ref is MediaRef.BookFileRef,
+        title = md.title?.toString() ?: "",
+        artist = listOfNotNull((md.artist ?: md.albumArtist)?.toString(), md.albumTitle?.toString().takeIf { ref is MediaRef.BookFileRef })
+            .filter { it.isNotEmpty() }.joinToString(" · "),
+        hasArtwork = md.artworkUri != null,
+        durationMs = md.extras?.getLong(EXTRA_DURATION_MS) ?: 0L,
+    )
+}
+
 private fun Player.queueSnapshot(): QueueState {
-    val entries = (0 until mediaItemCount).mapNotNull { i ->
-        val item = getMediaItemAt(i)
-        val md = item.mediaMetadata
-        val ref = MediaRef.parse(item.mediaId) ?: return@mapNotNull null
-        QueueEntry(
-            mediaId = item.mediaId,
-            coverId = when (ref) { is MediaRef.TrackRef -> ref.id; is MediaRef.BookFileRef -> ref.bookId },
-            isBook = ref is MediaRef.BookFileRef,
-            title = md.title?.toString() ?: "",
-            artist = listOfNotNull((md.artist ?: md.albumArtist)?.toString(), md.albumTitle?.toString().takeIf { ref is MediaRef.BookFileRef })
-                .filter { it.isNotEmpty() }.joinToString(" · "),
-            hasArtwork = md.artworkUri != null,
-            durationMs = md.extras?.getLong(EXTRA_DURATION_MS) ?: 0L,
-        )
-    }
+    val entries = (0 until mediaItemCount).mapNotNull { entryAt(it) }
     return QueueState(entries, if (entries.isEmpty()) -1 else currentMediaItemIndex)
 }
 
@@ -238,20 +270,6 @@ private fun MediaController.playBookHere(book: BookDetail, globalMs: Long, rate:
     setPlaybackSpeed(rate)
     prepare()
     play()
-}
-
-/** Seek to [globalMs] in the book now playing, across its files. */
-fun MediaController.seekInBook(book: BookInfo, globalMs: Long) {
-    val target = globalMs.coerceIn(0L, book.totalMs)
-    // The book's files are queue entries; find the one [target] falls in by their offsets.
-    var best = -1
-    var bestOffset = -1L
-    for (i in 0 until mediaItemCount) {
-        val info = getMediaItemAt(i).bookInfo() ?: continue
-        if (info.bookId != book.bookId) continue
-        if (info.offsetMs <= target && info.offsetMs >= bestOffset) { best = i; bestOffset = info.offsetMs }
-    }
-    if (best >= 0) seekTo(best, target - bestOffset)
 }
 
 /** Replace the queue with [tracks] and play from [start]. */
