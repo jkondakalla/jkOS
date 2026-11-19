@@ -178,9 +178,15 @@ Everything since 2026-07-30, when `main` was last merged. The staging *deploy* l
   - BeigeBoard declares what the app calls: the tree on `createItem`, `calendarStatus`, the
     library's entry writes, a routine's document round trip;
   - BeigeBoard's corrected `syncCalendar` and `importRoutineBundle` declarations.
-- on `staging`, not pushed (2026-11-18, no migrations): ORDECK's clock reads the right day of
-  the year; deloading someone else's session answers 404, not 400; jkOS Alpha's §10 I and its
-  visual pass; every shell at `0.2.0`.
+- jkOS Alpha's §10 I and its visual pass, every shell at `0.2.0`, ORDECK's clock reading the
+  right day of the year, and deloading someone else's session answering 404 (2026-11-18, no
+  migrations).
+- jkOS Alpha's player pass (2026-11-19, app only, no server change): KourOS opens on its Home;
+  Now Playing and the mini player as the web draws them, for the phone and as a remote;
+  shuffle and repeat; a book's next and previous are chapters everywhere, with −30/+30 in the
+  notification; a dropped stream is picked up again; the album, artist, playlist and search
+  pages, and the action sheet, in the kit. Its device checks are in OPERATIONS § Native apps
+  (G1, G2, G3).
 
 **What each deploy migrates** (read from the live databases on 2026-11-16, read-only):
 
@@ -600,8 +606,7 @@ One APK carries all of D–I: `~/Android/jkos-apks/jkos-alpha-0.2.0-staging.apk`
    phone is a device of the session, as the output or as a remote for another device, and edits
    the output's queue from its Queue screen. The design is in NATIVE.md § 5.
    - **You:** after the deploy, run OPERATIONS § Native apps' G3 checks.
-   - Not done, on purpose: `shuffle` from a remote is ignored (this player doesn't shuffle,
-     and reports shuffle off). The phone cues the session only when the session names this
+   - Not done, on purpose: the phone cues the session only when the session names this
      phone; the web cues on every idle device. The phone's own volume isn't on its picker:
      its volume buttons set it.
    - If remotes need presence, §4's "silent remote" ping comes in here, in the next server batch.

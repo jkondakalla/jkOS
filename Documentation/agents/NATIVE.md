@@ -215,11 +215,22 @@ One Kotlin package per app under `net.jkos.app.alpha`:
   routines (`Cadence` ports the web's week strip and streak) and the library. A routine is
   changed as its document, through the import's dry run and then the import. Pin and focus are
   the HUD shelf in jkAuth's preferences (`auth/HudShelf.kt`), read with the web's XC-5 fallback.
-- **`kouros/`**: the library (albums, artists, books), search, playlists, the queue (Media3's
-  own, so every edit is a player call), Now Playing with Start radio, audiobooks and the
-  listening session. A playlist's tracks are read by id (`/api/tracks?ids=`, in pieces of
-  Weave's `IN_MAX`), never by pulling the catalog. Reordering, in the queue and in a playlist,
-  is one grip-bound `ReorderList` over pure `Reorder` arithmetic.
+- **`kouros/`**: KourOS opens on its **Home** (the web's `kouros-home`, from the one
+  declared read `discoverHome` with the listener's own hour: continue listening, recently
+  played, runs, this hour's picks, the artists the listener is deep in, what's new), beside
+  the albums, the artists and the books. Then search, playlists, the queue (Media3's own, so
+  every edit is a player call), the album and artist pages (Play, Shuffle once, discs, "If
+  you like this" from `discoverSimilar`), audiobooks and the listening session. A recent row
+  opens the place it was played from by reading its play context back
+  (`PlayContext.parse`, the server's `parsePlayContext` ported and held to the same case
+  file). **One face draws Now Playing and the mini player** (`NowPlayingUi.kt`): `PlayerFace`
+  is plain values and every verb goes through `PlayerControls`, which drives the player here
+  (`LocalControls`) or sends the session's output a command (`RemoteControls`), so the
+  phone's own playback and its remote can't drift apart. A playlist's tracks are read by id
+  (`/api/tracks?ids=`, in pieces of Weave's `IN_MAX`), never by pulling the catalog.
+  Reordering, in the queue and in a playlist, is one grip-bound `ReorderList` over pure
+  `Reorder` arithmetic. The tab's root keeps its section, its search and the album grid's
+  place, so coming back from an album finds the grid where it was.
 - **`auth/`**: sign-in, the session, the one transport, and the Account tab: the display name
   and the theme mode through `/auth/profile`, the devices list and sign-out-a-device through
   `/auth/sessions` (the app marks "this device" by the `family_id` the token endpoint returned).
@@ -307,6 +318,22 @@ Queue items are rebuilt from their media id in `onAddMediaItems`, so a controlle
 chooses a URL. Any media controller on the device can drive playback (that is what a media
 session is for); none can read a token through it.
 
+- **The session's player is `KourosPlayer`** (`PlayerCore.kt`), a `ForwardingSimpleBasePlayer`
+  around the ExoPlayer, so what the notification, the lock screen, a headset, a car and the
+  app's own buttons ask for is decided in one place:
+  - while a book plays, next and previous are chapter moves (`BookNav`, the web's
+    `nextSegment`/`prevSegment`), offered even for a single-file book, which ExoPlayer alone
+    would answer with no next and a previous that jumps to the start of the whole book. The
+    notification shows −30 s and +30 s either side of play for a book (media button
+    preferences, 30 s seek increments);
+  - shuffle and repeat are the person's standing choice (`PlayPolicy`, in the sealed prefs,
+    as the web keeps them per browser). Shuffle's order starts at the current entry, and a
+    replaced queue gets a fresh order. A queue holding a book never shuffles or loops;
+  - loads retry 6 times, and when the player still stops on a network error, `Recovery`
+    re-prepares it in place after 2, 6 and 15 s. Why it stopped is on Now Playing and the
+    mini bar, with "Try again".
+- The notification's tap opens Now Playing (the intent names that one screen, and
+  `MainActivity` reads nothing else from an intent).
 - **Audiobooks:** a book is its files in the queue, one entry each, as
   `book:<bookId>:<fileIndex>` (`MediaRef`; a bare number is a track). Each entry's extras carry
   its book, where it starts in the book, the book's length and its chapters, so the service
@@ -321,7 +348,9 @@ session is for); none can read a token through it.
   the web's backoff and reopens on `reauth`. `SessionOutput`, in the service, is the output
   role; `SessionCore` is its pure half, held to `native/session-{mode,state,command}-cases.json`.
   As a remote, `SessionLink.role` routes the screens' plays to the output as commands, and
-  `RemoteUi` draws the output's session on the server's clock and edits its queue.
+  `RemoteUi` feeds the output's session, on the server's clock, to the same face, and edits
+  its queue. The output reports its shuffle order as `validate.js` requires (a permutation of
+  the items, else shuffle off), and takes a remote's shuffle and repeat through `PlayPolicy`.
 - **History** is written **from the service** (`HistoryRecorder` → `ListenLedger`), so a listen
   counts with the UI closed. It follows the web player's `flushSession`: one row per track per
   playing stretch, at least 1 s, closed on pause, on a track change and when the app goes to the
@@ -363,10 +392,13 @@ views, use a scratchpad mock backend, `vite build` and headless Chromium.
 
 ### What hasn't been seen yet
 
-**It has never run on a device.** Everything is held by its JVM tests (83 on 2026-11-18: PKCE
+**It has never run on a device.** Everything is held by its JVM tests (94 on 2026-11-19: PKCE
 against RFC 7636's own vector, redirect parsing, the ledger, the JSON shapes, the shared case
-files, the HUD's order and slices, the cadence) and looked at in the renders (27 screens,
-including landscape and a 1.5× font scale). The first Gradle build (2026-11-16) found that
+files, the HUD's order and slices, the cadence, the shuffle order, a book's chapter steps, the
+play context read back, the KourOS Home read from the web widget's own fixture) and looked at
+in the renders (36 screens, including landscape and a 1.5× font scale). What only a device
+can show: the notification's and the lock screen's buttons for a book, a headset's presses,
+and playback carrying on across a network change. The first Gradle build (2026-11-16) found that
 Compose 1.12 needs compileSdk 37 and that Media3 merges in `ACCESS_NETWORK_STATE`, which the
 manifest now removes; the build refuses an APK whose merged manifest asks for anything beyond
 the four permissions and androidx.core's signature-level self permission.
@@ -424,10 +456,10 @@ or give the dev binary a profile as root. Don't add `--no-sandbox`.
 |---|---|---|
 | `pnpm check:native` | `native/gen-native.mjs --check` + `test/native.mjs` | generated files in sync (and no stale variant dirs, and jkAuth's `native-clients.json`); desktop policy vs origin-cases; webPreferences, permissions, external schemes; main.js applies the policy; fuses; .deb-only; manifests least-privilege; no `addJavascriptInterface`/`proceed()`/file access/mixed content; signing from env; wrapper, dependencies, toolchain and image pinned; staging URLs routed; **jkOS Alpha (§ 7 of the test):** exactly four permissions, Media3's `ACCESS_NETWORK_STATE` removed, the build's merged-manifest allow-list equal to the four, exactly three exported components, the redirect filter's scheme = `${applicationId}`, no WebView, tokens written only Keystore-sealed into `noBackupFilesDir`, every refresh under the Mutex, store-before-use, the state check, no redirect following, the Bearer token only to a derived base or a gated health probe, every `/api/` path declared, the tabs from `aud`, and the shared case files (play contexts, the session, the HUD shelf, the HUD's order through the web's own `loadHudState`, BeigeBoard's bodies, source tints); **native sign-in (§ 8):** staging jkAuth alone sets `JKOS_NATIVE_ENV`, the edge gate forwards `Authorization`, every native app's staging API base is routed, every health probe routed and carrying the token exactly where the edge gates it |
 | `apps/jkauth/test/native.mjs` | `npm test` in jkAuth (gate step 2) | the native sign-in, over real HTTP: dead-end refusals, the login round trip, consent bound to person and request, the scheme in `form-action`, codes single-use / verifier-bound / short-lived / replay-burns, refresh rotation + 409 race + reuse burn, the transport binding both ways (and its triggers), an S256-shaped challenge held by a CHECK, a role the app doesn't admit refused before consent, the Bearer gate, revoke, the audit trail, off when `JKOS_NATIVE_ENV` is unset and no boot on an unknown value |
-| Gradle unit test | `:ordeck:testDebugUnitTest` | PKCE (RFC 7636 vector), redirect parsing, `ListenLedger`, JSON shapes, the shared case files, the HUD's order and slices, the cadence |
+| Gradle unit test | `:ordeck:testDebugUnitTest` | PKCE (RFC 7636 vector), redirect parsing, `ListenLedger`, JSON shapes, the shared case files, the HUD's order and slices, the cadence, the shuffle order, a book's chapter steps, `PlayContext.parse` on the play-context vectors, the KourOS Home read from the web widget's fixture |
 | Token parity | `:ordeck:testDebugUnitTest` (`TokensTest`) | every colour token on both faces equals what Chromium computes from hub.css (`computed-baseline.json`); seen to fail on a changed mix before it was trusted |
 | Font pinning | `pnpm check:native` § 5 | every file under a module's `res/font` is in `fonts.json`, matches its sha256, comes from a pinned google/fonts commit, and ships its OFL licence; seen to fail on an unlisted file and on a changed hash |
-| Screen renders | `:ordeck:testDebugUnitTest -Pjkos.screens` | `ScreensTest`: the real Compose screens drawn on Robolectric (Roborazzi) from sample data, as PNGs to look at: the Home (light, dark, focus, landscape, a 1.5× font scale, an item's sheet), BeigeBoard's, and KourOS's library, Now Playing, mini player, books, a book, the book player and the queue. Test-only dependencies (none reaches an APK); Robolectric's Android runtime is resolved and checksum-pinned by Gradle and loaded offline (`robolectric.offline`), never fetched by Robolectric itself. Out of the normal test run unless asked for. Their first run found two app-wide theme bugs (TRAPS.md § Native shells). |
+| Screen renders | `:ordeck:testDebugUnitTest -Pjkos.screens` | `ScreensTest`: the real Compose screens drawn on Robolectric (Roborazzi) from sample data, as PNGs to look at: the Home (light, dark, focus, landscape, a 1.5× font scale, an item's sheet), BeigeBoard's, and KourOS's Home (both faces), library, an album, Now Playing (playing, shuffled and buffering, as a remote, stopped on an error), the mini bars, books, a book, the book player, the queue, the playlists and the action sheet. Test-only dependencies (none reaches an APK); Robolectric's Android runtime is resolved and checksum-pinned by Gradle and loaded offline (`robolectric.offline`), never fetched by Robolectric itself. Out of the normal test run unless asked for. Their first run found two app-wide theme bugs (TRAPS.md § Native shells). |
 | `pnpm check:nginx` | `infra/nginx/gen-nginx-weave.mjs --check` | every origin a TWA trusts serves `/.well-known/assetlinks.json` |
 | `pnpm check:audit` | `test/supply-chain.mjs` | **every tracked** `pnpm-lock.yaml`, so the desktop's too, at the `high` floor |
 | Gradle unit test | `:home:testDebugUnitTest` | `OriginPolicy` vs origin-cases (not on the node gate: it needs the JDK) |

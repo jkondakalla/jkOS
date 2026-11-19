@@ -964,6 +964,8 @@ Every trap here was hit building `native/` on 2026-09-24; see [NATIVE.md](NATIVE
   `rememberInfiniteTransition` (the paper rake) or a `while (true) { delay(…) }` (the masthead
   clock) without ever settling. Each render then took about 4½ minutes instead of a second, and
   nothing failed. Anything that loops reads `LocalStill`, which `ScreensTest` provides as true.
+  Material's indeterminate `CircularProgressIndicator` is such a loop: the knob's buffering
+  spinner took one render to 288 s (2026-11-19) until it drew a still arc under `LocalStill`.
 
 - **BeigeBoard's `src/mobile/` tree is not the web's current look.** It predates Full Press: an
   italic greeting, a bottom tab bar and a "+ Add task" slab. The desktop layout is the reference

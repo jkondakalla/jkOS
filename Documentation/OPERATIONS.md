@@ -353,8 +353,26 @@ exists.
   entry on `/auth/security` reads "signed out (logout)". Kill and reopen the app: it opens in
   the face you chose, before any network call.
 
-- **G1 · Search, queue and playlists** (needs KourOS with the `ids` filter deployed: it ships
-  with D and E). The KourOS header has Search, Playlists and Queue.
+- **G1 · Home, search, queue and playlists** (needs KourOS with the `ids` filter deployed: it
+  ships with D and E). The KourOS header has Search, Playlists and Queue.
+  - **Home:** KourOS opens on Home: the greeting for the hour and the library's size, then
+    Continue listening (a tap carries the book on where you left it; a long press opens its
+    page), Recently played (a tap opens the album, artist, playlist or book; a station plays
+    again), Runs (Play; More opens the actions), this hour's picks (a tap plays from that
+    track), You're deep in (opens the artist), and New in the library (All opens Albums by
+    Added). Put it beside the web's KourOS Home: the same rails, in the same order.
+  - **Albums:** scroll well down the grid, open an album, go back: the grid is where you left
+    it. An album has Play, Shuffle (a random order once; the player's shuffle stays as it was),
+    its discs, and "If you like this" once the library is analysed. An artist has Play and
+    Shuffle across every album.
+  - **Now Playing:** "3 of 14" at the top; the artist and the album open their pages. Shuffle
+    lights and the next track is a random one, and the rest of the album still plays (not
+    just a few tracks). Repeat cycles off, all, one. Kill the app and reopen it: shuffle and
+    repeat are as you left them. "Up next" names the next track and opens the queue. Pull
+    down the notification and tap it: Now Playing opens.
+  - **A dropped stream:** mid-song, turn airplane mode on for ten seconds, then off. The song
+    carries on within about 15 s, or Now Playing says "Lost the connection to KourOS" with
+    Try again. Walk from Wi-Fi onto mobile data while it plays: no stop, or one short one.
   - **Search:** type an artist's name. Artists, Albums and Tracks fill in together, and an
     unknown word says "Nothing matches". Open an album from the results, then go back: what you
     typed is still there. Tapping a track plays the results from that track. Its listen is kept
@@ -393,6 +411,14 @@ exists.
     web. Tap it to jump there. Delete it.
   - **Ledger:** a book's listen appears in the web's recently played as the book, never as a
     track. The lock screen and notification show the book's cover and title.
+  - **Buttons outside the app, with a book:** the notification and the lock screen show −30
+    and +30 either side of play. A headset's next (double press) goes to the next chapter and
+    its previous (triple press) to the chapter's start, or the one before within its first 3 s;
+    neither jumps to the start of the book. Shuffle doesn't light while a book plays, and
+    repeat never loops it.
+  - **The book player's own page:** chapter ticks along the fader, the time left in the
+    book, bookmarks listed under it (add one here, tap one, delete one), and the book button
+    at the top opens the book's page.
 
 - **G3 · The listening session, the phone as the output** (the web open on a computer as
   the remote).
@@ -418,8 +444,9 @@ exists.
   - The mini player reads "On <the computer>" with what it plays. Its play/pause and next
     land on the computer.
   - Now Playing shows "Playing on <the computer>", its scrubber on the computer's clock (it
-    moves while the computer plays and stops when it pauses). Seek, previous, next. With a
-    book: ±30 s, chapters, the rate, and the sleep timer it reports.
+    moves while the computer plays and stops when it pauses). Seek, previous, next, shuffle
+    and repeat land on the computer, and the phone shows the computer's shuffle and repeat.
+    With a book: ±30 s, chapters, the rate, and the sleep timer it reports.
   - Play an album, a playlist, a search result and a book on the phone: each plays on the
     computer. Play next and Add to queue from a ⋮ land in the computer's queue.
   - Devices: lists every device, online first, the output marked. Tap the phone: it takes
