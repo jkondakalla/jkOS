@@ -236,6 +236,83 @@
         "from": 3,
         "to": 0
       }
+    },
+    {
+      "name": "shuffle on",
+      "op": "shuffle",
+      "build": {
+        "kind": "shuffle",
+        "on": true
+      },
+      "args": {
+        "on": true
+      }
+    },
+    {
+      "name": "shuffle off",
+      "op": "shuffle",
+      "build": {
+        "kind": "shuffle",
+        "on": false
+      },
+      "args": {
+        "on": false
+      }
+    },
+    {
+      "name": "repeat this track",
+      "op": "repeat",
+      "build": {
+        "kind": "repeat",
+        "mode": "one"
+      },
+      "args": {
+        "mode": "one"
+      }
+    },
+    {
+      "name": "a repeat mode the server has no name for is off",
+      "op": "repeat",
+      "build": {
+        "kind": "repeat",
+        "mode": "forever"
+      },
+      "args": {
+        "mode": "off"
+      }
+    },
+    {
+      "name": "sleep at the end of the chapter",
+      "op": "sleep",
+      "build": {
+        "kind": "sleep",
+        "mode": "segment"
+      },
+      "args": {
+        "mode": "segment"
+      }
+    },
+    {
+      "name": "sleep in 45 minutes",
+      "op": "sleep",
+      "build": {
+        "kind": "sleep",
+        "mode": "45"
+      },
+      "args": {
+        "mode": "45"
+      }
+    },
+    {
+      "name": "a sleep mode the server has no name for is off",
+      "op": "sleep",
+      "build": {
+        "kind": "sleep",
+        "mode": "90"
+      },
+      "args": {
+        "mode": "off"
+      }
     }
   ]
 }

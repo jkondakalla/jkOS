@@ -20,7 +20,10 @@ import androidx.media3.datasource.DataSourceBitmapLoader
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.datasource.ResolvingDataSource
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.common.Timeline
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy
+import androidx.media3.session.CommandButton
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import com.google.common.util.concurrent.Futures
@@ -145,6 +148,7 @@ class PlaybackService : MediaSessionService() {
     private var recorder: HistoryRecorder? = null
     private var keeper: BookKeeper? = null
     private var output: SessionOutput? = null
+    private var recovery: Recovery? = null
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     override fun onCreate() {
@@ -157,7 +161,9 @@ class PlaybackService : MediaSessionService() {
         val authed = ResolvingDataSource.Factory(http) { spec -> withBearer(spec) }
 
         val player = ExoPlayer.Builder(this)
-            .setMediaSourceFactory(DefaultMediaSourceFactory(authed))
+            // A dropped connection is retried longer than ExoPlayer's default (3), so a phone
+            // moving from Wi-Fi to mobile data keeps playing; past that, Recovery takes over.
+            .setMediaSourceFactory(DefaultMediaSourceFactory(authed).setLoadErrorHandlingPolicy(DefaultLoadErrorHandlingPolicy(LOAD_RETRIES)))
             .setAudioAttributes(
                 AudioAttributes.Builder()
                     .setUsage(C.USAGE_MEDIA)
@@ -167,7 +173,14 @@ class PlaybackService : MediaSessionService() {
             )
             .setHandleAudioBecomingNoisy(true)
             .setWakeMode(C.WAKE_MODE_NETWORK)
+            // A book's ±30 s (the notification's, a car's, and the book player's own).
+            .setSeekBackIncrementMs(SKIP_MS)
+            .setSeekForwardIncrementMs(SKIP_MS)
             .build()
+        player.repeatMode = PlayPolicy.repeat()
+        val again = Recovery(player, scope)
+        player.addListener(again)
+        recovery = again
 
         val rec = HistoryRecorder(player)
         player.addListener(rec)
@@ -195,7 +208,7 @@ class PlaybackService : MediaSessionService() {
             .setExecutorService(MoreExecutors.listeningDecorator(Executors.newSingleThreadExecutor()))
             .setDataSourceFactory(authed)
             .build()
-        session = MediaSession.Builder(this, player)
+        val media = MediaSession.Builder(this, KourosPlayer(player))
             .setCallback(QueueCallback())
             .setBitmapLoader(artwork)
             .setSessionActivity(
@@ -205,6 +218,26 @@ class PlaybackService : MediaSessionService() {
                 ),
             )
             .build()
+        session = media
+
+        // A book in the notification, on the lock screen and in a car: −30 s and +30 s either side
+        // of play, where a track has previous and next. Its chapters stay on next and previous
+        // (a headset's double and triple press). The queue never loops or shuffles a book.
+        player.addListener(object : Player.Listener {
+            private var bookButtons: Boolean? = null
+            override fun onTimelineChanged(timeline: Timeline, reason: Int) {
+                if (reason != Player.TIMELINE_CHANGE_REASON_PLAYLIST_CHANGED) return
+                if (player.shuffleModeEnabled && player.queuesABook()) player.shuffleModeEnabled = false
+                Policy.repeat(player)
+            }
+            override fun onEvents(p: Player, events: Player.Events) {
+                if (!events.containsAny(Player.EVENT_MEDIA_ITEM_TRANSITION, Player.EVENT_TIMELINE_CHANGED)) return
+                val book = player.currentMediaItem?.bookInfo() != null
+                if (book == bookButtons) return
+                bookButtons = book
+                media.setMediaButtonPreferences(if (book) BOOK_BUTTONS else emptyList())
+            }
+        })
 
         // Signed out (here, or by the server): stop, and forget the queue — its URLs are ours.
         scope.launch {
@@ -229,6 +262,7 @@ class PlaybackService : MediaSessionService() {
     }
 
     override fun onDestroy() {
+        recovery?.cancel()
         recorder?.flush()
         keeper?.flush()
         output?.goingAway()
@@ -268,6 +302,21 @@ class PlaybackService : MediaSessionService() {
 
     companion object {
         private const val TAG = "KourOS"
+        private const val LOAD_RETRIES = 6
+        const val SKIP_MS = 30_000L
+
+        private val BOOK_BUTTONS = listOf(
+            CommandButton.Builder(CommandButton.ICON_SKIP_BACK_30)
+                .setPlayerCommand(Player.COMMAND_SEEK_BACK)
+                .setDisplayName("Back 30 seconds")
+                .setSlots(CommandButton.SLOT_BACK)
+                .build(),
+            CommandButton.Builder(CommandButton.ICON_SKIP_FORWARD_30)
+                .setPlayerCommand(Player.COMMAND_SEEK_FORWARD)
+                .setDisplayName("Forward 30 seconds")
+                .setSlots(CommandButton.SLOT_FORWARD)
+                .build(),
+        )
 
         /** The running service's recorder; touched on the main thread only. */
         private var current: HistoryRecorder? = null

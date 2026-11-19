@@ -12,6 +12,11 @@ import net.jkos.app.alpha.auth.authorizeUrl
 import net.jkos.app.alpha.auth.constantTimeEquals
 import net.jkos.app.alpha.auth.parseRedirect
 import net.jkos.app.alpha.kouros.Album
+import net.jkos.app.alpha.kouros.PlayPolicy
+import net.jkos.app.alpha.kouros.Recovery
+import net.jkos.app.alpha.kouros.BookInfo
+import net.jkos.app.alpha.kouros.BookNav
+import net.jkos.app.alpha.kouros.Shuffles
 import net.jkos.app.alpha.kouros.Listen
 import net.jkos.app.alpha.kouros.ListenLedger
 import net.jkos.app.alpha.kouros.Models
@@ -491,6 +496,7 @@ class SessionTest {
                     (0 until ids.length()).map { ids.getString(it) }, p.getInt("current"), p.getLong("positionMs"), p.getBoolean("playing"),
                     p.getDouble("rate").toFloat(), p.getString("repeat"), p.strOrNull("context"), p.getDouble("volume").toFloat(),
                     p.getBoolean("muted"), sleep, p.getLong("nowMs"),
+                    p.optJSONArray("shuffleOrder")?.let { a -> (0 until a.length()).map { a.getInt(it) } },
                 ),
             )
             if (canon(got) == canon(c.getJSONObject("expect"))) null else "${c.getString("name")}:\n  expected ${c.getJSONObject("expect")}\n  got      $got"
@@ -516,6 +522,9 @@ class SessionTest {
                 "jump" -> SessionCore.Commands.jump(b.getInt("index"))
                 "remove" -> SessionCore.Commands.remove(b.getInt("index"))
                 "reorder" -> SessionCore.Commands.reorder(b.getInt("from"), b.getInt("to"))
+                "shuffle" -> SessionCore.Commands.shuffle(b.getBoolean("on"))
+                "repeat" -> SessionCore.Commands.repeat(b.getString("mode"))
+                "sleep" -> SessionCore.Commands.sleep(b.getString("mode"))
                 else -> error("unknown kind")
             }
             if (canon(got) == canon(c.getJSONObject("args"))) null else "${c.getString("name")}: expected ${c.getJSONObject("args")}, got $got"
@@ -523,6 +532,54 @@ class SessionTest {
         assertTrue(wrong.joinToString("\n"), all.length() >= 10 && wrong.isEmpty())
         val body = SessionCore.commandBody("pause", SessionCore.Commands.simple(), doc.getString("from"), "k-1")
         assertEquals(setOf("op", "args", "from", "idempotency_key"), body.keys().asSequence().toSet())
+    }
+
+    @Test fun shuffleStartsAtTheCurrentEntryAndCoversEveryOther() {
+        for (seed in 1L..40L) {
+            val o = Shuffles.currentFirst(9, 4, kotlin.random.Random(seed)).toList()
+            assertEquals(4, o.first())
+            assertTrue(Shuffles.isPermutation(o, 9))
+        }
+        assertEquals(Shuffles.currentFirst(9, 4, kotlin.random.Random(7)).toList(), Shuffles.currentFirst(9, 4, kotlin.random.Random(7)).toList())
+        assertTrue(Shuffles.isPermutation(Shuffles.currentFirst(5, -1, kotlin.random.Random(3)).toList(), 5))   // nothing current: a plain shuffle
+        assertEquals(emptyList<Int>(), Shuffles.currentFirst(0, 0, kotlin.random.Random(1)).toList())
+        assertFalse(Shuffles.isPermutation(listOf(0, 0, 1), 3)); assertFalse(Shuffles.isPermutation(listOf(0, 1), 3)); assertFalse(Shuffles.isPermutation(listOf(0, 1, 3), 3))
+    }
+
+    @Test fun aBooksNextAndPreviousAreChapters() {
+        val ch = listOf(Chapter(0.0, 600.0, "One"), Chapter(600.0, 1500.0, "Two"), Chapter(1500.0, 3000.0, "Three"))
+        val b = BookInfo(7, 0, 3_000_000, ch)
+        assertEquals(600_000L, BookNav.step(b, 30_000, next = true))        // in One → Two
+        assertEquals(1_500_000L, BookNav.step(b, 700_000, next = true))     // in Two → Three
+        assertNull(BookNav.step(b, 2_000_000, next = true))                 // in the last: nowhere on
+        assertEquals(600_000L, BookNav.step(b, 700_000, next = false))      // well into Two → its start
+        assertEquals(0L, BookNav.step(b, 601_000, next = false))            // just into Two → One
+        assertEquals(0L, BookNav.step(b, 1_000, next = false))              // the first: its start
+        assertEquals(0L, BookNav.step(BookInfo(8, 0, 90_000, emptyList()), 50_000, next = false))   // no chapters: back to the start
+        assertNull(BookNav.step(BookInfo(8, 0, 90_000, emptyList()), 50_000, next = true))
+    }
+
+    @Test fun onlyAPassingFaultIsRetried() {
+        assertTrue(Recovery.isTransient(androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED))
+        assertTrue(Recovery.isTransient(androidx.media3.common.PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS))
+        assertFalse(Recovery.isTransient(androidx.media3.common.PlaybackException.ERROR_CODE_DECODING_FAILED))
+        assertFalse(Recovery.isTransient(androidx.media3.common.PlaybackException.ERROR_CODE_IO_INVALID_HTTP_CONTENT_TYPE))
+        assertEquals("This file can't be played on this phone.", Recovery.message(androidx.media3.common.PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED))
+        assertTrue(Recovery.DELAYS_MS.toList().zipWithNext().all { (a, b) -> b > a })
+    }
+
+    @Test fun repeatCyclesOffAllOneAndHasTheSessionsNames() {
+        val off = androidx.media3.common.Player.REPEAT_MODE_OFF; val all = androidx.media3.common.Player.REPEAT_MODE_ALL; val one = androidx.media3.common.Player.REPEAT_MODE_ONE
+        assertEquals(listOf(all, one, off), listOf(off, all, one).map(PlayPolicy::nextRepeat))
+        assertEquals(listOf("off", "all", "one"), listOf(off, all, one).map(PlayPolicy::repeatName))
+        assertEquals(listOf(off, all, one, off), listOf("off", "all", "one", "loop").map(PlayPolicy::repeatOf))
+    }
+
+    @Test fun aSessionsShuffleAndRepeatAreItsQueuesPolicy() {
+        val s = SessionWire.session(JSONObject("""{"rev":2,"active_device":"d","queue":{"items":["kouros:1","kouros:2"],"cursor":0,"policy":{"shuffle":true,"repeat":"one","shuffleSeed":0,"shuffleOrder":[1,0]}},"item_ref":"kouros:1","position_ms":0,"playing":false,"rate":1}"""))!!
+        assertTrue(s.shuffle); assertEquals("one", s.repeat)
+        val bare = SessionWire.session(JSONObject("""{"rev":1,"queue":{"items":[],"cursor":-1},"position_ms":0,"playing":false}"""))!!
+        assertFalse(bare.shuffle); assertEquals("off", bare.repeat)
     }
 
     @Test fun aRemotesReorderMovesABookWithAllItsFiles() {

@@ -40,6 +40,9 @@ data class ListeningSession(
     val sleepMode: String?,
     val sleepRemainingMs: Long?,
     val reportedAt: String?,
+    /** The output's shuffle and repeat ("off" | "all" | "one"), as its queue's policy says. */
+    val shuffle: Boolean = false,
+    val repeat: String = "off",
 ) {
     /** Where the session is at [serverNowMs]: the web's extrapolateMs. */
     fun positionAt(serverNowMs: Long): Long {
@@ -85,6 +88,8 @@ object SessionWire {
             sleepMode = o.str("sleep_mode"),
             sleepRemainingMs = if (o.isNull("sleep_remaining_ms")) null else o.optLong("sleep_remaining_ms"),
             reportedAt = o.str("reported_at"),
+            shuffle = q?.optJSONObject("policy")?.optBoolean("shuffle") == true,
+            repeat = q?.optJSONObject("policy")?.optString("repeat")?.takeIf { it in setOf("off", "all", "one") } ?: "off",
         )
     }
 

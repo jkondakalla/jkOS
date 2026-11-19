@@ -5,6 +5,7 @@ import net.jkos.app.alpha.*
 import android.util.Log
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -33,7 +34,7 @@ import org.json.JSONObject
  *  · A session this device was the output of, when the player is empty (the app was killed), is
  *    cued: loaded paused at its second, so pressing play carries on where it was.
  */
-internal class SessionOutput(private val player: Player, private val scope: CoroutineScope) : Player.Listener {
+internal class SessionOutput(private val player: ExoPlayer, private val scope: CoroutineScope) : Player.Listener {
     private val me get() = SessionLink.deviceId
 
     private val _mode = MutableStateFlow(SessionMode.SOLO)
@@ -92,7 +93,7 @@ internal class SessionOutput(private val player: Player, private val scope: Coro
         if (events.containsAny(
                 Player.EVENT_IS_PLAYING_CHANGED, Player.EVENT_MEDIA_ITEM_TRANSITION, Player.EVENT_TIMELINE_CHANGED,
                 Player.EVENT_PLAYBACK_PARAMETERS_CHANGED, Player.EVENT_POSITION_DISCONTINUITY, Player.EVENT_REPEAT_MODE_CHANGED,
-                Player.EVENT_VOLUME_CHANGED,
+                Player.EVENT_SHUFFLE_MODE_ENABLED_CHANGED, Player.EVENT_VOLUME_CHANGED,
             )
         ) {
             if (_mode.value == SessionMode.LOCAL) scheduleReport()
@@ -153,12 +154,13 @@ internal class SessionOutput(private val player: Player, private val scope: Coro
             positionMs = (book?.offsetMs ?: 0L) + player.currentPosition,
             playing = player.isPlaying || (player.playWhenReady && player.playbackState == Player.STATE_BUFFERING),
             rate = player.playbackParameters.speed,
-            repeat = when (player.repeatMode) { Player.REPEAT_MODE_ALL -> "all"; Player.REPEAT_MODE_ONE -> "one"; else -> "off" },
+            repeat = PlayPolicy.repeatName(player.repeatMode),
             context = item?.mediaMetadata?.extras?.getString(EXTRA_CONTEXT),
             volume = level,
             muted = muted,
             sleep = SleepTimer.state.value,
             nowMs = System.currentTimeMillis(),
+            shuffleOrder = if (player.shuffleModeEnabled) player.playOrder() else null,
         )
     }
 
@@ -196,13 +198,13 @@ internal class SessionOutput(private val player: Player, private val scope: Coro
             "enqueue" -> enqueue(refs(a.optJSONArray("items")), a.optString("where") == "next", v)
             "remove" -> v.ranges.getOrNull(a.optInt("index", -1))?.let { player.removeMediaItems(it.first, it.last + 1) }
             "reorder" -> v.move(a.optInt("from", -1), a.optInt("to", -1))?.let { (f, l, n) -> player.moveMediaItems(f, l, n) }
-            "repeat" -> player.repeatMode = when (a.optString("mode")) { "all" -> Player.REPEAT_MODE_ALL; "one" -> Player.REPEAT_MODE_ONE; else -> Player.REPEAT_MODE_OFF }
+            "repeat" -> { PlayPolicy.setRepeat(PlayPolicy.repeatOf(a.optString("mode"))); Policy.repeat(player) }
+            "shuffle" -> { val on = a.optBoolean("on"); PlayPolicy.setShuffle(on); Policy.shuffle(player, on) }
             "rate" -> if (player.currentMediaItem?.bookInfo() != null) Rates.next(player.playbackParameters.speed).let { BookRate.set(it); player.setPlaybackSpeed(it) }
             "sleep" -> player.currentMediaItem?.bookInfo()?.let { b ->
                 SleepTimer.set(a.optString("mode"), System.currentTimeMillis(), b.layoutChapterEnd(b.offsetMs + player.currentPosition))
             }
-            // "shuffle": this player doesn't shuffle, and reports shuffle off; an op this build
-            // doesn't know is a newer remote's. Neither is guessed at.
+            // An op this build doesn't know is a newer remote's: not guessed at.
             else -> return
         }
         scheduleReport()
@@ -235,15 +237,7 @@ internal class SessionOutput(private val player: Player, private val scope: Coro
     /** Seek within the current item: for a book, a position in the whole book, across its files. */
     private fun seekInItem(ms: Long) {
         val book = player.currentMediaItem?.bookInfo()
-        if (book == null) { player.seekTo(ms.coerceAtLeast(0)); return }
-        val target = ms.coerceIn(0, book.totalMs)
-        var best = -1
-        var bestOffset = -1L
-        for (i in 0 until player.mediaItemCount) {
-            val info = player.getMediaItemAt(i).bookInfo() ?: continue
-            if (info.bookId == book.bookId && info.offsetMs <= target && info.offsetMs >= bestOffset) { best = i; bestOffset = info.offsetMs }
-        }
-        if (best >= 0) player.seekTo(best, target - bestOffset)
+        if (book == null) player.seekTo(ms.coerceAtLeast(0)) else player.seekBook(book, ms)
     }
 
     private fun segment(next: Boolean, v: SessionCore.View) {
@@ -252,9 +246,7 @@ internal class SessionOutput(private val player: Player, private val scope: Coro
             if (next) v.entryOf(v.cursor + 1).takeIf { it >= 0 }?.let { player.seekTo(it, 0) } else seekInItem(0)
             return
         }
-        val layout = BookLayout(listOf(BookFile(0, book.totalMs / 1000.0)), book.chapters)
-        val at = positionInItem()
-        (if (next) layout.nextChapterStart(at) else layout.previousChapterStart(at))?.let(::seekInItem)
+        player.chapterStep(book, next)
     }
 
     /** Session refs as player entries, in order: tracks with their rows, books as their files. */
@@ -296,6 +288,7 @@ internal class SessionOutput(private val player: Player, private val scope: Coro
                 offset = positionMs - (files[i].bookInfo()?.offsetMs ?: 0L)
             }
             player.setMediaItems(items, entry, offset.coerceAtLeast(0))
+            Policy.queueReplaced(player)
             player.prepare()
             selfClaimUntil = System.currentTimeMillis() + SELF_CLAIM_MS   // this playing edge is the session's, not a claim
             if (play) player.play() else player.pause()

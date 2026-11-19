@@ -109,6 +109,8 @@ object SessionCore {
         val muted: Boolean,
         val sleep: SleepState,
         val nowMs: Long,
+        /** While shuffle is on, the player's entries in the order they play (null: shuffle off). */
+        val shuffleOrder: List<Int>? = null,
     )
 
     const val MAX_POSITION_MS = 7L * 24 * 3600 * 1000
@@ -148,6 +150,14 @@ object SessionCore {
 
         /** Move session item [from] to [to], remove-then-insert, as the output's player does. */
         fun reorder(from: Int, to: Int): JSONObject = JSONObject().put("from", from.coerceAtLeast(0)).put("to", to.coerceAtLeast(0))
+
+        fun shuffle(on: Boolean): JSONObject = JSONObject().put("on", on)
+
+        /** [mode]: "off" | "all" | "one"; anything else is off. */
+        fun repeat(mode: String): JSONObject = JSONObject().put("mode", mode.takeIf { it in setOf("off", "all", "one") } ?: "off")
+
+        /** [mode]: a SleepState mode; one the server doesn't take is off. */
+        fun sleep(mode: String): JSONObject = JSONObject().put("mode", mode.takeIf { it == SleepState.OFF || it == SleepState.CHAPTER || it in SleepState.TIMED } ?: SleepState.OFF)
     }
 
     /** The POST /api/session/commands body: the op, its args, the sender, and the suite's idempotency key. */
@@ -156,21 +166,24 @@ object SessionCore {
 
     /**
      * The POST /api/session/state body (validate.js stateReport). The queue is @jkos/player's
-     * Queue: this player doesn't shuffle, so its policy is shuffle off with no order.
+     * Queue: `items` in the queue's own order, and while shuffle is on, `shuffleOrder` the order
+     * they play in (a permutation of `items`' indices, as validate.js requires). A book is never
+     * shuffled, so a queue holding one (where entries and items differ) reports shuffle off.
      */
     fun reportBody(deviceId: String, p: PlayerState): JSONObject {
         val view = collapse(p.mediaIds, p.current)
         val sleepMode = p.sleep.mode.takeIf { it != SleepState.OFF }
+        val order = p.shuffleOrder?.takeIf { view.items.size == p.mediaIds.size && Shuffles.isPermutation(it, view.items.size) }
         return JSONObject().apply {
             put("deviceId", deviceId)
             put("queue", JSONObject().apply {
                 put("items", JSONArray(view.items))
                 put("cursor", view.cursor)
                 put("policy", JSONObject().apply {
-                    put("shuffle", false)
+                    put("shuffle", order != null)
                     put("repeat", p.repeat.takeIf { it in setOf("off", "all", "one") } ?: "off")
                     put("shuffleSeed", 0)
-                    put("shuffleOrder", JSONArray())
+                    put("shuffleOrder", JSONArray(order ?: emptyList<Int>()))
                 })
             })
             put("item_ref", view.itemRef ?: JSONObject.NULL)
