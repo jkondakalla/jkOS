@@ -213,7 +213,7 @@ class PlaybackService : MediaSessionService() {
             .setBitmapLoader(artwork)
             .setSessionActivity(
                 PendingIntent.getActivity(
-                    this, 0, Intent(this, MainActivity::class.java),
+                    this, 0, Intent(this, MainActivity::class.java).putExtra(JkosApp.EXTRA_OPEN, JkosApp.OPEN_NOW_PLAYING),
                     PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
                 ),
             )

@@ -180,6 +180,11 @@ private fun SignedIn(user: User, aud: Set<String>) {
             }
         }
         val onNowPlaying = current == kouros && nav.top == KourosScreen.NowPlayingPage
+        // The playback notification's tap lands on Now Playing.
+        val asked by JkosApp.open.collectAsState()
+        LaunchedEffect(asked, kouros) {
+            if (asked == JkosApp.OPEN_NOW_PLAYING && kouros != null) { openNowPlaying(); JkosApp.open.value = null }
+        }
         // As a remote the bar shows what the session's output plays; otherwise this player.
         val remote = kouros != null && rememberIsRemote()
         if (remote && !onNowPlaying) {

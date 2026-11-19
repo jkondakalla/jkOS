@@ -31,12 +31,33 @@ class JkosApp : Application() {
     companion object {
         /** Work that must outlive a screen or the service (posting a listen, finishing sign-in). */
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+        /**
+         * A screen something outside the UI asked for, once: the playback notification's tap
+         * asks for Now Playing ([OPEN_NOW_PLAYING]). The shell opens it and clears this.
+         */
+        val open = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
+
+        /** The extra the playback notification's intent carries. Naming a screen is all it can do. */
+        const val EXTRA_OPEN = "net.jkos.app.alpha.open"
+        const val OPEN_NOW_PLAYING = "now-playing"
     }
 }
 
 class MainActivity : ComponentActivity() {
+    /** Only the one screen name is read from an intent; anything else is ignored. */
+    private fun take(intent: Intent?) {
+        if (intent?.getStringExtra(JkosApp.EXTRA_OPEN) == JkosApp.OPEN_NOW_PLAYING) JkosApp.open.value = JkosApp.OPEN_NOW_PLAYING
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        take(intent)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (savedInstanceState == null) take(intent)
         enableEdgeToEdge()
         setContent {
             val look by Auth.look.collectAsState()
