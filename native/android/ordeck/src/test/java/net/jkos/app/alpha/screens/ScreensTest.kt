@@ -315,7 +315,37 @@ class ScreensTest {
     }
 
     @Test fun kourosLibrary() = captureRoboImage(out("13-kouros-library")) {
-        Face { androidx.compose.foundation.layout.Column { LibraryScreen({}, preAlbums = albums) } }
+        Face { androidx.compose.foundation.layout.Column { LibraryScreen(net.jkos.app.alpha.kouros.KourosScreen.Root(net.jkos.app.alpha.kouros.KourosScreen.Root.ALBUMS), null, null, {}, preAlbums = albums) } }
+    }
+
+    /** The Home from the web widget's own ready fixture (apps/kouros/widgets/kouros-home.fixtures.json). */
+    private val home: net.jkos.app.alpha.kouros.DiscoverHome by lazy {
+        val fixture = File(System.getProperty("jkos.homeFixture") ?: "../../../apps/kouros/widgets/kouros-home.fixtures.json")
+        net.jkos.app.alpha.kouros.HomeModels.home(JSONObject(fixture.readText()).getJSONObject("ready").getJSONObject("home").toString())
+    }
+
+    @Test @Config(qualifiers = "w411dp-h2200dp-xxhdpi") fun kourosHome() = captureRoboImage(out("31-kouros-home")) {
+        Face { androidx.compose.foundation.layout.Column { LibraryScreen(net.jkos.app.alpha.kouros.KourosScreen.Root(), null, null, {}, preHome = home) } }
+    }
+
+    @Test @Config(qualifiers = "w411dp-h2200dp-xxhdpi") fun kourosHomeDark() = captureRoboImage(out("32-kouros-home-dark")) {
+        Face(dark = true) { androidx.compose.foundation.layout.Column { LibraryScreen(net.jkos.app.alpha.kouros.KourosScreen.Root(), null, null, {}, preHome = home) } }
+    }
+
+    @Test @Config(qualifiers = "w411dp-h1500dp-xxhdpi") fun kourosAlbum() = captureRoboImage(out("33-kouros-album")) {
+        Face {
+            val t = { id: Long, n: Int, title: String, d: Double, disc: Int -> net.jkos.app.alpha.kouros.Track(id, title, "New Order", "Substance", "New Order", n, disc, 1987, d, false) }
+            val tracks = listOf(t(1, 1, "Ceremony", 264.0, 1), t(2, 2, "Everything's Gone Green", 332.0, 1), t(3, 3, "Temptation", 419.0, 1), t(4, 4, "Blue Monday", 449.0, 1),
+                t(5, 1, "In a Lonely Place", 376.0, 2), t(6, 2, "Procession", 268.0, 2), t(7, 3, "Cries and Whispers", 206.0, 2))
+            val alike = net.jkos.app.alpha.kouros.Similar(true, listOf(
+                net.jkos.app.alpha.kouros.Track(20, "Pink Frost", "The Chills", "Kaleidoscope World", null, null, null, 1986, 236.0, false),
+                net.jkos.app.alpha.kouros.Track(21, "Monkey", "Low", "The Great Destroyer", null, null, null, 2005, 241.0, false),
+            ))
+            androidx.compose.foundation.layout.Column {
+                net.jkos.app.alpha.Header("Substance", {})
+                net.jkos.app.alpha.kouros.AlbumBody("Substance", "New Order", tracks, alike, null, playing, "album/New%20Order/Substance", {}, {})
+            }
+        }
     }
 
     @Test fun kourosNowPlaying() = captureRoboImage(out("14-kouros-now")) {

@@ -115,7 +115,7 @@ private fun faceOf(tab: Tab): TabFace? = when (tab) {
     Tab.Home -> TabFace("Home", Glyphs.Home, HomeRoot)
     Tab.Account -> TabFace("Account", Glyphs.Account, AccountRoot)
     is Tab.App -> when (tab.app) {
-        "kouros" -> TabFace("KourOS", Glyphs.Music, KourosScreen.Library)
+        "kouros" -> TabFace("KourOS", Glyphs.Music, KourosScreen.Root())
         "beigeboard" -> TabFace("BeigeBoard", Glyphs.Board, BeigeBoardRoot)
         else -> null
     }

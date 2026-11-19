@@ -83,6 +83,9 @@ val hudOrderCases: File = rootProject.file("../hud-order-cases.json")
 // What a real Chromium computes for every suite token (test/token-identity.mjs writes it): the
 // app's palette (look/Tokens.kt) is held to it, so the two faces can't drift from the web's.
 val tokenBaseline: File = rootProject.file("../../packages/design/tokens/computed-baseline.json")
+// The KourOS Home's sample: the web widget's own fixture, which home.smoke holds to the
+// server's answer. The app's parser reads it (CoreTest) and the renders draw it.
+val homeFixture: File = rootProject.file("../../apps/kouros/widgets/kouros-home.fixtures.json")
 
 android {
     namespace = "net.jkos.app.alpha"
@@ -115,6 +118,8 @@ android {
             test.systemProperty("jkos.hudOrderCases", hudOrderCases.absolutePath)
             test.inputs.file(tokenBaseline)
             test.systemProperty("jkos.tokenBaseline", tokenBaseline.absolutePath)
+            test.inputs.file(homeFixture)
+            test.systemProperty("jkos.homeFixture", homeFixture.absolutePath)
             // Robolectric runs offline, on the runtime jar Gradle resolved and verified.
             test.dependsOn(robolectricJars)
             test.systemProperty("robolectric.offline", "true")

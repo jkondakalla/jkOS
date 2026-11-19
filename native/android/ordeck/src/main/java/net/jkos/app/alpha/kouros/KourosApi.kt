@@ -73,6 +73,15 @@ object KourosApi {
 
     suspend fun stats(): LibraryStats = Models.stats(get("/api/library/stats"))
 
+    /** The Home's rails in one request; [hour] is the listener's own (the server's clock is UTC). */
+    suspend fun home(hour: Int): DiscoverHome = HomeModels.home(get("/api/discover/home?hour=$hour"))
+
+    /** What sounds like [trackId] ("If you like this" under an album). */
+    suspend fun similar(trackId: Long, k: Int = 12): Similar {
+        val o = JSONObject(get("/api/discover/similar/$trackId?k=$k"))
+        return Similar(o.optString("basis") == "embedding", Models.radio(o.toString()))
+    }
+
     suspend fun radio(seedTrackId: Long, k: Int = 60): List<Track> =
         Models.radio(get("/api/discover/radio?seed=$seedTrackId&k=$k"))
 

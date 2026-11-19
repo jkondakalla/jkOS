@@ -145,3 +145,87 @@ object Models {
         if (l.context != null) put("context", l.context)
     }.toString()
 }
+
+// ── the KourOS Home (discovery.js discoverHome: GET /api/discover/home?hour=) ──
+
+/** A run: a sequenced set built from recent listening (ALGORITHMS.md). */
+data class HomeRun(val id: String, val title: String, val blurb: String, val arc: String, val meta: String, val seedId: Long?, val seedTitle: String?, val tracks: List<Track>)
+
+/** An artist the listener keeps returning to. [anchorId] is a track of theirs, for the art. */
+data class HomeArtist(val artist: String, val meta: String, val anchorId: Long?, val hasCover: Boolean)
+
+/** Something played lately, by where it was played from. [route] is its play context, which is also its page. */
+data class HomeRecent(val kind: String, val title: String, val subtitle: String?, val coverId: Long?, val coverIsBook: Boolean, val route: String)
+
+data class HomeBook(val id: Long, val title: String, val author: String?, val hasCover: Boolean, val durationSec: Double, val positionSec: Double, val remainingLabel: String)
+
+data class HomeAlbum(val album: String, val artist: String, val year: Int?, val meta: String, val anchorId: Long?, val hasCover: Boolean)
+
+/** The home rails in one answer, as the web's Home widget binds them. */
+data class DiscoverHome(
+    val tracks: Int,
+    val libraryLabel: String,
+    val coverageLabel: String?,
+    /** "morning" | "working" | "evening" | "late", or null. */
+    val slot: String?,
+    /** "features" (matched by sound) or "genre". */
+    val basis: String?,
+    val timeOfDay: List<Track>,
+    val runs: List<HomeRun>,
+    val deepIn: List<HomeArtist>,
+    val recent: List<HomeRecent>,
+    val continueBooks: List<HomeBook>,
+    val freshAlbums: List<HomeAlbum>,
+) {
+    /** The page's greeting (kouros-home.json's map of the slot). */
+    val greeting: String get() = when (slot) { "morning" -> "Good morning"; "working" -> "Good afternoon"; "evening" -> "Good evening"; "late" -> "Still up"; else -> "Home" }
+    /** The time-of-day rail's head. */
+    val picksTitle: String get() = when (slot) { "morning" -> "Morning picks"; "working" -> "Working picks"; "evening" -> "Evening picks"; "late" -> "Late picks"; else -> "Picks" }
+    val picksBasis: String? get() = when (basis) { "features" -> "MATCHED BY SOUND"; "genre" -> "MATCHED BY GENRE"; else -> null }
+}
+
+object HomeModels {
+    private fun JSONObject.str(k: String): String? = if (isNull(k)) null else optString(k)
+    private fun JSONObject.long(k: String): Long? = if (isNull(k) || !has(k)) null else optLong(k)
+    private fun JSONObject.dbl(k: String): Double = optDouble(k, 0.0).let { if (it.isNaN()) 0.0 else it }
+    private fun JSONObject.arr(k: String): JSONArray = optJSONArray(k) ?: JSONArray()
+    private inline fun <T> JSONArray.rows(item: (JSONObject) -> T?): List<T> = (0 until length()).mapNotNull { i -> optJSONObject(i)?.let(item) }
+
+    private fun hits(a: JSONArray): List<Track> = a.rows { o -> if (o.has("id")) Models.tracks(JSONArray().put(o).toString()).first() else null }
+
+    fun home(json: String): DiscoverHome {
+        val o = JSONObject(json)
+        val tod = o.optJSONObject("time_of_day")
+        return DiscoverHome(
+            tracks = o.optJSONObject("stats")?.optInt("tracks") ?: 0,
+            libraryLabel = o.str("library_label") ?: "",
+            coverageLabel = o.str("coverage_label"),
+            slot = tod?.str("slot"),
+            basis = tod?.str("basis"),
+            timeOfDay = tod?.let { hits(it.arr("results")) } ?: emptyList(),
+            runs = o.arr("runs").rows { r ->
+                val seed = r.optJSONObject("seed")
+                HomeRun(r.str("id") ?: "", r.str("title") ?: "", r.str("blurb") ?: "", r.str("arc") ?: "none", r.str("meta") ?: "",
+                    seed?.let { BookModels.ref(it.opt("id")) }, seed?.str("title"), hits(r.arr("tracks")))
+            }.filter { it.tracks.isNotEmpty() },
+            deepIn = o.arr("deep_in").rows { a ->
+                a.str("artist")?.let { HomeArtist(it, a.str("meta") ?: "", BookModels.ref(a.opt("anchor_id")), a.str("cover_url") != null) }
+            },
+            recent = o.arr("recent").rows { r ->
+                val route = r.str("route") ?: return@rows null
+                val cover = r.optJSONObject("cover")
+                HomeRecent(r.str("kind") ?: "", r.str("title") ?: "", r.str("subtitle"), cover?.let { BookModels.ref(it.opt("id")) }, cover?.str("kind") == "book", route)
+            },
+            continueBooks = o.arr("continue_books").rows { b ->
+                if (!b.has("id")) null else HomeBook(b.getLong("id"), b.str("title") ?: "", b.str("author"), b.optBoolean("has_cover"), b.dbl("duration"), b.dbl("position"), b.str("remaining_label") ?: "")
+            },
+            freshAlbums = o.arr("fresh_albums").rows { a ->
+                val album = a.str("album") ?: return@rows null
+                HomeAlbum(album, a.str("artist") ?: "", if (a.isNull("year") || !a.has("year")) null else a.optInt("year"), a.str("meta") ?: "", BookModels.ref(a.opt("anchor_id")), a.str("cover_url") != null)
+            },
+        )
+    }
+}
+
+/** GET /api/discover/similar/:id → its tracks, best first, and whether they were matched by sound. */
+data class Similar(val bySound: Boolean, val tracks: List<Track>)

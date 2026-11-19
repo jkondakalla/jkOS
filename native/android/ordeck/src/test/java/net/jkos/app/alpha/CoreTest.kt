@@ -12,6 +12,7 @@ import net.jkos.app.alpha.auth.authorizeUrl
 import net.jkos.app.alpha.auth.constantTimeEquals
 import net.jkos.app.alpha.auth.parseRedirect
 import net.jkos.app.alpha.kouros.Album
+import net.jkos.app.alpha.kouros.HomeModels
 import net.jkos.app.alpha.kouros.PlayPolicy
 import net.jkos.app.alpha.kouros.Recovery
 import net.jkos.app.alpha.kouros.BookInfo
@@ -532,6 +533,48 @@ class SessionTest {
         assertTrue(wrong.joinToString("\n"), all.length() >= 10 && wrong.isEmpty())
         val body = SessionCore.commandBody("pause", SessionCore.Commands.simple(), doc.getString("from"), "k-1")
         assertEquals(setOf("op", "args", "from", "idempotency_key"), body.keys().asSequence().toSet())
+    }
+
+    @Test fun aPlayContextReadsBackAsThePlaceItNames() {
+        val doc = JSONObject(java.io.File(System.getProperty("jkos.playContextCases")!!).readText())
+        val all = doc.getJSONArray("cases")
+        val wrong = (0 until all.length()).mapNotNull { i ->
+            val c = all.getJSONObject(i)
+            if (c.isNull("expect")) return@mapNotNull null   // a context the encoder refuses: nothing to read back
+            val want = when (c.getString("kind")) {
+                "album" -> PlayContext.Place.Album(c.getString("artist"), c.getString("album"))
+                "artist" -> PlayContext.Place.Artist(c.getString("artist"))
+                "playlist" -> PlayContext.Place.Playlist(c.getLong("id"))
+                "book" -> PlayContext.Place.Book(c.getLong("id"))
+                "station" -> PlayContext.Place.Station(c.getLong("id"))
+                else -> return@mapNotNull null
+            }
+            val got = PlayContext.parse(c.getString("expect"))
+            if (got == want) null else "${c.getString("expect")}: expected $want, got $got"
+        }
+        assertTrue(wrong.joinToString("\n"), wrong.isEmpty())
+        // What the server's parsePlayContext refuses, this refuses too.
+        for (bad in listOf("", "album/A", "album/%E0%A4%A/x", "album/a/b/c", "station/x", "station/1234567890123", "radio/1", "artist/%"))
+            assertNull(bad, PlayContext.parse(bad))
+        assertEquals("AC/DC", PlayContext.decodeComponent("AC%2FDC")); assertEquals("Sigur Rós", PlayContext.decodeComponent("Sigur%20R%C3%B3s"))
+        assertNull(PlayContext.decodeComponent("%C3%28"))   // not UTF-8
+    }
+
+    @Test fun theHomeReadsTheWidgetsOwnFixture() {
+        val fixture = JSONObject(java.io.File(System.getProperty("jkos.homeFixture")!!).readText()).getJSONObject("ready").getJSONObject("home")
+        val h = HomeModels.home(fixture.toString())
+        assertEquals(fixture.getJSONObject("stats").getInt("tracks"), h.tracks)
+        assertEquals(fixture.getString("library_label"), h.libraryLabel)
+        assertEquals(fixture.getJSONArray("continue_books").length(), h.continueBooks.size)
+        assertEquals(fixture.getJSONArray("recent").length(), h.recent.size)
+        assertEquals(fixture.getJSONArray("deep_in").length(), h.deepIn.size)
+        assertEquals(fixture.getJSONArray("fresh_albums").length(), h.freshAlbums.size)
+        assertEquals(fixture.getJSONObject("time_of_day").getJSONArray("results").length(), h.timeOfDay.size)
+        assertTrue(h.runs.isNotEmpty() && h.runs.all { it.tracks.isNotEmpty() })
+        // Every recent row opens somewhere: its route is a play context.
+        assertTrue(h.recent.map { it.route }.toString(), h.recent.all { PlayContext.parse(it.route) != null })
+        assertTrue(h.continueBooks.all { it.positionSec in 0.0..it.durationSec })
+        assertEquals("Good evening", h.copy(slot = "evening").greeting); assertEquals("Still up", h.copy(slot = "late").greeting); assertEquals("Home", h.copy(slot = null).greeting)
     }
 
     @Test fun shuffleStartsAtTheCurrentEntryAndCoversEveryOther() {

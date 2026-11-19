@@ -71,4 +71,62 @@ object PlayContext {
 
     /** `<kind>/<id>`: the server's ID is 1–12 digits. */
     private fun id(kind: String, id: Long): String? = if (id in 0..999_999_999_999L) "$kind/$id" else null
+
+    /** A play context read back: where it was played from, which is also the page it opens. */
+    sealed interface Place {
+        data class Album(val artist: String, val album: String) : Place
+        data class Artist(val artist: String) : Place
+        data class Playlist(val id: Long) : Place
+        data class Book(val id: Long) : Place
+        data class Station(val seed: Long) : Place
+    }
+
+    /** The server's parsePlayContext (playContext.js): null for anything it would refuse. */
+    fun parse(raw: String?): Place? {
+        if (raw.isNullOrEmpty() || raw.length > MAX_LEN) return null
+        val parts = raw.split('/')
+        fun idOf(s: String) = s.takeIf { it.length in 1..12 && it.all(Char::isDigit) }?.toLong()
+        return when (parts[0]) {
+            "album" -> if (parts.size != 3) null else {
+                val artist = decodeComponent(parts[1]); val album = decodeComponent(parts[2])
+                if (artist.isNullOrEmpty() || album.isNullOrEmpty()) null else Place.Album(artist, album)
+            }
+            "artist" -> if (parts.size != 2) null else decodeComponent(parts[1])?.takeIf { it.isNotEmpty() }?.let { Place.Artist(it) }
+            "playlist" -> if (parts.size != 2) null else idOf(parts[1])?.let { Place.Playlist(it) }
+            "book" -> if (parts.size != 2) null else idOf(parts[1])?.let { Place.Book(it) }
+            "station" -> if (parts.size != 2) null else idOf(parts[1])?.let { Place.Station(it) }
+            else -> null
+        }
+    }
+
+    /** JavaScript's decodeURIComponent, or null where JS would throw (a bad escape, bytes that aren't UTF-8). */
+    fun decodeComponent(s: String): String? {
+        if ('%' !in s) return s
+        val bytes = java.io.ByteArrayOutputStream()
+        val out = StringBuilder()
+        fun flush(): Boolean {
+            if (bytes.size() == 0) return true
+            val decoder = Charsets.UTF_8.newDecoder()
+                .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+                .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
+            val text = try { decoder.decode(java.nio.ByteBuffer.wrap(bytes.toByteArray())).toString() } catch (e: java.nio.charset.CharacterCodingException) { return false }
+            out.append(text); bytes.reset(); return true
+        }
+        var i = 0
+        while (i < s.length) {
+            val c = s[i]
+            if (c == '%') {
+                if (i + 2 > s.lastIndex) return null
+                val hi = Character.digit(s[i + 1], 16); val lo = Character.digit(s[i + 2], 16)
+                if (hi < 0 || lo < 0) return null
+                bytes.write(hi * 16 + lo)
+                i += 3
+            } else {
+                if (!flush()) return null
+                out.append(c)
+                i++
+            }
+        }
+        return if (flush()) out.toString() else null
+    }
 }
