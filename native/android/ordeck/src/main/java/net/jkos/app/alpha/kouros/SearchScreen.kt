@@ -32,6 +32,12 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import net.jkos.app.alpha.look.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.TextStyle
 import androidx.media3.session.MediaController
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -94,7 +100,7 @@ fun SearchScreen(page: KourosScreen.Search, controller: MediaController?, now: N
         )
         when (val s = state) {
             null -> Hint("Search your library by artist, album or track.")
-            Load.Loading -> CircularProgressIndicator(Modifier.padding(24.dp).align(Alignment.CenterHorizontally))
+            Load.Loading -> Lamp("Searching", Modifier.padding(24.dp).align(Alignment.CenterHorizontally))
             is Load.Failed -> Hint("Search failed. Try again shortly.")
             is Load.Ready -> if (s.value.isEmpty) Hint("Nothing matches “$term”.") else Results(s.value, controller, now, push) { menu = it }
         }
@@ -103,9 +109,7 @@ fun SearchScreen(page: KourosScreen.Search, controller: MediaController?, now: N
 }
 
 @Composable
-private fun Hint(text: String) {
-    Text(text, Modifier.padding(24.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
-}
+private fun Hint(text: String) = Hush(text, Modifier.padding(24.dp))
 
 @Composable
 private fun Results(found: Found, controller: MediaController?, now: NowPlaying?, push: (Screen) -> Unit, onMenu: (TrackTarget) -> Unit) {
@@ -115,9 +119,10 @@ private fun Results(found: Found, controller: MediaController?, now: NowPlaying?
             item {
                 LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(found.artists, key = { it.artist }) { a ->
-                        Column(Modifier.width(104.dp).clickable { push(KourosScreen.ArtistPage(a.artist)) }) {
-                            Cover(a.coverId, 104.dp, Modifier.size(104.dp))
-                            Text(a.artist, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall)
+                        Column(Modifier.width(104.dp).clip(RoundedCornerShape(JkRadius.base)).clickable { push(KourosScreen.ArtistPage(a.artist)) }, horizontalAlignment = Alignment.CenterHorizontally) {
+                            Cover(a.coverId, 104.dp, Modifier.size(104.dp).clip(RoundedCornerShape(50)), title = a.artist)
+                            Text(a.artist, Modifier.padding(top = 6.dp), maxLines = 1, overflow = TextOverflow.Ellipsis, style = TextStyle(fontFamily = JkFonts.Serif, fontWeight = FontWeight.SemiBold, fontSize = 13.5.sp, color = Jk.face.ink))
+                            Eyebrow("${a.albums} album${if (a.albums == 1) "" else "s"}", size = 9.sp)
                         }
                     }
                 }
@@ -128,10 +133,10 @@ private fun Results(found: Found, controller: MediaController?, now: NowPlaying?
             item {
                 LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(found.albums, key = { "${it.artist}\u0000${it.album}" }) { a ->
-                        Column(Modifier.width(132.dp).clickable { push(KourosScreen.AlbumPage(a.album, a.artist)) }) {
-                            Cover(a.coverId, 132.dp, Modifier.size(132.dp))
-                            Text(a.album, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall)
-                            Text(a.artist, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Column(Modifier.width(132.dp).clip(RoundedCornerShape(JkRadius.base)).clickable { push(KourosScreen.AlbumPage(a.album, a.artist)) }) {
+                            Cover(a.coverId, 132.dp, Modifier.size(132.dp), title = a.album)
+                            Text(a.album, Modifier.padding(top = 6.dp), maxLines = 1, overflow = TextOverflow.Ellipsis, style = TextStyle(fontFamily = JkFonts.Serif, fontWeight = FontWeight.SemiBold, fontSize = 13.5.sp, color = Jk.face.ink))
+                            Text(listOfNotNull(a.artist, a.year?.toString()).joinToString(" · "), maxLines = 1, overflow = TextOverflow.Ellipsis, style = TextStyle(fontFamily = JkFonts.Sans, fontSize = 12.5.sp, color = Jk.face.muted))
                         }
                     }
                 }
@@ -152,7 +157,8 @@ private fun Results(found: Found, controller: MediaController?, now: NowPlaying?
     }
 }
 
+/** A result group's head, as the Home's rails: its name in the serif. */
 @Composable
 private fun Section(title: String) {
-    Text(title, Modifier.padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 8.dp), style = MaterialTheme.typography.titleMedium)
+    Text(title, Modifier.padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 10.dp), style = TextStyle(fontFamily = JkFonts.Serif, fontWeight = FontWeight.SemiBold, fontSize = 18.sp, color = Jk.face.ink))
 }

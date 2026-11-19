@@ -36,6 +36,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.window.Dialog
 import androidx.media3.session.MediaController
 import kotlinx.coroutines.launch
@@ -131,49 +133,40 @@ fun TrackActions(target: TrackTarget?, controller: MediaController?, push: (Scre
     var picking by remember(target) { mutableStateOf(false) }
     var note by remember(target) { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surface) {
-            Column(Modifier.padding(vertical = 12.dp)) {
-                Column(Modifier.padding(horizontal = 20.dp, vertical = 4.dp)) {
-                    Text(target.title, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    target.subtitle?.takeIf { it.isNotEmpty() }?.let {
-                        Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    val count = target.tracks.size
+    SheetDialog(onDismiss, title = target.title, sub = target.subtitle ?: if (count > 1) "$count tracks" else null) {
+        if (picking) {
+            PlaylistPicker(target.tracks.map { it.id }, onDone = onDismiss, onBack = { picking = false })
+            return@SheetDialog
+        }
+        Rule()
+        val c = controller
+        fun act(fn: (MediaController) -> Unit) { if (c != null) fn(c); onDismiss() }
+        Action(Glyphs.Play, "Play now", null, enabled = c != null) { act { it.playQueue(target.tracks, 0, target.context) } }
+        Action(Glyphs.PlayNext, "Play next", "after this track", enabled = c != null) { act { it.enqueue(target.tracks, next = true, context = target.context) } }
+        Action(Glyphs.AddQueue, "Add to queue", "at the end", enabled = c != null) { act { it.enqueue(target.tracks, next = false, context = target.context) } }
+        Action(Glyphs.Playlist, "Add to playlist", null) { picking = true }
+        val seed = target.tracks.firstOrNull()
+        if (seed != null) {
+            Action(Glyphs.Radio, "Start a station", "similar tracks", enabled = c != null) {
+                note = "Building a station…"
+                scope.launch {
+                    when (val r = attempt { KourosApi.radio(seed.id) }) {
+                        is Load.Ready -> if (r.value.isEmpty()) note = "No station for this track yet." else act { it.playStation(seed, r.value) }
+                        is Load.Failed -> note = r.message
+                        Load.Loading -> Unit
                     }
                 }
-                Spacer(Modifier.size(8.dp))
-                if (picking) {
-                    PlaylistPicker(target.tracks.map { it.id }, onDone = onDismiss, onBack = { picking = false })
-                    return@Column
+            }
+        }
+        note?.let { Hush(it, Modifier.padding(horizontal = 20.dp, vertical = 4.dp)) }
+        if (target.artist != null) {
+            Rule(Modifier.padding(top = 4.dp))
+            Row(Modifier.padding(horizontal = 12.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (target.album != null) {
+                    TButton(quiet = true, onClick = { onDismiss(); push(KourosScreen.AlbumPage(target.album, target.artist)) }) { Text("Go to album") }
                 }
-                val c = controller
-                fun act(fn: (MediaController) -> Unit) { if (c != null) fn(c); onDismiss() }
-                Action(Glyphs.Play, "Play now", null, enabled = c != null) { act { it.playQueue(target.tracks, 0, target.context) } }
-                Action(Glyphs.PlayNext, "Play next", "after this track", enabled = c != null) { act { it.enqueue(target.tracks, next = true, context = target.context) } }
-                Action(Glyphs.AddQueue, "Add to queue", "at the end", enabled = c != null) { act { it.enqueue(target.tracks, next = false, context = target.context) } }
-                Action(Glyphs.Playlist, "Add to playlist", null) { picking = true }
-                val seed = target.tracks.firstOrNull()
-                if (seed != null) {
-                    Action(Glyphs.Radio, "Start a station", "similar tracks", enabled = c != null) {
-                        note = "Building a station…"
-                        scope.launch {
-                            when (val r = attempt { KourosApi.radio(seed.id) }) {
-                                is Load.Ready -> if (r.value.isEmpty()) note = "No station for this track yet." else act { it.playStation(seed, r.value) }
-                                is Load.Failed -> note = r.message
-                                Load.Loading -> Unit
-                            }
-                        }
-                    }
-                }
-                note?.let { Text(it, Modifier.padding(horizontal = 20.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                if (target.artist != null) {
-                    HorizontalDivider(Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.surfaceVariant)
-                    Row(Modifier.padding(horizontal = 8.dp)) {
-                        if (target.album != null) {
-                            TButton(quiet = true, onClick = { onDismiss(); push(KourosScreen.AlbumPage(target.album, target.artist)) }) { Text("Go to album") }
-                        }
-                        TButton(quiet = true, onClick = { onDismiss(); push(KourosScreen.ArtistPage(target.artist)) }) { Text("Go to artist") }
-                    }
-                }
+                TButton(quiet = true, onClick = { onDismiss(); push(KourosScreen.ArtistPage(target.artist)) }) { Text("Go to artist") }
             }
         }
     }
@@ -181,14 +174,15 @@ fun TrackActions(target: TrackTarget?, controller: MediaController?, push: (Scre
 
 @Composable
 private fun Action(glyph: ImageVector, label: String, note: String?, enabled: Boolean = true, onClick: () -> Unit) {
+    val f = Jk.face
     Row(
-        Modifier.fillMaxWidth().clickable(enabled = enabled, onClick = onClick).padding(horizontal = 20.dp, vertical = 12.dp),
+        Modifier.fillMaxWidth().clickable(enabled = enabled, onClick = onClick).heightIn(min = 52.dp).padding(horizontal = 20.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(glyph, contentDescription = null, modifier = Modifier.size(22.dp))
+        Icon(glyph, contentDescription = null, modifier = Modifier.size(20.dp), tint = if (enabled) f.accent else f.ghost)
         Spacer(Modifier.width(16.dp))
-        Text(label, Modifier.weight(1f))
-        note?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        Text(label, Modifier.weight(1f), style = TextStyle(fontFamily = JkFonts.Sans, fontSize = 15.sp, fontWeight = FontWeight.Medium, color = if (enabled) f.ink else f.ghost))
+        note?.let { Eyebrow(it, size = 9.sp) }
     }
 }
 
@@ -204,6 +198,7 @@ private fun PlaylistPicker(trackIds: List<Long>, onDone: () -> Unit, onBack: () 
     var busy by remember { mutableStateOf(false) }
     var newName by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
+    val f = Jk.face
     LaunchedEffect(attemptNo) { state = Load.Loading; state = attempt { KourosApi.playlists() } }
 
     fun run(block: suspend () -> String) {
@@ -220,19 +215,21 @@ private fun PlaylistPicker(trackIds: List<Long>, onDone: () -> Unit, onBack: () 
     }
 
     Column(Modifier.padding(horizontal = 12.dp)) {
-        note?.let { Text(it, Modifier.padding(horizontal = 8.dp, vertical = 4.dp), color = MaterialTheme.colorScheme.secondary) }
+        Lab("Add to a playlist", Modifier.padding(horizontal = 8.dp, vertical = 6.dp))
+        note?.let { Text(it, Modifier.padding(horizontal = 8.dp, vertical = 4.dp), style = TextStyle(fontFamily = JkFonts.Sans, fontSize = 13.sp, color = f.accent)) }
         when (val s = state) {
-            Load.Loading -> CircularProgressIndicator(Modifier.padding(16.dp))
+            Load.Loading -> Lamp("Loading", Modifier.padding(12.dp))
             is Load.Failed -> {
-                Text(s.message, Modifier.padding(8.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Hush(s.message, Modifier.padding(8.dp))
                 TButton(quiet = true, onClick = { attemptNo++ }) { Text("Retry") }
             }
             is Load.Ready -> {
-                if (s.value.isEmpty()) Text("No playlists yet. Make one below.", Modifier.padding(8.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (s.value.isEmpty()) Hush("No playlists yet. Make one below.", Modifier.padding(8.dp))
                 LazyColumn(Modifier.heightIn(max = 280.dp)) {
                     items(s.value, key = { it.id }) { p ->
+                        val has = trackIds.all { it in p.trackRefs }
                         Row(
-                            Modifier.fillMaxWidth().clickable(enabled = !busy) {
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(JkRadius.sm)).clickable(enabled = !busy) {
                                 val missing = trackIds.filter { it !in p.trackRefs }
                                 if (missing.isEmpty()) {
                                     note = "Already in “${p.name}”."
@@ -240,25 +237,28 @@ private fun PlaylistPicker(trackIds: List<Long>, onDone: () -> Unit, onBack: () 
                                     run { KourosApi.updatePlaylist(p.id, trackRefs = p.trackRefs + missing); "Added to “${p.name}”." }
                                 }
                             }.padding(horizontal = 8.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Text(p.name, Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text("${p.trackRefs.size}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Icon(Glyphs.Playlist, contentDescription = null, modifier = Modifier.size(18.dp), tint = if (has) f.accent else f.faint)
+                            Spacer(Modifier.width(12.dp))
+                            Text(p.name, Modifier.weight(1f), style = TextStyle(fontFamily = JkFonts.Serif, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = f.ink), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Eyebrow(if (has) "Added" else "${p.trackRefs.size}", color = if (has) f.accent else f.faint, size = 9.sp)
                         }
                     }
                 }
             }
         }
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Field(
                 value = newName, onValueChange = { newName = it.take(200) }, singleLine = true,
                 placeholder = { Text("New playlist") }, modifier = Modifier.weight(1f),
             )
-            TButton(quiet = true, enabled = newName.isNotBlank() && !busy, onClick = {
+            TButton(primary = true, enabled = newName.isNotBlank() && !busy, onClick = {
                 val name = newName.trim()
                 run { val p = KourosApi.createPlaylist(name, trackIds); newName = ""; "Made “${p.name}” with ${trackIds.size} track${if (trackIds.size == 1) "" else "s"}." }
             }) { Text("Create") }
         }
-        Row {
+        Row(Modifier.padding(top = 4.dp)) {
             TButton(quiet = true, onClick = onBack) { Text("Back") }
             Spacer(Modifier.weight(1f))
             TButton(quiet = true, onClick = onDone) { Text("Done") }

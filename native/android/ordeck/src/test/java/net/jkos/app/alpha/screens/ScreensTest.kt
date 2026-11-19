@@ -348,6 +348,46 @@ class ScreensTest {
         }
     }
 
+    private val mixTracks = listOf(
+        net.jkos.app.alpha.kouros.Track(1, "Ceremony", "New Order", "Substance", "New Order", 1, 1, 1987, 264.0, false),
+        net.jkos.app.alpha.kouros.Track(2, "Blue Light", "Mazzy Star", "So Tonight That I Might See", "Mazzy Star", 3, 1, 1993, 307.0, false),
+        net.jkos.app.alpha.kouros.Track(3, "Lorelei", "Cocteau Twins", "Treasure", "Cocteau Twins", 2, 1, 1984, 223.0, false),
+        net.jkos.app.alpha.kouros.Track(4, "Plainsong", "The Cure", "Disintegration", "The Cure", 1, 1, 1989, 312.0, false),
+    )
+
+    @Test fun kourosPlaylists() = captureRoboImage(out("34-kouros-playlists")) {
+        Face {
+            net.jkos.app.alpha.kouros.PlaylistsScreen({}, {}, pre = listOf(
+                net.jkos.app.alpha.kouros.Playlist(1, "Night drive", "Slow, wide, late", listOf(1, 2, 3, 4)),
+                net.jkos.app.alpha.kouros.Playlist(2, "Sunday", null, listOf(2)),
+                net.jkos.app.alpha.kouros.Playlist(3, "To learn", null, emptyList()),
+            ))
+        }
+    }
+
+    @Test fun kourosPlaylist() = captureRoboImage(out("35-kouros-playlist")) {
+        Face(dark = true) {
+            net.jkos.app.alpha.kouros.PlaylistScreen(net.jkos.app.alpha.kouros.KourosScreen.PlaylistPage(1, "Night drive"), null, playing.copy(trackId = 2), {}, {},
+                pre = net.jkos.app.alpha.kouros.Playlist(1, "Night drive", "Slow, wide, late", listOf(1, 2, 3, 4)) to mixTracks)
+        }
+    }
+
+    /** The action sheet is a dialog, its own window: captured as the whole screen. */
+    @Test fun kourosTrackActions() {
+        registerRoborazziActivityToRobolectricIfNeeded()
+        ActivityScenario.launch(RoborazziActivity::class.java).use { s ->
+            s.onActivity { a ->
+                a.setContent {
+                    Face {
+                        TrackPage(playing)
+                        net.jkos.app.alpha.kouros.TrackActions(net.jkos.app.alpha.kouros.TrackTarget.of(mixTracks[1]), null, {}) {}
+                    }
+                }
+            }
+            captureScreenRoboImage(out("36-kouros-track-actions"))
+        }
+    }
+
     @Test fun kourosNowPlaying() = captureRoboImage(out("14-kouros-now")) {
         Face { TrackPage(playing) }
     }

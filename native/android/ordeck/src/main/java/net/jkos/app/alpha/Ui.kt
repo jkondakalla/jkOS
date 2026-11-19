@@ -29,7 +29,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.CancellationException
@@ -146,3 +149,29 @@ fun Choice(label: String, selected: Boolean, onClick: () -> Unit) {
         )
     }
 }
+
+/**
+ * A dialog drawn as the suite draws one: a sheet on card stock with its title in the serif and a
+ * line under it, never Material's dialog. [content] lays out the body and its actions.
+ */
+@Composable
+fun SheetDialog(onDismiss: () -> Unit, title: String? = null, sub: String? = null, content: @Composable ColumnScope.() -> Unit) {
+    Dialog(onDismissRequest = onDismiss) {
+        Sheet(Modifier.fillMaxWidth(), padding = PaddingValues(top = 16.dp, bottom = 10.dp)) {
+            if (title != null) {
+                Column(Modifier.padding(horizontal = 18.dp).padding(bottom = 8.dp)) {
+                    Text(title, style = TextStyle(fontFamily = JkFonts.Serif, fontWeight = FontWeight.SemiBold, fontSize = 18.sp, color = Jk.face.ink), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    if (!sub.isNullOrEmpty()) Text(sub, style = TextStyle(fontFamily = JkFonts.Sans, fontSize = 13.sp, color = Jk.face.muted), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+            content()
+        }
+    }
+}
+
+/** A sheet dialog's buttons, at its foot on the right. */
+@Composable
+fun DialogActions(content: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(start = 18.dp, end = 14.dp, top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End), content = content)
+}
+
